@@ -654,6 +654,9 @@ class DietRequestManager {
                 // Update anchors dropdown
                 this.updateAnchorsDropdown(result.data.anchors);
 
+                // Update others dropdown
+                this.updateOthersDropdown(result.data.others);
+
                 // Store config for later use
                 this.systemConfig = result.data;
             } else {
@@ -683,6 +686,34 @@ class DietRequestManager {
         });
 
         console.log(`Updated anchors dropdown with ${anchors.length} options`);
+    }
+
+    // Update others dropdown with data from system config
+    updateOthersDropdown(othersList) {
+        const optionsContainer = document.querySelector('#dietOthersOptions .options-list');
+        if (!optionsContainer || !Array.isArray(othersList)) return;
+
+        // Clear existing options
+        optionsContainer.innerHTML = '';
+
+        // Add new options from system config
+        othersList.forEach(name => {
+            const optionItem = document.createElement('label');
+            optionItem.className = 'option-item';
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.value = name;
+
+            const span = document.createElement('span');
+            span.textContent = name;
+
+            optionItem.appendChild(checkbox);
+            optionItem.appendChild(span);
+            optionsContainer.appendChild(optionItem);
+        });
+
+        console.log(`Updated others dropdown with ${othersList.length} options`);
     }
 
     // Set default start date to tomorrow

@@ -1219,14 +1219,16 @@ async function getSystemConfig() {
             username: values[1] && values[1][0] ? values[1][0].toString().trim() : '', // C2 - username
             password: values[2] && values[2][0] ? values[2][0].toString().trim() : '', // C3 - password
             anchors: values[4] && values[4][0] ? values[4][0].toString().trim() : '', // C5 - anchors JSON
-            referredBy: values[5] && values[5][0] ? values[5][0].toString().trim() : '' // C6 - referred by names
+            referredBy: values[5] && values[5][0] ? values[5][0].toString().trim() : '', // C6 - referred by names
+            others: values[6] && values[6][0] ? values[6][0].toString().trim() : '' // C7 - others names
         };
 
         console.log('System Config processed:', {
             username: config.username ? `"${config.username}"` : 'not set',
             password: config.password ? '***' : 'not set',
             anchors: config.anchors ? `"${config.anchors.substring(0, 50)}..."` : 'not set',
-            referredBy: config.referredBy ? `"${config.referredBy}"` : 'not set'
+            referredBy: config.referredBy ? `"${config.referredBy}"` : 'not set',
+            others: config.others ? `"${config.others}"` : 'not set'
         });
 
         return config;
@@ -1239,7 +1241,8 @@ async function getSystemConfig() {
             username: '',
             password: '',
             anchors: '',
-            referredBy: ''
+            referredBy: '',
+            others: ''
         };
     }
 }
@@ -2227,11 +2230,56 @@ app.get('/api/system-config', async (req, res) => {
             referredByList = config.referredBy.split(',').map(name => name.trim()).filter(name => name);
         }
 
+        // Parse others JSON if it exists
+        let othersList = [];
+        if (config.others) {
+            try {
+                console.log('Raw others string:', config.others);
+
+                // Try to fix common JSON issues
+                let cleanedOthers = config.others
+                    .replace(/\n/g, '') // Remove newlines
+                    .replace(/\r/g, '') // Remove carriage returns
+                    .trim(); // Remove leading/trailing spaces
+
+                console.log('Cleaned others string:', cleanedOthers);
+
+                const othersData = JSON.parse(cleanedOthers);
+
+                if (Array.isArray(othersData)) {
+                    // Already in correct format
+                    othersList = othersData;
+                } else if (typeof othersData === 'object') {
+                    // Convert from {name: email} format to array of names
+                    othersList = Object.keys(othersData);
+                }
+
+                console.log('Successfully parsed others:', othersList);
+            } catch (parseError) {
+                console.error('Error parsing others JSON:', parseError.message);
+                console.error('Raw others data:', JSON.stringify(config.others));
+
+                // Try to extract names manually if JSON parsing fails
+                try {
+                    const nameMatches = config.others.match(/"([^"]+)":/g);
+                    if (nameMatches) {
+                        othersList = nameMatches.map(match => match.replace(/"/g, '').replace(':', ''));
+                        console.log('Extracted others names manually:', othersList);
+                    }
+                } catch (extractError) {
+                    console.error('Failed to extract others names manually');
+                    // Fallback to comma-separated parsing
+                    othersList = config.others.split(',').map(name => name.trim()).filter(name => name);
+                }
+            }
+        }
+
         res.json({
             success: true,
             data: {
                 anchors: anchors,
-                referredBy: referredByList
+                referredBy: referredByList,
+                others: othersList
             }
         });
     } catch (error) {
@@ -2285,7 +2333,8 @@ app.get('/api/debug/system-config', async (req, res) => {
                 username: `"${config.username}"`,
                 password: `"${config.password}"`,
                 anchors: `"${config.anchors}"`,
-                referredBy: `"${config.referredBy}"`
+                referredBy: `"${config.referredBy}"`,
+                others: `"${config.others}"`
             }
         });
     } catch (error) {
