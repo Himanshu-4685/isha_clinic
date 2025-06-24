@@ -1,0 +1,767 @@
+// Google Sheets API integration via backend server
+class GoogleSheetsAPI {
+    constructor() {
+        this.baseURL = 'http://localhost:3001/api';
+        this.isInitialized = false;
+    }
+
+    // Initialize the Google Sheets API connection
+    async initialize() {
+        try {
+            // Test connection to backend server
+            const response = await fetch(`${this.baseURL}/test`);
+            const data = await response.json();
+
+            if (response.ok) {
+                this.isInitialized = true;
+                console.log('Google Sheets API initialized successfully:', data.message);
+                return true;
+            } else {
+                throw new Error('Backend server not responding');
+            }
+        } catch (error) {
+            console.error('Failed to initialize Google Sheets API:', error);
+            console.error('Make sure the backend server is running on port 3001');
+            return false;
+        }
+    }
+
+    // Read data from a specific range in the spreadsheet
+    async readRange(worksheetName, range) {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            // Demo mode - return sample data
+            console.log(`Demo: Reading from ${worksheetName}!${range}`);
+
+            // Return sample patient data for demo
+            if (worksheetName === 'Patient Database') {
+                return [
+                    ['John Doe', 'IYC001', '', '', '9876543210'],
+                    ['Jane Smith', 'IYC002', '', '', '9876543211'],
+                    ['Bob Johnson', 'IYC003', '', '', '9876543212']
+                ];
+            }
+
+            return [];
+        } catch (error) {
+            console.error('Error reading from Google Sheets:', error);
+            throw error;
+        }
+    }
+
+    // Append data to a worksheet
+    async appendData(worksheetName, values, insertAfterRow = null) {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            // Demo mode - simulate successful append
+            console.log(`Demo: Appending to ${worksheetName}`, values);
+            console.log(`Insert after row: ${insertAfterRow}`);
+
+            // Simulate API response
+            return {
+                spreadsheetId: CONFIG.GOOGLE_SHEETS.SPREADSHEET_ID,
+                tableRange: `${worksheetName}!A${insertAfterRow || 'end'}:G${insertAfterRow || 'end'}`,
+                updates: {
+                    spreadsheetId: CONFIG.GOOGLE_SHEETS.SPREADSHEET_ID,
+                    updatedRows: 1,
+                    updatedColumns: values.length,
+                    updatedCells: values.length
+                }
+            };
+        } catch (error) {
+            console.error('Error appending to Google Sheets:', error);
+            throw error;
+        }
+    }
+
+    // Get sheet ID by name
+    async getSheetId(worksheetName) {
+        try {
+            // Demo mode - return mock sheet ID
+            console.log(`Demo: Getting sheet ID for ${worksheetName}`);
+            return 0; // Default sheet ID
+        } catch (error) {
+            console.error('Error getting sheet ID:', error);
+            throw error;
+        }
+    }
+
+    // Lookup patient data by IYC number
+    async lookupPatientByIYC(iycNumber) {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            const response = await fetch(`${this.baseURL}/patient/${encodeURIComponent(iycNumber)}`);
+            const data = await response.json();
+
+            if (response.ok) {
+                return data;
+            } else {
+                throw new Error(data.error || 'Failed to lookup patient');
+            }
+        } catch (error) {
+            console.error('Error looking up patient:', error);
+            throw error;
+        }
+    }
+
+    // Save blood test data
+    async saveBloodTest(testData) {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            const response = await fetch(`${this.baseURL}/blood-test`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(testData)
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                return data;
+            } else {
+                throw new Error(data.message || 'Failed to save blood test');
+            }
+        } catch (error) {
+            console.error('Error saving blood test:', error);
+            return {
+                success: false,
+                message: 'Failed to save blood test: ' + error.message,
+                error: error
+            };
+        }
+    }
+
+    // Get tests by status
+    async getTests(status) {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            const response = await fetch(`${this.baseURL}/tests/${encodeURIComponent(status)}`);
+            const data = await response.json();
+
+            if (response.ok) {
+                return data;
+            } else {
+                throw new Error(data.message || 'Failed to get tests');
+            }
+        } catch (error) {
+            console.error('Error getting tests:', error);
+            throw error;
+        }
+    }
+
+    // Get all tests (for client-side filtering)
+    async getAllTests() {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            const response = await fetch(`${this.baseURL}/tests/all`);
+            const data = await response.json();
+
+            if (response.ok) {
+                return data;
+            } else {
+                throw new Error(data.message || 'Failed to get all tests');
+            }
+        } catch (error) {
+            console.error('Error getting all tests:', error);
+            throw error;
+        }
+    }
+
+    // Update test status (much more efficient than moving between sheets)
+    async updateTestStatus(testIds, newStatus, rowIndices) {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            const response = await fetch(`${this.baseURL}/update-status`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    testIds,
+                    newStatus,
+                    rowIndices
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                return data;
+            } else {
+                throw new Error(data.message || 'Failed to update test status');
+            }
+        } catch (error) {
+            console.error('Error updating test status:', error);
+            throw error;
+        }
+    }
+
+    // Update test data
+    async updateTest(rowIndex, testData) {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            const response = await fetch(`${this.baseURL}/test/${rowIndex}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(testData)
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                return data;
+            } else {
+                throw new Error(data.message || 'Failed to update test');
+            }
+        } catch (error) {
+            console.error('Error updating test:', error);
+            throw error;
+        }
+    }
+
+    // Delete tests
+    async deleteTests(rowIndices) {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            const response = await fetch(`${this.baseURL}/tests`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    rowIndices
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                return data;
+            } else {
+                throw new Error(data.message || 'Failed to delete tests');
+            }
+        } catch (error) {
+            console.error('Error deleting tests:', error);
+            throw error;
+        }
+    }
+
+    // Get hospitals from Hospital Directory
+    async getHospitals() {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            const response = await fetch(`${this.baseURL}/hospitals`);
+            const data = await response.json();
+
+            if (response.ok) {
+                return data;
+            } else {
+                throw new Error(data.message || 'Failed to get hospitals');
+            }
+        } catch (error) {
+            console.error('Error getting hospitals:', error);
+            return {
+                success: false,
+                message: 'Failed to get hospitals: ' + error.message,
+                hospitals: []
+            };
+        }
+    }
+
+    // Get all patients for search functionality
+    async getAllPatients() {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            const response = await fetch(`${this.baseURL}/patients`);
+            const data = await response.json();
+
+            if (response.ok) {
+                return data;
+            } else {
+                throw new Error(data.message || 'Failed to get patients');
+            }
+        } catch (error) {
+            console.error('Error getting patients:', error);
+            return {
+                success: false,
+                message: 'Failed to get patients: ' + error.message,
+                patients: []
+            };
+        }
+    }
+
+    // Save hospital visit data
+    async saveHospitalVisit(visitData) {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            const response = await fetch(`${this.baseURL}/hospital-visit`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(visitData)
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                return data;
+            } else {
+                throw new Error(data.message || 'Failed to save hospital visit');
+            }
+        } catch (error) {
+            console.error('Error saving hospital visit:', error);
+            return {
+                success: false,
+                message: 'Failed to save hospital visit: ' + error.message,
+                error: error
+            };
+        }
+    }
+
+    // Get hospital visits by status
+    async getHospitalVisits(status) {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            const response = await fetch(`${this.baseURL}/hospital-visits/${encodeURIComponent(status)}`);
+            const data = await response.json();
+
+            if (response.ok) {
+                return data;
+            } else {
+                throw new Error(data.message || 'Failed to get hospital visits');
+            }
+        } catch (error) {
+            console.error('Error getting hospital visits:', error);
+            return {
+                success: false,
+                message: 'Failed to get hospital visits: ' + error.message,
+                visits: []
+            };
+        }
+    }
+
+    // Update hospital visit status
+    async updateHospitalVisitStatus(visitIds, newStatus, rowIndices) {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            const response = await fetch(`${this.baseURL}/hospital-visit-status`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    visitIds,
+                    newStatus,
+                    rowIndices
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                return data;
+            } else {
+                throw new Error(data.message || 'Failed to update hospital visit status');
+            }
+        } catch (error) {
+            console.error('Error updating hospital visit status:', error);
+            return {
+                success: false,
+                message: 'Failed to update hospital visit status: ' + error.message
+            };
+        }
+    }
+
+    // Save ultrasound data
+    async saveUltrasound(ultrasoundData) {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            const response = await fetch(`${this.baseURL}/ultrasound`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(ultrasoundData)
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                return data;
+            } else {
+                throw new Error(data.message || 'Failed to save ultrasound');
+            }
+        } catch (error) {
+            console.error('Error saving ultrasound:', error);
+            return {
+                success: false,
+                message: 'Failed to save ultrasound: ' + error.message,
+                error: error
+            };
+        }
+    }
+
+    // Get ultrasounds by status
+    async getUltrasounds(status) {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            const response = await fetch(`${this.baseURL}/ultrasounds/${encodeURIComponent(status)}`);
+            const data = await response.json();
+
+            if (response.ok) {
+                return data;
+            } else {
+                throw new Error(data.message || 'Failed to get ultrasounds');
+            }
+        } catch (error) {
+            console.error('Error getting ultrasounds:', error);
+            throw error;
+        }
+    }
+
+    // Get all ultrasounds (for client-side filtering)
+    async getAllUltrasounds() {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            const response = await fetch(`${this.baseURL}/ultrasounds/all`);
+            const data = await response.json();
+
+            if (response.ok) {
+                return data;
+            } else {
+                throw new Error(data.message || 'Failed to get all ultrasounds');
+            }
+        } catch (error) {
+            console.error('Error getting all ultrasounds:', error);
+            throw error;
+        }
+    }
+
+    // Update ultrasound status (much more efficient than moving between sheets)
+    async updateUltrasoundStatus(ultrasoundIds, newStatus, rowIndices) {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            const response = await fetch(`${this.baseURL}/ultrasound-status`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    ultrasoundIds,
+                    newStatus,
+                    rowIndices
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                return data;
+            } else {
+                throw new Error(data.message || 'Failed to update ultrasound status');
+            }
+        } catch (error) {
+            console.error('Error updating ultrasound status:', error);
+            throw error;
+        }
+    }
+
+    // Update ultrasound data
+    async updateUltrasound(rowIndex, ultrasoundData) {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            const response = await fetch(`${this.baseURL}/ultrasound/${rowIndex}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(ultrasoundData)
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                return data;
+            } else {
+                throw new Error(data.message || 'Failed to update ultrasound');
+            }
+        } catch (error) {
+            console.error('Error updating ultrasound:', error);
+            throw error;
+        }
+    }
+
+    // Delete ultrasounds
+    async deleteUltrasounds(rowIndices) {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            const response = await fetch(`${this.baseURL}/ultrasounds`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    rowIndices
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                return data;
+            } else {
+                throw new Error(data.message || 'Failed to delete ultrasounds');
+            }
+        } catch (error) {
+            console.error('Error deleting ultrasounds:', error);
+            throw error;
+        }
+    }
+
+    // Update appointment date for a hospital visit
+    async updateAppointmentDate(visitId, appointmentDate) {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            const response = await fetch(`${this.baseURL}/update-appointment-date`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    visitId,
+                    appointmentDate
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                return data;
+            } else {
+                throw new Error(data.message || 'Failed to update appointment date');
+            }
+        } catch (error) {
+            console.error('Error updating appointment date:', error);
+            return {
+                success: false,
+                message: 'Failed to update appointment date: ' + error.message
+            };
+        }
+    }
+
+    // Update hospital visit submission status
+    async updateHospitalVisitSubmission(visitId, field, value) {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            const response = await fetch(`${this.baseURL}/hospital-visit-submission`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    visitId,
+                    field,
+                    value
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                return data;
+            } else {
+                throw new Error(data.message || 'Failed to update submission status');
+            }
+        } catch (error) {
+            console.error('Error updating submission status:', error);
+            return {
+                success: false,
+                message: 'Failed to update submission status: ' + error.message
+            };
+        }
+    }
+
+    // Save diet request
+    async saveDietRequest(dietRequestData) {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            const response = await fetch(`${this.baseURL}/diet-request`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(dietRequestData)
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                return data;
+            } else {
+                throw new Error(data.message || 'Failed to save diet request');
+            }
+        } catch (error) {
+            console.error('Error saving diet request:', error);
+            return {
+                success: false,
+                message: 'Failed to save diet request: ' + error.message
+            };
+        }
+    }
+
+    // Get all diet requests
+    async getDietRequests() {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            const response = await fetch(`${this.baseURL}/diet-requests`);
+            const data = await response.json();
+
+            if (response.ok) {
+                return data;
+            } else {
+                throw new Error(data.message || 'Failed to get diet requests');
+            }
+        } catch (error) {
+            console.error('Error getting diet requests:', error);
+            return {
+                success: false,
+                message: 'Failed to get diet requests: ' + error.message
+            };
+        }
+    }
+
+    // Delete diet requests
+    async deleteDietRequests(dietRequestIds) {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            const response = await fetch(`${this.baseURL}/diet-requests/delete`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ dietRequestIds })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                return data;
+            } else {
+                throw new Error(data.message || 'Failed to delete diet requests');
+            }
+        } catch (error) {
+            console.error('Error deleting diet requests:', error);
+            return {
+                success: false,
+                message: 'Failed to delete diet requests: ' + error.message
+            };
+        }
+    }
+
+    // Get system configuration
+    async getSystemConfig() {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            const response = await fetch(`${this.baseURL}/system-config`);
+            const data = await response.json();
+
+            if (response.ok) {
+                return data;
+            } else {
+                throw new Error(data.message || 'Failed to get system config');
+            }
+        } catch (error) {
+            console.error('Error getting system config:', error);
+            return {
+                success: false,
+                message: 'Failed to get system config: ' + error.message
+            };
+        }
+    }
+}
+
+// Create global instance
+const googleSheetsAPI = new GoogleSheetsAPI();

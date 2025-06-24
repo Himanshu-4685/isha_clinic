@@ -1,0 +1,2324 @@
+const express = require('express');
+const cors = require('cors');
+const { google } = require('googleapis');
+const path = require('path');
+const fs = require('fs');
+const nodemailer = require('nodemailer');
+
+const app = express();
+const PORT = process.env.PORT || 3001;
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.static('.'));
+
+// Load Google Sheets credentials
+const credentials = JSON.parse(fs.readFileSync('./credential.json'));
+
+// Google Sheets configuration
+const SPREADSHEET_ID = '1UQJbelESSslpu0VsgRKFZZD_wRwgRDhPQdTEjtIT7BM';
+
+// Initialize Google Sheets API
+const auth = new google.auth.GoogleAuth({
+    credentials: credentials,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets']
+});
+
+const sheets = google.sheets({ version: 'v4', auth });
+
+// Helper function to get next Tuesday or Friday
+function getNextTestDate() {
+    const today = new Date();
+    const currentDay = today.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+
+    // Tuesday = 2, Friday = 5
+    const tuesday = 2;
+    const friday = 5;
+
+    let daysToAdd = 0;
+
+    if (currentDay < tuesday) {
+        // If today is before Tuesday, next test is this Tuesday
+        daysToAdd = tuesday - currentDay;
+    } else if (currentDay < friday) {
+        // If today is Tuesday, Wednesday, or Thursday, next test is this Friday
+        daysToAdd = friday - currentDay;
+    } else {
+        // If today is Friday, Saturday, or Sunday, next test is next Tuesday
+        daysToAdd = (7 - currentDay) + tuesday;
+    }
+
+    const nextTestDate = new Date(today);
+    nextTestDate.setDate(today.getDate() + daysToAdd);
+
+    return nextTestDate.toISOString().split('T')[0]; // Return YYYY-MM-DD format
+}
+
+// API Routes
+
+// Test endpoint
+app.get('/api/test', (req, res) => {
+    res.json({ message: 'Google Sheets API server is running!', timestamp: new Date().toISOString() });
+});
+
+// Lookup patient by IYC number
+app.get('/api/patient/:iycNumber', async (req, res) => {
+    try {
+        const { iycNumber } = req.params;
+
+        console.log(`Looking up patient with IYC: ${iycNumber}`);
+
+        // Read from Patient Database worksheet (including email and category columns)
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'Patient Database!A:H',
+        });
+
+        const rows = response.data.values || [];
+
+        // Find matching IYC number (case-insensitive)
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            if (row[1] && row[1].toString().toLowerCase() === iycNumber.toLowerCase()) {
+                return res.json({
+                    found: true,
+                    name: row[0] || '',
+                    iycNumber: row[1] || '',
+                    email: row[2] || '', // Column C for email (assuming)
+                    phone: row[4] || '',
+                    category: row[6] || '' // Column G for category
+                });
+            }
+        }
+
+        res.json({ found: false });
+
+    } catch (error) {
+        console.error('Error looking up patient:', error);
+        res.status(500).json({
+            error: 'Failed to lookup patient',
+            details: error.message
+        });
+    }
+});
+
+// Save blood test
+app.post('/api/blood-test', async (req, res) => {
+    try {
+        const { schedule, testDate, iycNumber, patientName, category, phoneNumber, testName, referredBy } = req.body;
+
+        console.log('Saving blood test:', req.body);
+
+        // Use single worksheet for all blood tests
+        const worksheetName = 'Blood_Test_Data';
+        const insertAfterRow = 3; // Insert after row 2 (header in row 1)
+
+        // Use provided date or calculate next test date
+        const finalDate = testDate || getNextTestDate();
+
+        // Generate unique ID (timestamp-based)
+        const testId = `BT${Date.now()}`;
+        const currentTimestamp = new Date().toISOString();
+
+        // Prepare row data with all columns including ID, Created, and Updated timestamps
+        const values = [[testId, finalDate, iycNumber, patientName, category, phoneNumber, testName, referredBy, schedule, '', currentTimestamp, currentTimestamp]];
+
+        // First, insert a new row at the specified position
+        await sheets.spreadsheets.batchUpdate({
+            spreadsheetId: SPREADSHEET_ID,
+            resource: {
+                requests: [{
+                    insertDimension: {
+                        range: {
+                            sheetId: await getSheetId(worksheetName),
+                            dimension: 'ROWS',
+                            startIndex: insertAfterRow - 1,
+                            endIndex: insertAfterRow
+                        },
+                        inheritFromBefore: false
+                    }
+                }]
+            }
+        });
+
+        // Then update the values in the new row
+        const range = `${worksheetName}!A${insertAfterRow}:L${insertAfterRow}`;
+        await sheets.spreadsheets.values.update({
+            spreadsheetId: SPREADSHEET_ID,
+            range: range,
+            valueInputOption: 'RAW',
+            resource: {
+                values: values
+            }
+        });
+
+        res.json({
+            success: true,
+            message: 'Blood test saved successfully',
+            data: {
+                worksheet: worksheetName,
+                row: insertAfterRow,
+                values: values[0]
+            }
+        });
+
+    } catch (error) {
+        console.error('Error saving blood test:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to save blood test',
+            error: error.message
+        });
+    }
+});
+
+// Helper function to get sheet ID by name
+async function getSheetId(worksheetName) {
+    try {
+        const response = await sheets.spreadsheets.get({
+            spreadsheetId: SPREADSHEET_ID
+        });
+
+        const sheet = response.data.sheets.find(s => s.properties.title === worksheetName);
+
+        if (!sheet) {
+            throw new Error(`Worksheet '${worksheetName}' not found`);
+        }
+
+        return sheet.properties.sheetId;
+    } catch (error) {
+        console.error('Error getting sheet ID:', error);
+        throw error;
+    }
+}
+
+// Helper function to ensure Blood_Test_Data worksheet has correct headers
+async function ensureBloodTestHeaders() {
+    try {
+        console.log('Checking Blood_Test_Data worksheet headers...');
+
+        // Check if the worksheet exists and has correct headers
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'Blood_Test_Data!A1:L1',
+        });
+
+        const expectedHeaders = ['ID', 'Date', 'IYC Number', 'Name', 'Category', 'Phone', 'Test Name', 'Referred By', 'Status', 'Remarks', 'Created', 'Updated'];
+        const currentHeaders = response.data.values ? response.data.values[0] : [];
+
+        // Check if headers match
+        const headersMatch = expectedHeaders.every((header, index) => currentHeaders[index] === header);
+
+        if (!headersMatch) {
+            console.log('Updating Blood_Test_Data headers to include Category column...');
+
+            // Update the header row
+            await sheets.spreadsheets.values.update({
+                spreadsheetId: SPREADSHEET_ID,
+                range: 'Blood_Test_Data!A1:L1',
+                valueInputOption: 'RAW',
+                resource: {
+                    values: [expectedHeaders]
+                }
+            });
+
+            console.log('Blood_Test_Data headers updated successfully');
+        } else {
+            console.log('Blood_Test_Data headers are correct');
+        }
+    } catch (error) {
+        console.error('Error ensuring Blood_Test_Data headers:', error);
+        // Don't throw error, just log it - the app should still work
+    }
+}
+
+// Get all tests (for client-side filtering) - MUST come before /api/tests/:status
+app.get('/api/tests/all', async (req, res) => {
+    try {
+        console.log('Getting all tests from Blood_Test_Data');
+
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: `Blood_Test_Data!A:L`,
+        });
+
+        const rows = response.data.values || [];
+
+        // Skip header row and format all data
+        const tests = rows.slice(1).map((row, index) => ({
+            id: row[0] || '', // Use the ID from column A
+            rowIndex: index + 2, // Actual row number in sheet (0-indexed + 2 for header)
+            date: row[1] || '',
+            iycNumber: row[2] || '',
+            name: row[3] || '',
+            category: row[4] || '',
+            phone: row[5] || '',
+            testName: row[6] || '',
+            referredBy: row[7] || '',
+            status: row[8] || '',
+            remarks: row[9] || '',
+            created: row[10] || '',
+            updated: row[11] || ''
+        })).filter(test => {
+            // Only include rows with IYC numbers
+            return test.iycNumber;
+        });
+
+        res.json({
+            success: true,
+            tests: tests,
+            count: tests.length
+        });
+
+    } catch (error) {
+        console.error('Error getting all tests:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to get all tests',
+            error: error.message
+        });
+    }
+});
+
+// Get tests filtered by status
+app.get('/api/tests/:status', async (req, res) => {
+    try {
+        const { status } = req.params;
+
+        console.log(`Getting tests with status: ${status}`);
+
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: `Blood_Test_Data!A:L`,
+        });
+
+        const rows = response.data.values || [];
+
+        // Skip header row and filter by status
+        const tests = rows.slice(1).map((row, index) => ({
+            id: row[0] || '', // A=ID
+            rowIndex: index + 2, // Actual row number in sheet (0-indexed + 2 for header)
+            date: row[1] || '', // B=Date
+            iycNumber: row[2] || '', // C=IYC
+            name: row[3] || '', // D=Name
+            category: row[4] || '', // E=Category
+            phone: row[5] || '', // F=Phone
+            testName: row[6] || '', // G=Test Name
+            referredBy: row[7] || '', // H=Referred By
+            status: row[8] || '', // I=Status
+            remarks: row[9] || '', // J=Remarks
+            created: row[10] || '', // K=Created
+            updated: row[11] || '' // L=Updated
+        })).filter(test => {
+            // Filter by status and ensure we have required data
+            return test.iycNumber && test.status === status;
+        });
+
+        res.json({
+            success: true,
+            status: status,
+            tests: tests,
+            count: tests.length
+        });
+
+    } catch (error) {
+        console.error('Error getting tests:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to get tests',
+            error: error.message
+        });
+    }
+});
+
+// Update test status (bulk operation) - much more efficient than moving between sheets
+app.post('/api/update-status', async (req, res) => {
+    try {
+        const { testIds, newStatus, rowIndices } = req.body;
+
+        console.log(`Updating ${testIds.length} tests to status: ${newStatus}`);
+
+        if (testIds.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'No tests provided for update'
+            });
+        }
+
+        const currentTimestamp = new Date().toISOString();
+        const updates = [];
+
+        // Prepare batch update for all selected tests
+        for (let i = 0; i < rowIndices.length; i++) {
+            const rowIndex = rowIndices[i];
+
+            // Update status (column I) and updated timestamp (column L)
+            updates.push({
+                range: `Blood_Test_Data!I${rowIndex}:L${rowIndex}`,
+                values: [[newStatus, '', '', currentTimestamp]] // Status, Remarks (unchanged), Created (unchanged), Updated
+            });
+        }
+
+        // Execute batch update
+        await sheets.spreadsheets.values.batchUpdate({
+            spreadsheetId: SPREADSHEET_ID,
+            resource: {
+                valueInputOption: 'RAW',
+                data: updates
+            }
+        });
+
+        res.json({
+            success: true,
+            message: `Successfully updated ${testIds.length} tests to ${newStatus}`,
+            updatedCount: testIds.length,
+            newStatus: newStatus
+        });
+
+    } catch (error) {
+        console.error('Error updating test status:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update test status',
+            error: error.message
+        });
+    }
+});
+
+// Update individual test data
+app.put('/api/test/:rowIndex', async (req, res) => {
+    try {
+        const { rowIndex } = req.params;
+        const { date, iycNumber, name, category, phone, testName, referredBy, status, remarks } = req.body;
+
+        console.log(`Updating test at row ${rowIndex}`);
+
+        const currentTimestamp = new Date().toISOString();
+
+        // Update only the editable fields (B to L for updated timestamp)
+        // Keep ID (A), Created (K) unchanged
+        const range = `Blood_Test_Data!B${rowIndex}:L${rowIndex}`;
+        const values = [[date, iycNumber, name, category, phone, testName, referredBy, status, remarks, '', currentTimestamp]];
+
+        await sheets.spreadsheets.values.update({
+            spreadsheetId: SPREADSHEET_ID,
+            range: range,
+            valueInputOption: 'RAW',
+            resource: {
+                values: values
+            }
+        });
+
+        res.json({
+            success: true,
+            message: 'Test updated successfully',
+            data: values[0]
+        });
+
+    } catch (error) {
+        console.error('Error updating test:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update test',
+            error: error.message
+        });
+    }
+});
+
+// Delete tests (bulk operation)
+app.delete('/api/tests', async (req, res) => {
+    try {
+        const { rowIndices } = req.body;
+
+        console.log(`Deleting ${rowIndices.length} tests from Blood_Test_Data`);
+
+        // Delete rows in reverse order to maintain indices
+        const sortedIndices = rowIndices.sort((a, b) => b - a);
+        for (const rowIndex of sortedIndices) {
+            await sheets.spreadsheets.batchUpdate({
+                spreadsheetId: SPREADSHEET_ID,
+                resource: {
+                    requests: [{
+                        deleteDimension: {
+                            range: {
+                                sheetId: await getSheetId('Blood_Test_Data'),
+                                dimension: 'ROWS',
+                                startIndex: rowIndex - 1,
+                                endIndex: rowIndex
+                            }
+                        }
+                    }]
+                }
+            });
+        }
+
+        res.json({
+            success: true,
+            message: `Successfully deleted ${rowIndices.length} tests`,
+            deletedCount: rowIndices.length
+        });
+
+    } catch (error) {
+        console.error('Error deleting tests:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to delete tests',
+            error: error.message
+        });
+    }
+});
+
+// Save ultrasound
+app.post('/api/ultrasound', async (req, res) => {
+    try {
+        const { schedule, testDate, iycNumber, patientName, category, phoneNumber, testName, referredBy } = req.body;
+
+        console.log('Saving ultrasound:', req.body);
+
+        // Use single worksheet for all ultrasounds
+        const worksheetName = 'Ultrasound_Data';
+        const insertAfterRow = 3; // Insert after row 2 (header in row 1)
+
+        // Ensure the worksheet exists with correct headers
+        await ensureUltrasoundHeaders();
+
+        // Use provided date or leave empty (different from blood test)
+        const finalDate = testDate || '';
+
+        // Generate unique ID (timestamp-based)
+        const ultrasoundId = `US${Date.now()}`;
+        const currentTimestamp = new Date().toISOString();
+
+        // Prepare row data with all columns including ID, Created, and Updated timestamps
+        const values = [[ultrasoundId, finalDate, iycNumber, patientName, category, phoneNumber, testName, referredBy, schedule, '', currentTimestamp, currentTimestamp]];
+
+        // First, insert a new row at the specified position
+        await sheets.spreadsheets.batchUpdate({
+            spreadsheetId: SPREADSHEET_ID,
+            resource: {
+                requests: [{
+                    insertDimension: {
+                        range: {
+                            sheetId: await getSheetId(worksheetName),
+                            dimension: 'ROWS',
+                            startIndex: insertAfterRow - 1,
+                            endIndex: insertAfterRow
+                        },
+                        inheritFromBefore: false
+                    }
+                }]
+            }
+        });
+
+        // Then update the values in the new row
+        const range = `${worksheetName}!A${insertAfterRow}:L${insertAfterRow}`;
+        await sheets.spreadsheets.values.update({
+            spreadsheetId: SPREADSHEET_ID,
+            range: range,
+            valueInputOption: 'RAW',
+            resource: {
+                values: values
+            }
+        });
+
+        res.json({
+            success: true,
+            message: 'Ultrasound saved successfully',
+            data: {
+                worksheet: worksheetName,
+                row: insertAfterRow,
+                values: values[0]
+            }
+        });
+
+    } catch (error) {
+        console.error('Error saving ultrasound:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to save ultrasound',
+            error: error.message
+        });
+    }
+});
+
+// Helper function to ensure Ultrasound_Data worksheet exists and has correct headers
+async function ensureUltrasoundHeaders() {
+    try {
+        console.log('Checking Ultrasound_Data worksheet headers...');
+
+        // First, try to get the worksheet to see if it exists
+        let worksheetExists = true;
+        try {
+            await sheets.spreadsheets.values.get({
+                spreadsheetId: SPREADSHEET_ID,
+                range: 'Ultrasound_Data!A1:L1',
+            });
+        } catch (error) {
+            if (error.message.includes('Unable to parse range') || error.message.includes('not found')) {
+                worksheetExists = false;
+            } else {
+                throw error;
+            }
+        }
+
+        // If worksheet doesn't exist, create it
+        if (!worksheetExists) {
+            console.log('Creating Ultrasound_Data worksheet...');
+
+            await sheets.spreadsheets.batchUpdate({
+                spreadsheetId: SPREADSHEET_ID,
+                resource: {
+                    requests: [{
+                        addSheet: {
+                            properties: {
+                                title: 'Ultrasound_Data'
+                            }
+                        }
+                    }]
+                }
+            });
+
+            console.log('Ultrasound_Data worksheet created successfully');
+        }
+
+        // Now check and update headers
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'Ultrasound_Data!A1:L1',
+        });
+
+        const expectedHeaders = ['ID', 'Date', 'IYC Number', 'Name', 'Category', 'Phone', 'Ultrasound Type', 'Referred By', 'Status', 'Remarks', 'Created', 'Updated'];
+        const currentHeaders = response.data.values ? response.data.values[0] : [];
+
+        // Check if headers match
+        const headersMatch = expectedHeaders.every((header, index) => currentHeaders[index] === header);
+
+        if (!headersMatch) {
+            console.log('Updating Ultrasound_Data headers...');
+
+            // Update the header row
+            await sheets.spreadsheets.values.update({
+                spreadsheetId: SPREADSHEET_ID,
+                range: 'Ultrasound_Data!A1:L1',
+                valueInputOption: 'RAW',
+                resource: {
+                    values: [expectedHeaders]
+                }
+            });
+
+            console.log('Ultrasound_Data headers updated successfully');
+        } else {
+            console.log('Ultrasound_Data headers are correct');
+        }
+    } catch (error) {
+        console.error('Error ensuring Ultrasound_Data headers:', error);
+        throw error; // Throw error so the calling function can handle it
+    }
+}
+
+// Get all ultrasounds (for client-side filtering)
+app.get('/api/ultrasounds/all', async (req, res) => {
+    try {
+        console.log('Getting all ultrasounds from Ultrasound_Data');
+
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: `Ultrasound_Data!A:L`,
+        });
+
+        const rows = response.data.values || [];
+
+        // Skip header row and format all data
+        const ultrasounds = rows.slice(1).map((row, index) => ({
+            id: row[0] || '', // Use the ID from column A
+            rowIndex: index + 2, // Actual row number in sheet (0-indexed + 2 for header)
+            date: row[1] || '',
+            iycNumber: row[2] || '',
+            name: row[3] || '',
+            category: row[4] || '',
+            phone: row[5] || '',
+            testName: row[6] || '',
+            referredBy: row[7] || '',
+            status: row[8] || '',
+            remarks: row[9] || '',
+            created: row[10] || '',
+            updated: row[11] || ''
+        })).filter(ultrasound => {
+            // Only include rows with IYC numbers
+            return ultrasound.iycNumber;
+        });
+
+        res.json({
+            success: true,
+            ultrasounds: ultrasounds,
+            count: ultrasounds.length
+        });
+
+    } catch (error) {
+        console.error('Error getting all ultrasounds:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to get all ultrasounds',
+            error: error.message
+        });
+    }
+});
+
+// Get ultrasounds filtered by status
+app.get('/api/ultrasounds/:status', async (req, res) => {
+    try {
+        const { status } = req.params;
+
+        console.log(`Getting ultrasounds with status: ${status}`);
+
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: `Ultrasound_Data!A:L`,
+        });
+
+        const rows = response.data.values || [];
+
+        // Skip header row and filter by status
+        const ultrasounds = rows.slice(1).map((row, index) => ({
+            id: row[0] || '', // A=ID
+            rowIndex: index + 2, // Actual row number in sheet (0-indexed + 2 for header)
+            date: row[1] || '', // B=Date
+            iycNumber: row[2] || '', // C=IYC
+            name: row[3] || '', // D=Name
+            category: row[4] || '', // E=Category
+            phone: row[5] || '', // F=Phone
+            testName: row[6] || '', // G=Ultrasound Type
+            referredBy: row[7] || '', // H=Referred By
+            status: row[8] || '', // I=Status
+            remarks: row[9] || '', // J=Remarks
+            created: row[10] || '', // K=Created
+            updated: row[11] || '' // L=Updated
+        })).filter(ultrasound => {
+            // Filter by status and ensure we have required data
+            return ultrasound.iycNumber && ultrasound.status === status;
+        });
+
+        res.json({
+            success: true,
+            status: status,
+            ultrasounds: ultrasounds,
+            count: ultrasounds.length
+        });
+
+    } catch (error) {
+        console.error('Error getting ultrasounds:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to get ultrasounds',
+            error: error.message
+        });
+    }
+});
+
+// Update ultrasound status (bulk operation)
+app.post('/api/ultrasound-status', async (req, res) => {
+    try {
+        const { ultrasoundIds, newStatus, rowIndices } = req.body;
+
+        console.log(`Updating ${ultrasoundIds.length} ultrasounds to status: ${newStatus}`);
+
+        if (ultrasoundIds.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'No ultrasounds provided for update'
+            });
+        }
+
+        const currentTimestamp = new Date().toISOString();
+        const updates = [];
+
+        // Prepare batch update for all selected ultrasounds
+        for (let i = 0; i < rowIndices.length; i++) {
+            const rowIndex = rowIndices[i];
+
+            // Update status (column I) and updated timestamp (column L)
+            updates.push({
+                range: `Ultrasound_Data!I${rowIndex}:L${rowIndex}`,
+                values: [[newStatus, '', '', currentTimestamp]] // Status, Remarks (unchanged), Created (unchanged), Updated
+            });
+        }
+
+        // Execute batch update
+        await sheets.spreadsheets.values.batchUpdate({
+            spreadsheetId: SPREADSHEET_ID,
+            resource: {
+                valueInputOption: 'RAW',
+                data: updates
+            }
+        });
+
+        res.json({
+            success: true,
+            message: `Successfully updated ${ultrasoundIds.length} ultrasounds to ${newStatus}`,
+            updatedCount: ultrasoundIds.length,
+            newStatus: newStatus
+        });
+
+    } catch (error) {
+        console.error('Error updating ultrasound status:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update ultrasound status',
+            error: error.message
+        });
+    }
+});
+
+// Update individual ultrasound data
+app.put('/api/ultrasound/:rowIndex', async (req, res) => {
+    try {
+        const { rowIndex } = req.params;
+        const { date, iycNumber, name, category, phone, testName, referredBy, status, remarks } = req.body;
+
+        console.log(`Updating ultrasound at row ${rowIndex}`);
+
+        const currentTimestamp = new Date().toISOString();
+
+        // Update only the editable fields (B to L for updated timestamp)
+        // Keep ID (A), Created (K) unchanged
+        const range = `Ultrasound_Data!B${rowIndex}:L${rowIndex}`;
+        const values = [[date, iycNumber, name, category, phone, testName, referredBy, status, remarks, '', currentTimestamp]];
+
+        await sheets.spreadsheets.values.update({
+            spreadsheetId: SPREADSHEET_ID,
+            range: range,
+            valueInputOption: 'RAW',
+            resource: {
+                values: values
+            }
+        });
+
+        res.json({
+            success: true,
+            message: 'Ultrasound updated successfully',
+            data: values[0]
+        });
+
+    } catch (error) {
+        console.error('Error updating ultrasound:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update ultrasound',
+            error: error.message
+        });
+    }
+});
+
+// Delete ultrasounds (bulk operation)
+app.delete('/api/ultrasounds', async (req, res) => {
+    try {
+        const { rowIndices } = req.body;
+
+        console.log(`Deleting ${rowIndices.length} ultrasounds from Ultrasound_Data`);
+
+        // Delete rows in reverse order to maintain indices
+        const sortedIndices = rowIndices.sort((a, b) => b - a);
+        for (const rowIndex of sortedIndices) {
+            await sheets.spreadsheets.batchUpdate({
+                spreadsheetId: SPREADSHEET_ID,
+                resource: {
+                    requests: [{
+                        deleteDimension: {
+                            range: {
+                                sheetId: await getSheetId('Ultrasound_Data'),
+                                dimension: 'ROWS',
+                                startIndex: rowIndex - 1,
+                                endIndex: rowIndex
+                            }
+                        }
+                    }]
+                }
+            });
+        }
+
+        res.json({
+            success: true,
+            message: `Successfully deleted ${rowIndices.length} ultrasounds`,
+            deletedCount: rowIndices.length
+        });
+
+    } catch (error) {
+        console.error('Error deleting ultrasounds:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to delete ultrasounds',
+            error: error.message
+        });
+    }
+});
+
+// Get hospitals from Hospital Directory
+app.get('/api/hospitals', async (req, res) => {
+    try {
+        console.log('Getting hospitals from Hospital Directory...');
+
+        // Read from Hospital Directory worksheet
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'Hospital Directory!B:B',
+        });
+
+        const rows = response.data.values || [];
+
+        // Extract hospital names (skip header row)
+        const hospitals = rows.slice(1)
+            .map(row => row[0])
+            .filter(hospital => hospital && hospital.trim() !== '');
+
+        res.json({
+            success: true,
+            hospitals: hospitals
+        });
+
+    } catch (error) {
+        console.error('Error getting hospitals:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to get hospitals',
+            error: error.message
+        });
+    }
+});
+
+// Get all patients for search functionality
+app.get('/api/patients', async (req, res) => {
+    try {
+        console.log('Getting all patients for search...');
+
+        // Read from Patient Database worksheet
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'Patient Database!A:H',
+        });
+
+        const rows = response.data.values || [];
+
+        // Extract patient data (skip header row)
+        const patients = rows.slice(1)
+            .filter(row => row[0] && row[1]) // Must have name and IYC
+            .map(row => ({
+                name: row[0] || '',
+                iycNumber: row[1] || '',
+                email: row[2] || '',
+                phone: row[4] || '',
+                category: row[6] || ''
+            }));
+
+        res.json({
+            success: true,
+            patients: patients
+        });
+
+    } catch (error) {
+        console.error('Error getting patients:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to get patients',
+            error: error.message
+        });
+    }
+});
+
+// Save hospital visit data
+app.post('/api/hospital-visit', async (req, res) => {
+    try {
+        const visitData = req.body;
+        console.log('Saving hospital visit:', visitData);
+
+        // Ensure Hospital_Visit_Data worksheet has correct headers
+        await ensureHospitalVisitHeaders();
+
+        // Generate unique ID
+        const visitId = `HV${Date.now()}`;
+        const timestamp = new Date().toISOString();
+
+        // Prepare row data
+        const rowData = [
+            visitId,
+            visitData.dateRequested,
+            visitData.iycNumber,
+            visitData.patientName,
+            visitData.phoneNumber,
+            visitData.hospital,
+            visitData.purpose,
+            visitData.doctor,
+            visitData.priority,
+            visitData.remarks,
+            visitData.status,
+            timestamp,
+            timestamp,
+            'No', // Email Sent - default to No
+            '', // Appointment Date - default to empty
+            'No', // Bills Submission - default to No
+            'No' // Reports Submission - default to No
+        ];
+
+        // Append to Hospital_Visit_Data worksheet
+        const appendResponse = await sheets.spreadsheets.values.append({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'Hospital_Visit_Data!A:O',
+            valueInputOption: 'RAW',
+            resource: {
+                values: [rowData]
+            }
+        });
+
+        console.log('Hospital visit saved successfully:', appendResponse.data);
+
+        res.json({
+            success: true,
+            message: 'Hospital visit saved successfully',
+            visitId: visitId,
+            data: appendResponse.data
+        });
+
+    } catch (error) {
+        console.error('Error saving hospital visit:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to save hospital visit',
+            error: error.message
+        });
+    }
+});
+
+// Update hospital visit submission status
+app.post('/api/hospital-visit-submission', async (req, res) => {
+    try {
+        const { visitId, field, value } = req.body;
+
+        if (!visitId || !field || value === undefined) {
+            return res.status(400).json({
+                success: false,
+                message: 'Visit ID, field, and value are required'
+            });
+        }
+
+        if (!['billsSubmission', 'reportsSubmission'].includes(field)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid field. Must be billsSubmission or reportsSubmission'
+            });
+        }
+
+        console.log(`Updating ${field} for visit ${visitId} to: ${value}`);
+
+        // Get visit details from Hospital_Visit_Data
+        const visitResponse = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'Hospital_Visit_Data!A:Q',
+        });
+
+        const visitRows = visitResponse.data.values || [];
+        const visitRowIndex = visitRows.findIndex(row => row[0] === visitId);
+
+        if (visitRowIndex < 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Visit not found'
+            });
+        }
+
+        // Determine which column to update
+        const columnMap = {
+            'billsSubmission': 'P', // Column P (index 15)
+            'reportsSubmission': 'Q' // Column Q (index 16)
+        };
+
+        const column = columnMap[field];
+        const updateRange = `Hospital_Visit_Data!${column}${visitRowIndex + 1}`;
+
+        // Update the submission status
+        await sheets.spreadsheets.values.update({
+            spreadsheetId: SPREADSHEET_ID,
+            range: updateRange,
+            valueInputOption: 'RAW',
+            requestBody: {
+                values: [[value]]
+            }
+        });
+
+        console.log(`Updated ${field} for visit ${visitId} to: ${value}`);
+
+        res.json({
+            success: true,
+            message: `${field} updated successfully`,
+            visitId: visitId,
+            field: field,
+            value: value
+        });
+
+    } catch (error) {
+        console.error('Error updating submission status:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update submission status',
+            error: error.message
+        });
+    }
+});
+
+// Get hospital visits by status
+app.get('/api/hospital-visits/:status', async (req, res) => {
+    try {
+        const { status } = req.params;
+        console.log(`Getting hospital visits with status: ${status}`);
+
+        // Read from Hospital_Visit_Data worksheet
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'Hospital_Visit_Data!A:Q',
+        });
+
+        const rows = response.data.values || [];
+
+        if (rows.length <= 1) {
+            return res.json({
+                success: true,
+                visits: []
+            });
+        }
+
+        // Filter visits by status (skip header row)
+        const visits = rows.slice(1)
+            .map((row, index) => ({
+                id: row[0] || '',
+                dateRequested: row[1] || '',
+                iycNumber: row[2] || '',
+                patientName: row[3] || '',
+                phoneNumber: row[4] || '',
+                hospital: row[5] || '',
+                purpose: row[6] || '',
+                doctor: row[7] || '',
+                priority: row[8] || '',
+                remarks: row[9] || '',
+                status: row[10] || '',
+                created: row[11] || '',
+                updated: row[12] || '',
+                emailSent: row[13] || '',
+                appointmentDate: row[14] || '',
+                billsSubmission: row[15] || 'No',
+                reportsSubmission: row[16] || 'No',
+                rowIndex: index + 2 // +2 because we skip header and arrays are 0-indexed
+            }))
+            .filter(visit => visit.status === status);
+
+        res.json({
+            success: true,
+            visits: visits
+        });
+
+    } catch (error) {
+        console.error('Error getting hospital visits:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to get hospital visits',
+            error: error.message
+        });
+    }
+});
+
+// Helper function to ensure Hospital_Visit_Data worksheet has correct headers
+async function ensureHospitalVisitHeaders() {
+    try {
+        console.log('Checking Hospital_Visit_Data worksheet headers...');
+
+        // Check if the worksheet exists and has correct headers
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'Hospital_Visit_Data!A1:Q1',
+        });
+
+        const expectedHeaders = ['ID', 'Date Requested', 'IYC Number', 'Name', 'Phone', 'Hospital', 'Purpose', 'Doctor', 'Priority', 'Remarks', 'Status', 'Created', 'Updated', 'Email Sent', 'Appointment Date', 'Bills Submission', 'Reports Submission'];
+        const currentHeaders = response.data.values ? response.data.values[0] : [];
+
+        // Check if headers match
+        const headersMatch = expectedHeaders.every((header, index) => currentHeaders[index] === header);
+
+        if (!headersMatch) {
+            console.log('Headers do not match. Creating/updating Hospital_Visit_Data worksheet...');
+
+            // Update headers
+            await sheets.spreadsheets.values.update({
+                spreadsheetId: SPREADSHEET_ID,
+                range: 'Hospital_Visit_Data!A1:Q1',
+                valueInputOption: 'RAW',
+                resource: {
+                    values: [expectedHeaders]
+                }
+            });
+
+            console.log('Hospital_Visit_Data headers updated successfully');
+        } else {
+            console.log('Hospital_Visit_Data headers are correct');
+        }
+
+    } catch (error) {
+        if (error.message.includes('Unable to parse range')) {
+            console.log('Hospital_Visit_Data worksheet does not exist. Creating it...');
+
+            try {
+                // Create the worksheet
+                await sheets.spreadsheets.batchUpdate({
+                    spreadsheetId: SPREADSHEET_ID,
+                    resource: {
+                        requests: [{
+                            addSheet: {
+                                properties: {
+                                    title: 'Hospital_Visit_Data'
+                                }
+                            }
+                        }]
+                    }
+                });
+
+                // Add headers
+                const expectedHeaders = ['ID', 'Date Requested', 'IYC Number', 'Name', 'Phone', 'Hospital', 'Purpose', 'Doctor', 'Priority', 'Remarks', 'Status', 'Created', 'Updated', 'Email Sent', 'Appointment Date'];
+                await sheets.spreadsheets.values.update({
+                    spreadsheetId: SPREADSHEET_ID,
+                    range: 'Hospital_Visit_Data!A1:O1',
+                    valueInputOption: 'RAW',
+                    resource: {
+                        values: [expectedHeaders]
+                    }
+                });
+
+                console.log('Hospital_Visit_Data worksheet created successfully');
+
+            } catch (createError) {
+                console.error('Error creating Hospital_Visit_Data worksheet:', createError);
+                throw createError;
+            }
+        } else {
+            console.error('Error checking Hospital_Visit_Data headers:', error);
+            throw error;
+        }
+    }
+}
+
+// Helper function to read System Config data
+async function getSystemConfig() {
+    try {
+        console.log('Reading System Config worksheet...');
+
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'System Config!C1:C10', // Read from C1 to C10 to get all config data
+        });
+
+        const values = response.data.values || [];
+        console.log('Raw System Config values:', values);
+
+        const config = {
+            username: values[1] && values[1][0] ? values[1][0].toString().trim() : '', // C2 - username
+            password: values[2] && values[2][0] ? values[2][0].toString().trim() : '', // C3 - password
+            anchors: values[4] && values[4][0] ? values[4][0].toString().trim() : '', // C5 - anchors JSON
+            referredBy: values[5] && values[5][0] ? values[5][0].toString().trim() : '' // C6 - referred by names
+        };
+
+        console.log('System Config processed:', {
+            username: config.username ? `"${config.username}"` : 'not set',
+            password: config.password ? '***' : 'not set',
+            anchors: config.anchors ? `"${config.anchors.substring(0, 50)}..."` : 'not set',
+            referredBy: config.referredBy ? `"${config.referredBy}"` : 'not set'
+        });
+
+        return config;
+    } catch (error) {
+        console.error('Error reading System Config:', error);
+        if (error.message && error.message.includes('Unable to parse range')) {
+            console.error('System Config worksheet does not exist!');
+        }
+        return {
+            username: '',
+            password: '',
+            anchors: '',
+            referredBy: ''
+        };
+    }
+}
+
+// Helper function to ensure Diet_Request_Data worksheet has correct headers
+async function ensureDietRequestHeaders() {
+    try {
+        console.log('Checking Diet_Request_Data worksheet headers...');
+
+        // Check if the worksheet exists and has correct headers
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'Diet_Request_Data!A1:R1',
+        });
+
+        const expectedHeaders = ['ID', 'Date Requested', 'Patient Name', 'Email', 'Phone Number', 'Anchor', 'Others', 'Brunch', 'Lunch', 'Dinner', 'One Time Takeaway', 'Duration', 'Start Date', 'End Date', 'Remarks', 'Status', 'Created', 'Updated'];
+        const currentHeaders = response.data.values ? response.data.values[0] : [];
+
+        // Check if headers match
+        const headersMatch = expectedHeaders.every((header, index) => currentHeaders[index] === header);
+
+        if (!headersMatch) {
+            console.log('Headers do not match. Creating/updating Diet_Request_Data worksheet...');
+
+            // Update headers
+            await sheets.spreadsheets.values.update({
+                spreadsheetId: SPREADSHEET_ID,
+                range: 'Diet_Request_Data!A1:R1',
+                valueInputOption: 'RAW',
+                resource: {
+                    values: [expectedHeaders]
+                }
+            });
+
+            console.log('Diet_Request_Data headers updated successfully');
+        } else {
+            console.log('Diet_Request_Data headers are correct');
+        }
+
+    } catch (error) {
+        if (error.message.includes('Unable to parse range')) {
+            console.log('Diet_Request_Data worksheet does not exist. Creating it...');
+
+            try {
+                // Create the worksheet
+                await sheets.spreadsheets.batchUpdate({
+                    spreadsheetId: SPREADSHEET_ID,
+                    resource: {
+                        requests: [{
+                            addSheet: {
+                                properties: {
+                                    title: 'Diet_Request_Data'
+                                }
+                            }
+                        }]
+                    }
+                });
+
+                // Add headers to the new worksheet
+                await sheets.spreadsheets.values.update({
+                    spreadsheetId: SPREADSHEET_ID,
+                    range: 'Diet_Request_Data!A1:R1',
+                    valueInputOption: 'RAW',
+                    resource: {
+                        values: [expectedHeaders]
+                    }
+                });
+
+                console.log('Diet_Request_Data worksheet created successfully');
+
+            } catch (createError) {
+                console.error('Error creating Diet_Request_Data worksheet:', createError);
+                throw createError;
+            }
+        } else {
+            console.error('Error checking Diet_Request_Data headers:', error);
+            throw error;
+        }
+    }
+}
+
+// Helper function to send credit email using OAuth2
+async function sendCreditEmail(emailAddresses, content, visitDetails, patientEmail = '', i2Emails = []) {
+    try {
+        // Read email credentials
+        const credentialsPath = path.join(__dirname, 'Email_Credentials.json');
+        if (!fs.existsSync(credentialsPath)) {
+            throw new Error('Email credentials file not found');
+        }
+
+        const credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
+        console.log('Email credentials loaded successfully');
+
+        // Check if OAuth2 refresh token is available
+        if (!credentials.oauth2 || !credentials.oauth2.refresh_token ||
+            credentials.oauth2.refresh_token === 'WILL_BE_GENERATED_AUTOMATICALLY') {
+            console.log('OAuth2 refresh token not found. Please run: node generate-oauth-token.js');
+
+            // For demo purposes, simulate successful email sending
+            console.log('DEMO MODE: Simulating email send to:', emailAddresses);
+            console.log('Email content:', content);
+
+            return {
+                success: true,
+                messageId: 'demo-' + Date.now(),
+                demo: true
+            };
+        }
+
+        // OAuth2 token is available, proceed with Gmail API email sending
+        console.log('OAuth2 refresh token found, using Gmail API for email sending...');
+
+        // Create OAuth2 client
+        const oauth2Client = new google.auth.OAuth2(
+            credentials.oauth2.client_id,
+            credentials.oauth2.client_secret,
+            'http://localhost'
+        );
+
+        // Set refresh token
+        oauth2Client.setCredentials({
+            refresh_token: credentials.oauth2.refresh_token
+        });
+
+        console.log('Getting fresh access token...');
+
+        // Get fresh access token
+        const { token } = await oauth2Client.getAccessToken();
+
+        if (!token) {
+            throw new Error('Failed to get access token from OAuth2');
+        }
+
+        console.log('Access token obtained successfully');
+
+        // Create Gmail API instance
+        const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+
+        // Create email content in RFC 2822 format
+        let emailContent = `To: ${emailAddresses.join(', ')}
+From: ${credentials.from.name} <${credentials.from.email}>`;
+
+        // Build CC field with I2 emails and patient email
+        const ccEmails = [];
+        if (i2Emails && i2Emails.length > 0) {
+            ccEmails.push(...i2Emails);
+        }
+        if (patientEmail) {
+            ccEmails.push(patientEmail);
+        }
+
+        if (ccEmails.length > 0) {
+            emailContent += `\nCc: ${ccEmails.join(', ')}`;
+        }
+
+        // Since we now require appointment date to be present, we can use it directly
+        // Create subject line in the required format: Credit info-Isha Foundation-[Patient Name]-[Appointment Date]
+        const emailSubject = `Credit info-Isha Foundation-${visitDetails.patientName}-${visitDetails.appointmentDate}`;
+
+        emailContent += `\nSubject: ${emailSubject}
+Content-Type: text/plain; charset=utf-8
+
+${content}`;
+
+        // Encode email content for Gmail API
+        const encodedEmail = Buffer.from(emailContent)
+            .toString('base64')
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=+$/, '');
+
+        console.log('Sending email via Gmail API to:', emailAddresses);
+        console.log('Email subject:', emailSubject);
+
+        // Send email using Gmail API
+        const result = await gmail.users.messages.send({
+            userId: 'me',
+            requestBody: {
+                raw: encodedEmail
+            }
+        });
+
+        console.log('Email sent successfully via Gmail API:', result.data.id);
+
+        return {
+            success: true,
+            messageId: result.data.id,
+            method: 'Gmail API'
+        };
+
+    } catch (error) {
+        console.error('Error sending email:', error);
+        console.error('Error details:', {
+            message: error.message,
+            code: error.code,
+            command: error.command
+        });
+
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+}
+
+// Simple email test endpoint
+app.post('/api/test-simple-email', async (req, res) => {
+    try {
+        const { visitId } = req.body;
+
+        console.log('🧪 Testing simple email for visit:', visitId);
+
+        // Get visit details
+        const visitResponse = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'Hospital_Visit_Data!A:O',
+        });
+
+        const visitRows = visitResponse.data.values || [];
+        const visitData = visitRows.find(row => row[0] === visitId);
+
+        if (!visitData) {
+            return res.status(404).json({
+                success: false,
+                message: 'Visit not found'
+            });
+        }
+
+        const visitDetails = {
+            patientName: visitData[3],
+            hospital: visitData[5],
+            purpose: visitData[6],
+            phoneNumber: visitData[4]
+        };
+
+        // Get hospital email from Hospital Directory
+        const hospitalResponse = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'Hospital Directory!B:E',
+        });
+
+        const hospitalRows = hospitalResponse.data.values || [];
+        console.log('Hospital Directory rows:', hospitalRows);
+
+        const hospitalRow = hospitalRows.find(row => row[0] === visitDetails.hospital);
+        console.log('Found hospital row:', hospitalRow);
+
+        if (!hospitalRow || !hospitalRow[3]) {
+            return res.status(404).json({
+                success: false,
+                message: 'Hospital email addresses not found',
+                hospital: visitDetails.hospital,
+                availableHospitals: hospitalRows.map(row => row[0]).filter(Boolean)
+            });
+        }
+
+        // Parse email addresses
+        const emailAddresses = hospitalRow[3].split(',').map(email => email.trim()).filter(email => email);
+        console.log('Email addresses:', emailAddresses);
+
+        // Simple test email content
+        const simpleContent = `Test Email from Clinic Management System
+
+Patient: ${visitDetails.patientName}
+Hospital: ${visitDetails.hospital}
+Purpose: ${visitDetails.purpose}
+Contact: ${visitDetails.phoneNumber}
+
+This is a test email to verify the email system is working.
+
+Best regards,
+Isha Yoga Center - Clinic Management`;
+
+        // Send simple email
+        const emailResult = await sendCreditEmail(emailAddresses, simpleContent, visitDetails, '', []);
+
+        if (emailResult.success) {
+            res.json({
+                success: true,
+                message: 'Simple test email sent successfully',
+                messageId: emailResult.messageId,
+                demo: emailResult.demo || false,
+                emailAddresses: emailAddresses,
+                content: simpleContent
+            });
+        } else {
+            res.status(500).json({
+                success: false,
+                message: 'Failed to send test email',
+                error: emailResult.error
+            });
+        }
+
+    } catch (error) {
+        console.error('Error in test-simple-email endpoint:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to send test email',
+            error: error.message,
+            stack: error.stack
+        });
+    }
+});
+
+// Send credit letter email endpoint
+app.post('/api/send-credit-email', async (req, res) => {
+    try {
+        const { visitId } = req.body;
+
+        if (!visitId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Visit ID is required'
+            });
+        }
+
+        console.log('Processing credit email for visit:', visitId);
+
+        // Get visit details from Hospital_Visit_Data
+        const visitResponse = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'Hospital_Visit_Data!A:O',
+        });
+
+        const visitRows = visitResponse.data.values || [];
+        const visitData = visitRows.find(row => row[0] === visitId);
+
+        if (!visitData) {
+            return res.status(404).json({
+                success: false,
+                message: 'Visit not found'
+            });
+        }
+
+        const visitDetails = {
+            id: visitData[0],
+            dateRequested: visitData[1],
+            iycNumber: visitData[2],
+            patientName: visitData[3],
+            phoneNumber: visitData[4],
+            hospital: visitData[5],
+            purpose: visitData[6],
+            doctor: visitData[7],
+            priority: visitData[8],
+            remarks: visitData[9],
+            status: visitData[10],
+            created: visitData[11],
+            updated: visitData[12],
+            emailSent: visitData[13] || 'No', // Column N (index 13 in 0-based array)
+            appointmentDate: visitData[14] || '' // Column O (index 14 in 0-based array)
+        };
+
+        // Check if appointment date is empty and require it before sending email
+        if (!visitDetails.appointmentDate || visitDetails.appointmentDate.trim() === '') {
+            return res.status(400).json({
+                success: false,
+                message: 'Appointment date is required before sending credit email. Please update the appointment date first.',
+                requiresAppointmentDate: true,
+                visitId: visitId
+            });
+        }
+
+        // Get hospital email addresses from Hospital Directory
+        const hospitalResponse = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'Hospital Directory!B:I',
+        });
+
+        const hospitalRows = hospitalResponse.data.values || [];
+        const hospitalRow = hospitalRows.find(row => row[0] === visitDetails.hospital);
+
+        if (!hospitalRow || !hospitalRow[3]) {
+            return res.status(404).json({
+                success: false,
+                message: 'Hospital email addresses not found'
+            });
+        }
+
+        // Parse comma-separated email addresses from Column E (index 3) - these go to "To" field
+        const hospitalEmails = hospitalRow[3].split(',').map(email => email.trim()).filter(email => email);
+
+        // Get additional emails from I2 cell (index 7) - these go to "CC" field
+        const i2Emails = hospitalRow[7] ? hospitalRow[7].split(',').map(email => email.trim()).filter(email => email) : [];
+
+        // Use only hospital emails for the main "To" field
+        const emailAddresses = hospitalEmails;
+
+        // Get patient email for CC
+        let patientEmail = '';
+        try {
+            if (visitDetails.iycNumber) {
+                const patientResponse = await sheets.spreadsheets.values.get({
+                    spreadsheetId: SPREADSHEET_ID,
+                    range: 'Patient Database!A:H',
+                });
+                const patientRows = patientResponse.data.values || [];
+                const patientRow = patientRows.find(row => row[1] && row[1].toString().toLowerCase() === visitDetails.iycNumber.toLowerCase());
+                if (patientRow && patientRow[2]) {
+                    patientEmail = patientRow[2].trim();
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching patient email:', error);
+        }
+
+        // Get email template from Hospital Directory H2
+        const templateResponse = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'Hospital Directory!H2',
+        });
+
+        let template = 'Dear {name},\n\nWe are pleased to inform you that your appointment for {Purpose} has been confirmed.\n\nPlease contact us at {Contact} for any queries.\n\nBest regards,\nIsha Yoga Center - Clinic Management';
+
+        if (templateResponse.data.values && templateResponse.data.values[0] && templateResponse.data.values[0][0]) {
+            template = templateResponse.data.values[0][0];
+        }
+
+        // Replace placeholders in template (case-insensitive)
+        let emailContent = template
+            .replace(/{name}/gi, visitDetails.patientName)
+            .replace(/{Name}/g, visitDetails.patientName)
+            .replace(/{CONTACT}/gi, visitDetails.phoneNumber)
+            .replace(/{Contact}/g, visitDetails.phoneNumber);
+
+        // Handle PURPOSE and DOCTOR placeholders conditionally based on purpose type
+        if (visitDetails.purpose === 'Consultation & Investigation') {
+            // For Consultation & Investigation, include doctor name
+            emailContent = emailContent
+                .replace(/{PURPOSE}/gi, visitDetails.purpose)
+                .replace(/{Purpose}/g, visitDetails.purpose)
+                .replace(/{DOCTOR}/gi, visitDetails.doctor || 'Not specified')
+                .replace(/{Doctor}/g, visitDetails.doctor || 'Not specified')
+                .replace(/{Doctot}/g, visitDetails.doctor || 'Not specified'); // Handle typo in template
+        } else {
+            // For other purposes, replace purpose normally but remove doctor references
+            emailContent = emailContent
+                .replace(/{PURPOSE}/gi, visitDetails.purpose)
+                .replace(/{Purpose}/g, visitDetails.purpose);
+
+            // Remove doctor placeholders and any "to" text that precedes them
+            emailContent = emailContent
+                .replace(/\s+to\s+{DOCTOR}/gi, '')
+                .replace(/\s+to\s+{Doctor}/gi, '')
+                .replace(/\s+to\s+{Doctot}/gi, '') // Handle typo in template
+                .replace(/{DOCTOR}/gi, '')
+                .replace(/{Doctor}/g, '')
+                .replace(/{Doctot}/g, ''); // Handle typo in template
+        }
+
+        // Send email with I2 emails in CC
+        const emailResult = await sendCreditEmail(emailAddresses, emailContent, visitDetails, patientEmail, i2Emails);
+
+        if (emailResult.success) {
+            // Update the Hospital_Visit_Data sheet to mark email as sent
+            try {
+                const visitRowIndex = visitRows.findIndex(row => row[0] === visitId);
+                if (visitRowIndex >= 0) {
+                    // Update the Email Sent column (Column N, index 13)
+                    const updateRange = `Hospital_Visit_Data!N${visitRowIndex + 1}`;
+                    await sheets.spreadsheets.values.update({
+                        spreadsheetId: SPREADSHEET_ID,
+                        range: updateRange,
+                        valueInputOption: 'RAW',
+                        requestBody: {
+                            values: [['Yes']]
+                        }
+                    });
+                    console.log('Updated email sent status for visit:', visitId);
+                }
+            } catch (updateError) {
+                console.error('Failed to update email sent status:', updateError);
+                // Don't fail the whole request if status update fails
+            }
+
+            res.json({
+                success: true,
+                message: 'Credit email sent successfully',
+                messageId: emailResult.messageId,
+                demo: emailResult.demo || false,
+                emailAddresses: emailAddresses,
+                emailsSent: emailAddresses.length,
+                content: emailContent
+            });
+        } else {
+            res.status(500).json({
+                success: false,
+                message: 'Failed to send credit email',
+                error: emailResult.error
+            });
+        }
+
+    } catch (error) {
+        console.error('Error in send-credit-email endpoint:', error);
+        console.error('Error stack:', error.stack);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to send credit email',
+            error: error.message,
+            stack: error.stack
+        });
+    }
+});
+
+// Update appointment date endpoint
+app.post('/api/update-appointment-date', async (req, res) => {
+    try {
+        const { visitId, appointmentDate } = req.body;
+
+        if (!visitId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Visit ID is required'
+            });
+        }
+
+        console.log('Updating appointment date for visit:', visitId, 'to:', appointmentDate);
+
+        // Get visit details from Hospital_Visit_Data
+        const visitResponse = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'Hospital_Visit_Data!A:Q',
+        });
+
+        const visitRows = visitResponse.data.values || [];
+        const visitRowIndex = visitRows.findIndex(row => row[0] === visitId);
+
+        if (visitRowIndex < 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Visit not found'
+            });
+        }
+
+        // Update the Appointment Date column (Column O, index 14)
+        const updateRange = `Hospital_Visit_Data!O${visitRowIndex + 1}`;
+        await sheets.spreadsheets.values.update({
+            spreadsheetId: SPREADSHEET_ID,
+            range: updateRange,
+            valueInputOption: 'RAW',
+            requestBody: {
+                values: [[appointmentDate || '']]
+            }
+        });
+
+        console.log('Updated appointment date for visit:', visitId);
+
+        res.json({
+            success: true,
+            message: 'Appointment date updated successfully',
+            visitId: visitId,
+            appointmentDate: appointmentDate
+        });
+
+    } catch (error) {
+        console.error('Error updating appointment date:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update appointment date',
+            error: error.message
+        });
+    }
+});
+
+// Update visit status for multiple visits
+app.post('/api/update-visit-status', async (req, res) => {
+    try {
+        const { visitIds, newStatus } = req.body;
+        console.log(`Updating status for visits: ${visitIds} to: ${newStatus}`);
+
+        // Get all rows from Hospital_Visit_Data
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'Hospital_Visit_Data!A:O',
+        });
+
+        const rows = response.data.values || [];
+        let updatedCount = 0;
+        const updates = [];
+
+        // Find and prepare updates for each visit
+        for (let i = 1; i < rows.length; i++) { // Skip header row
+            const row = rows[i];
+            const visitId = row[0]; // ID is in column A
+
+            if (visitIds.includes(visitId)) {
+                // Update status in column K (index 10) - Status column
+                const rowIndex = i + 1; // Convert to 1-based row number
+                updates.push({
+                    range: `Hospital_Visit_Data!K${rowIndex}`,
+                    values: [[newStatus]]
+                });
+                updatedCount++;
+            }
+        }
+
+        // Execute batch update if we have updates
+        if (updates.length > 0) {
+            await sheets.spreadsheets.values.batchUpdate({
+                spreadsheetId: SPREADSHEET_ID,
+                resource: {
+                    valueInputOption: 'RAW',
+                    data: updates
+                }
+            });
+        }
+
+        console.log(`Updated status for ${updatedCount} visits`);
+        res.json({
+            success: true,
+            message: `Successfully updated ${updatedCount} visit(s) to ${newStatus}`,
+            updatedCount
+        });
+
+    } catch (error) {
+        console.error('Error updating visit status:', error);
+        res.status(500).json({ success: false, message: 'Failed to update visit status' });
+    }
+});
+
+// Update hospital visit status (bulk operation) - following blood test pattern
+app.post('/api/hospital-visit-status', async (req, res) => {
+    try {
+        const { visitIds, newStatus, rowIndices } = req.body;
+
+        console.log(`Updating ${visitIds.length} visits to status: ${newStatus} using row indices`);
+
+        if (visitIds.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'No visits provided for update'
+            });
+        }
+
+        const currentTimestamp = new Date().toISOString();
+        const updates = [];
+
+        // Prepare batch update for all selected visits using row indices
+        for (let i = 0; i < rowIndices.length; i++) {
+            const rowIndex = rowIndices[i];
+
+            // Update status (column K) and updated timestamp (column M)
+            updates.push({
+                range: `Hospital_Visit_Data!K${rowIndex}:M${rowIndex}`,
+                values: [[newStatus, '', currentTimestamp]] // Status, Created (unchanged), Updated
+            });
+        }
+
+        // Execute batch update
+        await sheets.spreadsheets.values.batchUpdate({
+            spreadsheetId: SPREADSHEET_ID,
+            resource: {
+                valueInputOption: 'RAW',
+                data: updates
+            }
+        });
+
+        res.json({
+            success: true,
+            message: `Successfully updated ${visitIds.length} visits to ${newStatus}`,
+            updatedCount: visitIds.length,
+            newStatus: newStatus
+        });
+
+    } catch (error) {
+        console.error('Error updating visit status:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update visit status',
+            error: error.message
+        });
+    }
+});
+
+// Delete multiple visits
+app.post('/api/delete-visits', async (req, res) => {
+    try {
+        const { visitIds } = req.body;
+        console.log(`Deleting visits: ${visitIds}`);
+
+        // Get all rows from Hospital_Visit_Data
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'Hospital_Visit_Data!A:O',
+        });
+
+        const rows = response.data.values || [];
+        let deletedCount = 0;
+        const rowsToDelete = [];
+
+        // Find rows to delete
+        for (let i = 1; i < rows.length; i++) { // Skip header row
+            const row = rows[i];
+            const visitId = row[0]; // ID is in column A
+
+            if (visitIds.includes(visitId)) {
+                rowsToDelete.push(i + 1); // Convert to 1-based row number
+                deletedCount++;
+            }
+        }
+
+        // Delete rows in reverse order to maintain indices
+        const sortedRows = rowsToDelete.sort((a, b) => b - a);
+        for (const rowIndex of sortedRows) {
+            await sheets.spreadsheets.batchUpdate({
+                spreadsheetId: SPREADSHEET_ID,
+                resource: {
+                    requests: [{
+                        deleteDimension: {
+                            range: {
+                                sheetId: await getSheetId('Hospital_Visit_Data'),
+                                dimension: 'ROWS',
+                                startIndex: rowIndex - 1,
+                                endIndex: rowIndex
+                            }
+                        }
+                    }]
+                }
+            });
+        }
+
+        console.log(`Deleted ${deletedCount} visits`);
+        res.json({
+            success: true,
+            message: `Successfully deleted ${deletedCount} visit(s)`,
+            deletedCount
+        });
+
+    } catch (error) {
+        console.error('Error deleting visits:', error);
+        res.status(500).json({ success: false, message: 'Failed to delete visits' });
+    }
+});
+
+// Save diet request data
+app.post('/api/diet-request', async (req, res) => {
+    try {
+        const dietRequestData = req.body;
+        console.log('Saving diet request:', dietRequestData);
+
+        // Ensure Diet_Request_Data worksheet has correct headers
+        await ensureDietRequestHeaders();
+
+        // Generate unique ID
+        const dietRequestId = `DR${Date.now()}`;
+        const timestamp = new Date().toISOString();
+
+        // Prepare row data
+        const rowData = [
+            dietRequestId,
+            dietRequestData.dateRequested,
+            dietRequestData.patientName,
+            dietRequestData.email,
+            dietRequestData.phoneNumber,
+            dietRequestData.anchor,
+            dietRequestData.others,
+            dietRequestData.brunch,
+            dietRequestData.lunch,
+            dietRequestData.dinner,
+            dietRequestData.oneTimeTakeaway,
+            dietRequestData.duration,
+            dietRequestData.startDate,
+            dietRequestData.endDate,
+            dietRequestData.remarks,
+            dietRequestData.status,
+            timestamp,
+            timestamp
+        ];
+
+        // Append to Diet_Request_Data worksheet
+        const response = await sheets.spreadsheets.values.append({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'Diet_Request_Data!A:R',
+            valueInputOption: 'RAW',
+            resource: {
+                values: [rowData]
+            }
+        });
+
+        console.log('Diet request saved successfully:', response.data);
+
+        res.json({
+            success: true,
+            message: 'Diet request saved successfully',
+            dietRequestId: dietRequestId,
+            data: response.data
+        });
+
+    } catch (error) {
+        console.error('Error saving diet request:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to save diet request',
+            error: error.message
+        });
+    }
+});
+
+// Get all diet requests
+app.get('/api/diet-requests', async (req, res) => {
+    try {
+        console.log('Getting all diet requests');
+
+        // Read from Diet_Request_Data worksheet
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'Diet_Request_Data!A:R',
+        });
+
+        const rows = response.data.values || [];
+
+        if (rows.length <= 1) {
+            return res.json({
+                success: true,
+                dietRequests: []
+            });
+        }
+
+        // Skip header row and format data
+        const dietRequests = rows.slice(1).map((row, index) => ({
+            id: row[0] || '',
+            dateRequested: row[1] || '',
+            patientName: row[2] || '',
+            email: row[3] || '',
+            phoneNumber: row[4] || '',
+            anchor: row[5] || '',
+            others: row[6] || '',
+            brunch: row[7] || '',
+            lunch: row[8] || '',
+            dinner: row[9] || '',
+            oneTimeTakeaway: row[10] || '',
+            duration: row[11] || '',
+            startDate: row[12] || '',
+            endDate: row[13] || '',
+            remarks: row[14] || '',
+            status: row[15] || '',
+            created: row[16] || '',
+            updated: row[17] || '',
+            rowIndex: index + 2 // +2 because we skip header and arrays are 0-indexed
+        })).filter(dietRequest => {
+            // Only include rows with patient names
+            return dietRequest.patientName;
+        });
+
+        res.json({
+            success: true,
+            dietRequests: dietRequests,
+            count: dietRequests.length
+        });
+
+    } catch (error) {
+        console.error('Error getting diet requests:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to get diet requests',
+            error: error.message
+        });
+    }
+});
+
+// Delete diet requests
+app.post('/api/diet-requests/delete', async (req, res) => {
+    try {
+        const { dietRequestIds } = req.body;
+
+        console.log('Deleting diet requests:', dietRequestIds);
+
+        if (!dietRequestIds || dietRequestIds.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'No diet request IDs provided'
+            });
+        }
+
+        // Get all diet requests to find row indices
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'Diet_Request_Data!A:R',
+        });
+
+        const rows = response.data.values || [];
+        const rowsToDelete = [];
+        let deletedCount = 0;
+
+        // Find rows to delete
+        for (let i = 1; i < rows.length; i++) { // Skip header row
+            const row = rows[i];
+            const dietRequestId = row[0]; // ID is in column A
+
+            if (dietRequestIds.includes(dietRequestId)) {
+                rowsToDelete.push(i + 1); // Convert to 1-based row number
+                deletedCount++;
+            }
+        }
+
+        // Delete rows in reverse order to maintain indices
+        const sortedRows = rowsToDelete.sort((a, b) => b - a);
+        for (const rowIndex of sortedRows) {
+            await sheets.spreadsheets.batchUpdate({
+                spreadsheetId: SPREADSHEET_ID,
+                resource: {
+                    requests: [{
+                        deleteDimension: {
+                            range: {
+                                sheetId: await getSheetId('Diet_Request_Data'),
+                                dimension: 'ROWS',
+                                startIndex: rowIndex - 1,
+                                endIndex: rowIndex
+                            }
+                        }
+                    }]
+                }
+            });
+        }
+
+        console.log(`Deleted ${deletedCount} diet requests`);
+        res.json({
+            success: true,
+            message: `Successfully deleted ${deletedCount} diet request(s)`,
+            deletedCount
+        });
+
+    } catch (error) {
+        console.error('Error deleting diet requests:', error);
+        res.status(500).json({ success: false, message: 'Failed to delete diet requests' });
+    }
+});
+
+// Get system configuration
+app.get('/api/system-config', async (req, res) => {
+    try {
+        const config = await getSystemConfig();
+
+        // Parse anchors JSON if it exists
+        let anchors = [];
+        if (config.anchors) {
+            try {
+                console.log('Raw anchors string:', config.anchors);
+
+                // Try to fix common JSON issues
+                let cleanedAnchors = config.anchors
+                    .replace(/\n/g, '') // Remove newlines
+                    .replace(/\r/g, '') // Remove carriage returns
+                    .trim(); // Remove leading/trailing spaces
+
+                console.log('Cleaned anchors string:', cleanedAnchors);
+
+                const anchorsData = JSON.parse(cleanedAnchors);
+
+                if (Array.isArray(anchorsData)) {
+                    // Already in correct format
+                    anchors = anchorsData;
+                } else if (typeof anchorsData === 'object') {
+                    // Convert from {name: email} format to [{name: name, email: email}] format
+                    anchors = Object.keys(anchorsData).map(name => ({
+                        name: name,
+                        email: anchorsData[name]
+                    }));
+                }
+
+                console.log('Successfully parsed anchors:', anchors);
+            } catch (parseError) {
+                console.error('Error parsing anchors JSON:', parseError.message);
+                console.error('Raw anchors data:', JSON.stringify(config.anchors));
+
+                // Try to extract names manually if JSON parsing fails
+                try {
+                    const nameMatches = config.anchors.match(/"([^"]+)":/g);
+                    if (nameMatches) {
+                        anchors = nameMatches.map(match => ({
+                            name: match.replace(/"/g, '').replace(':', ''),
+                            email: ''
+                        }));
+                        console.log('Extracted anchor names manually:', anchors);
+                    }
+                } catch (extractError) {
+                    console.error('Failed to extract anchor names manually');
+                    anchors = [];
+                }
+            }
+        }
+
+        // Parse referred by names (comma-separated)
+        let referredByList = [];
+        if (config.referredBy) {
+            referredByList = config.referredBy.split(',').map(name => name.trim()).filter(name => name);
+        }
+
+        res.json({
+            success: true,
+            data: {
+                anchors: anchors,
+                referredBy: referredByList
+            }
+        });
+    } catch (error) {
+        console.error('Error getting system config:', error);
+        res.status(500).json({ success: false, message: 'Failed to get system config' });
+    }
+});
+
+// Get authentication credentials from system config
+app.get('/api/system-config/auth', async (req, res) => {
+    try {
+        console.log('Auth config requested...');
+        const config = await getSystemConfig();
+
+        console.log('Auth config retrieved:', {
+            username: config.username ? 'present' : 'missing',
+            password: config.password ? 'present' : 'missing'
+        });
+
+        if (!config.username || !config.password) {
+            console.warn('Auth credentials missing from System Config');
+            return res.status(404).json({
+                success: false,
+                message: 'Auth credentials not found in System Config'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: {
+                username: config.username,
+                password: config.password
+            }
+        });
+    } catch (error) {
+        console.error('Error getting auth config:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to get auth config: ' + error.message
+        });
+    }
+});
+
+// Debug endpoint to see raw system config data
+app.get('/api/debug/system-config', async (req, res) => {
+    try {
+        const config = await getSystemConfig();
+        res.json({
+            success: true,
+            debug: {
+                username: `"${config.username}"`,
+                password: `"${config.password}"`,
+                anchors: `"${config.anchors}"`,
+                referredBy: `"${config.referredBy}"`
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+});
+
+// Serve the main HTML file
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Start server
+app.listen(PORT, async () => {
+    console.log(`🚀 Clinic Management Server running on http://localhost:${PORT}`);
+    console.log(`📊 Google Sheets integration active`);
+    console.log(`📋 Spreadsheet ID: ${SPREADSHEET_ID}`);
+
+    // Ensure Blood_Test_Data worksheet has correct headers
+    await ensureBloodTestHeaders();
+
+    // Ensure Hospital_Visit_Data worksheet has correct headers
+    await ensureHospitalVisitHeaders();
+
+    // Ensure Diet_Request_Data worksheet has correct headers
+    await ensureDietRequestHeaders();
+});
+
+// Handle graceful shutdown
+process.on('SIGINT', () => {
+    console.log('\n👋 Shutting down server gracefully...');
+    process.exit(0);
+});

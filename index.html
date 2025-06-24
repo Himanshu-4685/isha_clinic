@@ -1,0 +1,1881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clinic Management System</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Login Page -->
+    <div id="loginPage" class="login-container">
+        <div class="login-form">
+            <h2>Clinic Management System</h2>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="username">Username:</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password:</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <button type="submit">Login</button>
+                <div id="loginError" class="error-message"></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Application -->
+    <div id="mainApp" class="main-app" style="display: none;">
+        <!-- Top Navigation Bar -->
+        <nav class="top-nav">
+            <div class="nav-container">
+                <div class="logo">
+                    <h3>Clinic Management</h3>
+                </div>
+                <div class="nav-icons">
+                    <div class="nav-item" data-module="blood-test">
+                        <i class="fas fa-vial"></i>
+                        <span>Blood Test</span>
+                    </div>
+                    <div class="nav-item" data-module="ultrasound">
+                        <i class="fas fa-heartbeat"></i>
+                        <span>Ultrasound Scan</span>
+                    </div>
+                    <div class="nav-item" data-module="hospital-visit">
+                        <i class="fas fa-hospital"></i>
+                        <span>Hospital Visit</span>
+                    </div>
+                    <div class="nav-item" data-module="diet-request">
+                        <i class="fas fa-utensils"></i>
+                        <span>Diet Request</span>
+                    </div>
+                    <div class="nav-item" data-module="isolation">
+                        <i class="fas fa-shield-alt"></i>
+                        <span>Isolation</span>
+                    </div>
+                    <div class="nav-item" data-module="appointments">
+                        <i class="fas fa-calendar-alt"></i>
+                        <span>Appointments</span>
+                    </div>
+                </div>
+                <div class="logout-btn">
+                    <button id="logoutBtn">
+                        <i class="fas fa-sign-out-alt"></i>
+                        Logout
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <div class="main-content">
+            <!-- Blood Test Module -->
+            <div id="blood-test-module" class="module" style="display: none;">
+                <div class="module-container">
+                    <!-- Sidebar Navigation -->
+                    <div class="sidebar">
+                        <h3>Blood Test</h3>
+                        <ul class="sidebar-nav">
+                            <li class="sidebar-item active" data-section="add-test">
+                                <i class="fas fa-plus"></i>
+                                Add Test
+                            </li>
+                            <li class="sidebar-item" data-section="pending-test">
+                                <i class="fas fa-clock"></i>
+                                Pending Test
+                            </li>
+                            <li class="sidebar-item" data-section="upcoming-test">
+                                <i class="fas fa-calendar-check"></i>
+                                Upcoming Test
+                            </li>
+                            <li class="sidebar-item" data-section="pending-review">
+                                <i class="fas fa-eye"></i>
+                                Pending Review
+                            </li>
+                            <li class="sidebar-item" data-section="completed">
+                                <i class="fas fa-check-circle"></i>
+                                Completed
+                            </li>
+                            <li class="sidebar-item" data-section="cancelled-test">
+                                <i class="fas fa-times-circle"></i>
+                                Cancelled Test
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- Content Area -->
+                    <div class="content-area">
+                        <!-- Add Test Form -->
+                        <div id="add-test-section" class="section active">
+                            <h2>Add New Blood Test</h2>
+                            <form id="addTestForm" class="test-form">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="schedule">Schedule <span class="required">*</span></label>
+                                        <select id="schedule" name="schedule" required>
+                                            <option value="">Select Schedule</option>
+                                            <option value="Upcoming" selected>Upcoming</option>
+                                            <option value="Pending">Pending</option>
+                                            <option value="Pending Review">Pending Review</option>
+                                            <option value="Completed">Completed</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="testDate">Date <span class="required conditional">*</span></label>
+                                        <input type="date" id="testDate" name="testDate">
+                                        <div class="field-note">Auto-filled for upcoming tests</div>
+                                    </div>
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="iycNumber">IYC Number <span class="required">*</span></label>
+                                        <input type="text" id="iycNumber" name="iycNumber" placeholder="Enter IYC Number" required>
+                                        <div class="loading-indicator" id="iycLoading" style="display: none;">
+                                            <i class="fas fa-spinner fa-spin"></i> Looking up patient...
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="patientName">Name <span class="required">*</span></label>
+                                        <input type="text" id="patientName" name="patientName" placeholder="Patient name will be auto-filled" required>
+                                    </div>
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="category">Category <span class="required">*</span></label>
+                                        <input type="text" id="category" name="category" placeholder="Category will be auto-filled" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="phoneNumber">Phone Number <span class="required">*</span></label>
+                                        <input type="tel" id="phoneNumber" name="phoneNumber" placeholder="Phone number will be auto-filled" required>
+                                    </div>
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="testName">Test Name <span class="required">*</span></label>
+                                        <input type="text" id="testName" name="testName" placeholder="Enter test name" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="referredBy">Referred By <span class="required">*</span></label>
+                                        <select id="referredBy" name="referredBy" required>
+                                            <option value="">Select Doctor</option>
+                                            <option value="Sahil">Sahil</option>
+                                            <option value="Ashok">Ashok</option>
+                                            <option value="Navneet">Navneet</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="form-actions">
+                                    <button type="submit" id="saveTestBtn" disabled>
+                                        <i class="fas fa-save"></i>
+                                        Save Test
+                                    </button>
+                                    <button type="button" id="resetFormBtn">
+                                        <i class="fas fa-undo"></i>
+                                        Reset Form
+                                    </button>
+                                </div>
+
+                                <div id="formMessage" class="form-message"></div>
+                            </form>
+                        </div>
+
+                        <!-- Other sections (placeholders for now) -->
+                        <div id="pending-test-section" class="section">
+                            <h2>Pending Tests</h2>
+                            <div class="section-controls">
+                                <div class="bulk-actions">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="selectAllPending">
+                                        <span class="checkmark"></span>
+                                        Select All
+                                    </label>
+                                    <div class="action-dropdown">
+                                        <button id="pendingActionBtn" class="action-btn" disabled>
+                                            <i class="fas fa-cog"></i>
+                                            Actions
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                        <div class="dropdown-menu" id="pendingActionMenu">
+                                            <button class="dropdown-item" data-action="upcoming">
+                                                <i class="fas fa-calendar-check"></i>
+                                                Move to Upcoming
+                                            </button>
+                                            <button class="dropdown-item" data-action="cancelled">
+                                                <i class="fas fa-times"></i>
+                                                Cancelled
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button id="refreshPendingBtn" class="refresh-btn">
+                                    <i class="fas fa-sync-alt"></i>
+                                    Refresh
+                                </button>
+                            </div>
+                            <div class="table-container">
+                                <table id="pendingTestsTable" class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="checkbox-col">
+                                                <input type="checkbox" class="select-all-checkbox">
+                                            </th>
+                                            <th>Date</th>
+                                            <th>IYC Number</th>
+                                            <th>Name</th>
+                                            <th>Category</th>
+                                            <th>Phone</th>
+                                            <th>Test Name</th>
+                                            <th>Referred By</th>
+                                            <th>Remarks</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr class="no-data">
+                                            <td colspan="9">No pending tests found</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="pendingMessage" class="section-message"></div>
+                        </div>
+
+                        <div id="upcoming-test-section" class="section">
+                            <h2>Upcoming Tests</h2>
+                            <div class="section-controls">
+                                <div class="bulk-actions">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="selectAllUpcoming">
+                                        <span class="checkmark"></span>
+                                        Select All
+                                    </label>
+                                    <div class="action-dropdown">
+                                        <button id="upcomingActionBtn" class="action-btn" disabled>
+                                            <i class="fas fa-cog"></i>
+                                            Actions
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                        <div class="dropdown-menu" id="upcomingActionMenu">
+                                            <button class="dropdown-item" data-action="test-done">
+                                                <i class="fas fa-check"></i>
+                                                Test Done
+                                            </button>
+                                            <button class="dropdown-item" data-action="postpone">
+                                                <i class="fas fa-clock"></i>
+                                                Postpone
+                                            </button>
+                                            <button class="dropdown-item" data-action="cancelled">
+                                                <i class="fas fa-times"></i>
+                                                Cancelled
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button id="refreshUpcomingBtn" class="refresh-btn">
+                                    <i class="fas fa-sync-alt"></i>
+                                    Refresh
+                                </button>
+                            </div>
+                            <div class="table-container">
+                                <table id="upcomingTestsTable" class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="checkbox-col">
+                                                <input type="checkbox" class="select-all-checkbox">
+                                            </th>
+                                            <th>Date</th>
+                                            <th>IYC Number</th>
+                                            <th>Name</th>
+                                            <th>Category</th>
+                                            <th>Phone</th>
+                                            <th>Test Name</th>
+                                            <th>Referred By</th>
+                                            <th>Remarks</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr class="no-data">
+                                            <td colspan="9">No upcoming tests found</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="upcomingMessage" class="section-message"></div>
+                        </div>
+
+                        <div id="pending-review-section" class="section">
+                            <h2>Pending Review</h2>
+                            <div class="section-controls">
+                                <div class="bulk-actions">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="selectAllReview">
+                                        <span class="checkmark"></span>
+                                        Select All
+                                    </label>
+                                    <div class="action-dropdown">
+                                        <button id="reviewActionBtn" class="action-btn" disabled>
+                                            <i class="fas fa-cog"></i>
+                                            Actions
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                        <div class="dropdown-menu" id="reviewActionMenu">
+                                            <button class="dropdown-item" data-action="completed">
+                                                <i class="fas fa-check-circle"></i>
+                                                Mark as Completed
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button id="refreshReviewBtn" class="refresh-btn">
+                                    <i class="fas fa-sync-alt"></i>
+                                    Refresh
+                                </button>
+                            </div>
+                            <div class="table-container">
+                                <table id="reviewTestsTable" class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="checkbox-col">
+                                                <input type="checkbox" class="select-all-checkbox">
+                                            </th>
+                                            <th>Date</th>
+                                            <th>IYC Number</th>
+                                            <th>Name</th>
+                                            <th>Category</th>
+                                            <th>Phone</th>
+                                            <th>Test Name</th>
+                                            <th>Referred By</th>
+                                            <th>Remarks</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr class="no-data">
+                                            <td colspan="9">No tests pending review</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="reviewMessage" class="section-message"></div>
+                        </div>
+
+                        <div id="completed-section" class="section">
+                            <h2>Completed Tests</h2>
+                            <div class="section-controls">
+                                <div class="bulk-actions">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="selectAllCompleted">
+                                        <span class="checkmark"></span>
+                                        Select All
+                                    </label>
+                                    <div class="action-dropdown">
+                                        <button id="completedActionBtn" class="action-btn" disabled>
+                                            <i class="fas fa-cog"></i>
+                                            Actions
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                        <div class="dropdown-menu" id="completedActionMenu">
+                                            <button class="dropdown-item" data-action="delete">
+                                                <i class="fas fa-trash"></i>
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button id="refreshCompletedBtn" class="refresh-btn">
+                                    <i class="fas fa-sync-alt"></i>
+                                    Refresh
+                                </button>
+                            </div>
+                            <div class="table-container">
+                                <table id="completedTestsTable" class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="checkbox-col">
+                                                <input type="checkbox" class="select-all-checkbox">
+                                            </th>
+                                            <th>Date</th>
+                                            <th>IYC Number</th>
+                                            <th>Name</th>
+                                            <th>Category</th>
+                                            <th>Phone</th>
+                                            <th>Test Name</th>
+                                            <th>Referred By</th>
+                                            <th>Remarks</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr class="no-data">
+                                            <td colspan="9">No completed tests found</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="completedMessage" class="section-message"></div>
+                        </div>
+
+                        <div id="cancelled-test-section" class="section">
+                            <h2>Cancelled Tests</h2>
+                            <div class="section-controls">
+                                <div class="bulk-actions">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="selectAllCancelled">
+                                        <span class="checkmark"></span>
+                                        Select All
+                                    </label>
+                                    <div class="action-dropdown">
+                                        <button id="cancelledActionBtn" class="action-btn" disabled>
+                                            <i class="fas fa-cog"></i>
+                                            Actions
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                        <div class="dropdown-menu" id="cancelledActionMenu">
+                                            <button class="dropdown-item" data-action="delete">
+                                                <i class="fas fa-trash"></i>
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button id="refreshCancelledBtn" class="refresh-btn">
+                                    <i class="fas fa-sync-alt"></i>
+                                    Refresh
+                                </button>
+                            </div>
+                            <div class="table-container">
+                                <table id="cancelledTestsTable" class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="checkbox-col">
+                                                <input type="checkbox" class="select-all-checkbox">
+                                            </th>
+                                            <th>Date</th>
+                                            <th>IYC Number</th>
+                                            <th>Name</th>
+                                            <th>Category</th>
+                                            <th>Phone</th>
+                                            <th>Test Name</th>
+                                            <th>Referred By</th>
+                                            <th>Remarks</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr class="no-data">
+                                            <td colspan="9">No cancelled tests found</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="cancelledMessage" class="section-message"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ultrasound Module -->
+            <div id="ultrasound-module" class="module" style="display: none;">
+                <div class="module-container">
+                    <!-- Sidebar Navigation -->
+                    <div class="sidebar">
+                        <h3>Ultrasound Scan</h3>
+                        <ul class="sidebar-nav">
+                            <li class="sidebar-item active" data-section="add-ultrasound">
+                                <i class="fas fa-plus"></i>
+                                Add Ultrasound
+                            </li>
+                            <li class="sidebar-item" data-section="pending-ultrasound">
+                                <i class="fas fa-clock"></i>
+                                Pending Ultrasound
+                            </li>
+                            <li class="sidebar-item" data-section="upcoming-ultrasound">
+                                <i class="fas fa-calendar-check"></i>
+                                Upcoming Ultrasound
+                            </li>
+                            <li class="sidebar-item" data-section="pending-review-ultrasound">
+                                <i class="fas fa-eye"></i>
+                                Pending Review
+                            </li>
+                            <li class="sidebar-item" data-section="completed-ultrasound">
+                                <i class="fas fa-check-circle"></i>
+                                Completed
+                            </li>
+                            <li class="sidebar-item" data-section="cancelled-ultrasound">
+                                <i class="fas fa-times-circle"></i>
+                                Cancelled Ultrasound
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- Content Area -->
+                    <div class="content-area">
+                        <!-- Add Ultrasound Form -->
+                        <div id="add-ultrasound-section" class="section active">
+                            <h2>Add New Ultrasound Scan</h2>
+                            <form id="addUltrasoundForm" class="test-form">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="ultrasoundSchedule">Schedule <span class="required">*</span></label>
+                                        <select id="ultrasoundSchedule" name="schedule" required>
+                                            <option value="">Select Schedule</option>
+                                            <option value="Upcoming">Upcoming</option>
+                                            <option value="Pending" selected>Pending</option>
+                                            <option value="Pending Review">Pending Review</option>
+                                            <option value="Completed">Completed</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="ultrasoundDate">Date</label>
+                                        <input type="date" id="ultrasoundDate" name="testDate">
+                                        <div class="field-note">Optional - leave empty if not scheduled</div>
+                                    </div>
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="ultrasoundIycNumber">IYC Number <span class="required">*</span></label>
+                                        <input type="text" id="ultrasoundIycNumber" name="iycNumber" placeholder="Enter IYC Number" required>
+                                        <div class="loading-indicator" id="ultrasoundIycLoading" style="display: none;">
+                                            <i class="fas fa-spinner fa-spin"></i> Looking up patient...
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="ultrasoundPatientName">Name <span class="required">*</span></label>
+                                        <input type="text" id="ultrasoundPatientName" name="patientName" placeholder="Patient name will be auto-filled" required>
+                                    </div>
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="ultrasoundCategory">Category <span class="required">*</span></label>
+                                        <input type="text" id="ultrasoundCategory" name="category" placeholder="Category will be auto-filled" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="ultrasoundPhoneNumber">Phone Number <span class="required">*</span></label>
+                                        <input type="tel" id="ultrasoundPhoneNumber" name="phoneNumber" placeholder="Phone number will be auto-filled" required>
+                                    </div>
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="ultrasoundTestName">Ultrasound Type <span class="required">*</span></label>
+                                        <input type="text" id="ultrasoundTestName" name="testName" placeholder="Enter ultrasound type" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="ultrasoundReferredBy">Referred By <span class="required">*</span></label>
+                                        <select id="ultrasoundReferredBy" name="referredBy" required>
+                                            <option value="">Select Doctor</option>
+                                            <option value="Sahil">Sahil</option>
+                                            <option value="Ashok">Ashok</option>
+                                            <option value="Navneet">Navneet</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="form-actions">
+                                    <button type="submit" id="saveUltrasoundBtn" disabled>
+                                        <i class="fas fa-save"></i>
+                                        Save Ultrasound
+                                    </button>
+                                    <button type="button" id="resetUltrasoundFormBtn">
+                                        <i class="fas fa-undo"></i>
+                                        Reset Form
+                                    </button>
+                                </div>
+
+                                <div id="ultrasoundFormMessage" class="form-message"></div>
+                            </form>
+                        </div>
+
+                        <!-- Pending Ultrasound Section -->
+                        <div id="pending-ultrasound-section" class="section">
+                            <h2>Pending Ultrasounds</h2>
+                            <div class="section-controls">
+                                <div class="bulk-actions">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="selectAllPendingUltrasound">
+                                        <span class="checkmark"></span>
+                                        Select All
+                                    </label>
+                                    <div class="action-dropdown">
+                                        <button id="pendingUltrasoundActionBtn" class="action-btn" disabled>
+                                            <i class="fas fa-cog"></i>
+                                            Actions
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                        <div class="dropdown-menu" id="pendingUltrasoundActionMenu">
+                                            <button class="dropdown-item" data-action="upcoming">
+                                                <i class="fas fa-calendar-check"></i>
+                                                Move to Upcoming
+                                            </button>
+                                            <button class="dropdown-item" data-action="cancelled">
+                                                <i class="fas fa-times"></i>
+                                                Cancelled
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button id="refreshPendingUltrasoundBtn" class="refresh-btn">
+                                    <i class="fas fa-sync-alt"></i>
+                                    Refresh
+                                </button>
+                            </div>
+                            <div class="table-container">
+                                <table id="pendingUltrasoundsTable" class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="checkbox-col">
+                                                <input type="checkbox" class="select-all-checkbox">
+                                            </th>
+                                            <th>Date</th>
+                                            <th>IYC Number</th>
+                                            <th>Name</th>
+                                            <th>Category</th>
+                                            <th>Phone</th>
+                                            <th>Ultrasound Type</th>
+                                            <th>Referred By</th>
+                                            <th>Remarks</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr class="no-data">
+                                            <td colspan="9">No pending ultrasounds found</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="pendingUltrasoundMessage" class="section-message"></div>
+                        </div>
+
+                        <!-- Upcoming Ultrasound Section -->
+                        <div id="upcoming-ultrasound-section" class="section">
+                            <h2>Upcoming Ultrasounds</h2>
+                            <div class="section-controls">
+                                <div class="bulk-actions">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="selectAllUpcomingUltrasound">
+                                        <span class="checkmark"></span>
+                                        Select All
+                                    </label>
+                                    <div class="action-dropdown">
+                                        <button id="upcomingUltrasoundActionBtn" class="action-btn" disabled>
+                                            <i class="fas fa-cog"></i>
+                                            Actions
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                        <div class="dropdown-menu" id="upcomingUltrasoundActionMenu">
+                                            <button class="dropdown-item" data-action="test-done">
+                                                <i class="fas fa-check"></i>
+                                                Ultrasound Done
+                                            </button>
+                                            <button class="dropdown-item" data-action="postpone">
+                                                <i class="fas fa-clock"></i>
+                                                Postpone
+                                            </button>
+                                            <button class="dropdown-item" data-action="cancelled">
+                                                <i class="fas fa-times"></i>
+                                                Cancelled
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button id="refreshUpcomingUltrasoundBtn" class="refresh-btn">
+                                    <i class="fas fa-sync-alt"></i>
+                                    Refresh
+                                </button>
+                            </div>
+                            <div class="table-container">
+                                <table id="upcomingUltrasoundsTable" class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="checkbox-col">
+                                                <input type="checkbox" class="select-all-checkbox">
+                                            </th>
+                                            <th>Date</th>
+                                            <th>IYC Number</th>
+                                            <th>Name</th>
+                                            <th>Category</th>
+                                            <th>Phone</th>
+                                            <th>Ultrasound Type</th>
+                                            <th>Referred By</th>
+                                            <th>Remarks</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr class="no-data">
+                                            <td colspan="9">No upcoming ultrasounds found</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="upcomingUltrasoundMessage" class="section-message"></div>
+                        </div>
+
+                        <!-- Pending Review Ultrasound Section -->
+                        <div id="pending-review-ultrasound-section" class="section">
+                            <h2>Pending Review</h2>
+                            <div class="section-controls">
+                                <div class="bulk-actions">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="selectAllReviewUltrasound">
+                                        <span class="checkmark"></span>
+                                        Select All
+                                    </label>
+                                    <div class="action-dropdown">
+                                        <button id="reviewUltrasoundActionBtn" class="action-btn" disabled>
+                                            <i class="fas fa-cog"></i>
+                                            Actions
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                        <div class="dropdown-menu" id="reviewUltrasoundActionMenu">
+                                            <button class="dropdown-item" data-action="completed">
+                                                <i class="fas fa-check-circle"></i>
+                                                Mark as Completed
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button id="refreshReviewUltrasoundBtn" class="refresh-btn">
+                                    <i class="fas fa-sync-alt"></i>
+                                    Refresh
+                                </button>
+                            </div>
+                            <div class="table-container">
+                                <table id="reviewUltrasoundsTable" class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="checkbox-col">
+                                                <input type="checkbox" class="select-all-checkbox">
+                                            </th>
+                                            <th>Date</th>
+                                            <th>IYC Number</th>
+                                            <th>Name</th>
+                                            <th>Category</th>
+                                            <th>Phone</th>
+                                            <th>Ultrasound Type</th>
+                                            <th>Referred By</th>
+                                            <th>Remarks</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr class="no-data">
+                                            <td colspan="9">No ultrasounds pending review</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="reviewUltrasoundMessage" class="section-message"></div>
+                        </div>
+
+                        <!-- Completed Ultrasound Section -->
+                        <div id="completed-ultrasound-section" class="section">
+                            <h2>Completed Ultrasounds</h2>
+                            <div class="section-controls">
+                                <div class="bulk-actions">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="selectAllCompletedUltrasound">
+                                        <span class="checkmark"></span>
+                                        Select All
+                                    </label>
+                                    <div class="action-dropdown">
+                                        <button id="completedUltrasoundActionBtn" class="action-btn" disabled>
+                                            <i class="fas fa-cog"></i>
+                                            Actions
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                        <div class="dropdown-menu" id="completedUltrasoundActionMenu">
+                                            <button class="dropdown-item" data-action="delete">
+                                                <i class="fas fa-trash"></i>
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button id="refreshCompletedUltrasoundBtn" class="refresh-btn">
+                                    <i class="fas fa-sync-alt"></i>
+                                    Refresh
+                                </button>
+                            </div>
+                            <div class="table-container">
+                                <table id="completedUltrasoundsTable" class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="checkbox-col">
+                                                <input type="checkbox" class="select-all-checkbox">
+                                            </th>
+                                            <th>Date</th>
+                                            <th>IYC Number</th>
+                                            <th>Name</th>
+                                            <th>Category</th>
+                                            <th>Phone</th>
+                                            <th>Ultrasound Type</th>
+                                            <th>Referred By</th>
+                                            <th>Remarks</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr class="no-data">
+                                            <td colspan="9">No completed ultrasounds found</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="completedUltrasoundMessage" class="section-message"></div>
+                        </div>
+
+                        <!-- Cancelled Ultrasound Section -->
+                        <div id="cancelled-ultrasound-section" class="section">
+                            <h2>Cancelled Ultrasounds</h2>
+                            <div class="section-controls">
+                                <div class="bulk-actions">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="selectAllCancelledUltrasound">
+                                        <span class="checkmark"></span>
+                                        Select All
+                                    </label>
+                                    <div class="action-dropdown">
+                                        <button id="cancelledUltrasoundActionBtn" class="action-btn" disabled>
+                                            <i class="fas fa-cog"></i>
+                                            Actions
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                        <div class="dropdown-menu" id="cancelledUltrasoundActionMenu">
+                                            <button class="dropdown-item" data-action="delete">
+                                                <i class="fas fa-trash"></i>
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button id="refreshCancelledUltrasoundBtn" class="refresh-btn">
+                                    <i class="fas fa-sync-alt"></i>
+                                    Refresh
+                                </button>
+                            </div>
+                            <div class="table-container">
+                                <table id="cancelledUltrasoundsTable" class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="checkbox-col">
+                                                <input type="checkbox" class="select-all-checkbox">
+                                            </th>
+                                            <th>Date</th>
+                                            <th>IYC Number</th>
+                                            <th>Name</th>
+                                            <th>Category</th>
+                                            <th>Phone</th>
+                                            <th>Ultrasound Type</th>
+                                            <th>Referred By</th>
+                                            <th>Remarks</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr class="no-data">
+                                            <td colspan="9">No cancelled ultrasounds found</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="cancelledUltrasoundMessage" class="section-message"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hospital Visit Module -->
+            <div id="hospital-visit-module" class="module" style="display: none;">
+                <div class="module-container">
+                    <!-- Sidebar Navigation -->
+                    <div class="sidebar">
+                        <h3>Hospital Visit</h3>
+                        <ul class="sidebar-nav">
+                            <li class="sidebar-item active" data-section="new-request">
+                                <i class="fas fa-plus"></i>
+                                New Request
+                            </li>
+                            <li class="sidebar-item" data-section="pending-visits">
+                                <i class="fas fa-clock"></i>
+                                Pending Visits
+                            </li>
+                            <li class="sidebar-item expandable-menu" id="confirmedVisitsMenu">
+                                <div class="menu-header" onclick="hospitalVisitManager.toggleConfirmedVisitsMenu()">
+                                    <i class="fas fa-calendar-check"></i>
+                                    <span>Confirmed Visits</span>
+                                    <i class="fas fa-chevron-right expand-arrow" id="confirmedVisitsArrow"></i>
+                                </div>
+                            </li>
+                            <ul class="sub-menu-items" id="confirmedVisitsSubMenu" style="display: none;">
+                                <li class="sub-menu-item" data-section="todays-visits" onclick="hospitalVisitManager.switchSection('todays-visits')">
+                                    <i class="fas fa-calendar-day"></i>
+                                    <span>Today's Visits</span>
+                                </li>
+                                <li class="sub-menu-item" data-section="tomorrows-visits" onclick="hospitalVisitManager.switchSection('tomorrows-visits')">
+                                    <i class="fas fa-calendar-plus"></i>
+                                    <span>Tomorrow's Visits</span>
+                                </li>
+                                <li class="sub-menu-item" data-section="later-visits" onclick="hospitalVisitManager.switchSection('later-visits')">
+                                    <i class="fas fa-calendar-alt"></i>
+                                    <span>Later</span>
+                                </li>
+                            </ul>
+                            <li class="sidebar-item" data-section="post-visit">
+                                <i class="fas fa-clipboard-check"></i>
+                                Post Visit
+                            </li>
+                            <li class="sidebar-item" data-section="completed">
+                                <i class="fas fa-check-circle"></i>
+                                Completed
+                            </li>
+                            <li class="sidebar-item" data-section="cancelled">
+                                <i class="fas fa-times-circle"></i>
+                                Cancelled
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- Content Area -->
+                    <div class="content-area">
+                        <!-- New Request Form -->
+                        <div id="new-request-section" class="section active">
+                            <h2>New Hospital Visit Request</h2>
+                            <form id="hospitalVisitForm" class="test-form">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="visitIycNumber">IYC Number <span class="required">*</span></label>
+                                        <input type="text" id="visitIycNumber" name="iycNumber" placeholder="Enter IYC Number" required>
+                                        <div class="loading-indicator" id="visitIycLoading" style="display: none;">
+                                            <i class="fas fa-spinner fa-spin"></i> Looking up patient...
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="visitPatientName">Name <span class="required">*</span></label>
+                                        <input type="text" id="visitPatientName" name="patientName" placeholder="Patient name will be auto-filled" required>
+                                        <div class="search-dropdown" id="nameSearchDropdown" style="display: none;"></div>
+                                    </div>
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="visitPhoneNumber">Phone Number <span class="required">*</span></label>
+                                        <input type="tel" id="visitPhoneNumber" name="phoneNumber" placeholder="Phone number will be auto-filled" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="visitHospital">Hospital <span class="required">*</span></label>
+                                        <select id="visitHospital" name="hospital" required>
+                                            <option value="">Select Hospital</option>
+                                        </select>
+                                        <div class="loading-indicator" id="hospitalLoading" style="display: none;">
+                                            <i class="fas fa-spinner fa-spin"></i> Loading hospitals...
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="visitPurpose">Purpose <span class="required">*</span></label>
+                                        <select id="visitPurpose" name="purpose" required>
+                                            <option value="">Select Purpose of Visit</option>
+                                            <option value="Consultation & Investigation">Consultation & Investigation</option>
+                                            <option value="Emergency Admission">Emergency Admission</option>
+                                            <option value="Blood Test">Blood Test</option>
+                                            <option value="MRI Scan">MRI Scan</option>
+                                            <option value="Ultrasound Scan">Ultrasound Scan</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="visitDoctor">Doctor</label>
+                                        <textarea id="visitDoctor" name="doctor" placeholder="Enter doctor details" rows="3"></textarea>
+                                    </div>
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="visitRemarks">Remarks</label>
+                                        <input type="text" id="visitRemarks" name="remarks" placeholder="Enter any remarks">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="visitPriority">Priority <span class="required">*</span></label>
+                                        <select id="visitPriority" name="priority" required>
+                                            <option value="">Select Priority</option>
+                                            <option value="Urgent">Urgent</option>
+                                            <option value="High">High</option>
+                                            <option value="Medium">Medium</option>
+                                            <option value="Low">Low</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="form-actions">
+                                    <button type="submit" id="saveVisitBtn" disabled>
+                                        <i class="fas fa-save"></i>
+                                        Save Request
+                                    </button>
+                                    <button type="button" id="resetVisitFormBtn">
+                                        <i class="fas fa-undo"></i>
+                                        Reset Form
+                                    </button>
+                                </div>
+
+                                <div id="visitFormMessage" class="form-message"></div>
+                            </form>
+                        </div>
+
+                        <!-- Pending Visits Section -->
+                        <div id="pending-visits-section" class="section">
+                            <h2>Pending Visits</h2>
+                            <div class="section-controls">
+                                <div class="bulk-actions">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="selectAllPendingVisits">
+                                        <span class="checkmark"></span>
+                                        Select All
+                                    </label>
+                                    <div class="action-dropdown">
+                                        <button id="pendingVisitsActionBtn" class="action-btn" disabled>
+                                            <i class="fas fa-cog"></i>
+                                            Actions
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                        <div class="dropdown-menu" id="pendingVisitsActionMenu">
+                                            <button class="dropdown-item" data-action="post-visit">
+                                                <i class="fas fa-clipboard-check"></i>
+                                                Move to Post visit
+                                            </button>
+                                            <button class="dropdown-item" data-action="delete">
+                                                <i class="fas fa-trash"></i>
+                                                Delete
+                                            </button>
+                                            <button class="dropdown-item" data-action="cancel">
+                                                <i class="fas fa-times"></i>
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button id="refreshPendingVisitsBtn" class="refresh-btn">
+                                    <i class="fas fa-sync-alt"></i>
+                                    Refresh
+                                </button>
+                            </div>
+                            <div class="table-container">
+                                <table id="pendingVisitsTable" class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="checkbox-col">
+                                                <input type="checkbox" class="select-all-checkbox">
+                                            </th>
+                                            <th class="appointment-date-col">Appointment Date</th>
+                                            <th>Name</th>
+                                            <th>Phone</th>
+                                            <th>Hospital</th>
+                                            <th>Details</th>
+                                            <th>Send Credit</th>
+                                            <th>Send Details</th>
+                                            <th>Book Cab</th>
+                                            <th>Remarks</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr class="no-data">
+                                            <td colspan="11">No pending visits found</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="pendingVisitsMessage" class="section-message"></div>
+                        </div>
+
+                        <!-- Confirmed Visits Section -->
+                        <div id="confirmed-visits-section" class="section">
+                            <h2>Confirmed Visits</h2>
+                            <div class="section-controls">
+                                <div class="bulk-actions">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="selectAllConfirmedVisits">
+                                        <span class="checkmark"></span>
+                                        Select All
+                                    </label>
+                                    <div class="action-dropdown">
+                                        <button id="confirmedVisitsActionBtn" class="action-btn" disabled>
+                                            <i class="fas fa-cog"></i>
+                                            Actions
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                        <div class="dropdown-menu" id="confirmedVisitsActionMenu">
+                                            <button class="dropdown-item" data-action="post-visit">
+                                                <i class="fas fa-clipboard-check"></i>
+                                                Mark as Post Visit
+                                            </button>
+                                            <button class="dropdown-item" data-action="cancel">
+                                                <i class="fas fa-times"></i>
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button id="refreshConfirmedVisitsBtn" class="refresh-btn">
+                                    <i class="fas fa-sync-alt"></i>
+                                    Refresh
+                                </button>
+                            </div>
+                            <div class="table-container">
+                                <table id="confirmedVisitsTable" class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="checkbox-col">
+                                                <input type="checkbox" class="select-all-checkbox">
+                                            </th>
+                                            <th>Date Requested</th>
+                                            <th>IYC Number</th>
+                                            <th>Name</th>
+                                            <th>Phone</th>
+                                            <th>Hospital</th>
+                                            <th>Purpose</th>
+                                            <th>Doctor</th>
+                                            <th>Credit Note</th>
+                                            <th>Book Cab</th>
+                                            <th>Remarks</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr class="no-data">
+                                            <td colspan="12">No confirmed visits found</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="confirmedVisitsMessage" class="section-message"></div>
+                        </div>
+
+                        <!-- Today's Visits Section -->
+                        <div id="todays-visits-section" class="section">
+                            <h2>Today's Visits</h2>
+                            <div class="section-controls">
+                                <div class="bulk-actions">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="selectAllTodaysVisits">
+                                        <span class="checkmark"></span>
+                                        Select All
+                                    </label>
+                                    <div class="action-dropdown">
+                                        <button id="todaysVisitsActionBtn" class="action-btn" disabled>
+                                            <i class="fas fa-cog"></i>
+                                            Actions
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                        <div class="dropdown-menu" id="todaysVisitsActionMenu">
+                                            <button class="dropdown-item" data-action="post-visit">
+                                                <i class="fas fa-clipboard-check"></i>
+                                                Mark as Post Visit
+                                            </button>
+                                            <button class="dropdown-item" data-action="cancel">
+                                                <i class="fas fa-times"></i>
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button id="refreshTodaysVisitsBtn" class="refresh-btn">
+                                    <i class="fas fa-sync-alt"></i>
+                                    Refresh
+                                </button>
+                            </div>
+                            <div class="table-container">
+                                <table id="todaysVisitsTable" class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="checkbox-col">
+                                                <input type="checkbox" class="select-all-checkbox">
+                                            </th>
+                                            <th class="appointment-date-col">Appointment Date</th>
+                                            <th>Name</th>
+                                            <th>Phone</th>
+                                            <th>Hospital</th>
+                                            <th>Details</th>
+                                            <th>Send Credit</th>
+                                            <th>Send Details</th>
+                                            <th>Book Cab</th>
+                                            <th>Remarks</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr class="no-data">
+                                            <td colspan="10">No today's visits found</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="todaysVisitsMessage" class="section-message"></div>
+                        </div>
+
+                        <!-- Tomorrow's Visits Section -->
+                        <div id="tomorrows-visits-section" class="section">
+                            <h2>Tomorrow's Visits</h2>
+                            <div class="section-controls">
+                                <div class="bulk-actions">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="selectAllTomorrowsVisits">
+                                        <span class="checkmark"></span>
+                                        Select All
+                                    </label>
+                                    <div class="action-dropdown">
+                                        <button id="tomorrowsVisitsActionBtn" class="action-btn" disabled>
+                                            <i class="fas fa-cog"></i>
+                                            Actions
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                        <div class="dropdown-menu" id="tomorrowsVisitsActionMenu">
+                                            <button class="dropdown-item" data-action="post-visit">
+                                                <i class="fas fa-clipboard-check"></i>
+                                                Mark as Post Visit
+                                            </button>
+                                            <button class="dropdown-item" data-action="cancel">
+                                                <i class="fas fa-times"></i>
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button id="refreshTomorrowsVisitsBtn" class="refresh-btn">
+                                    <i class="fas fa-sync-alt"></i>
+                                    Refresh
+                                </button>
+                            </div>
+                            <div class="table-container">
+                                <table id="tomorrowsVisitsTable" class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="checkbox-col">
+                                                <input type="checkbox" class="select-all-checkbox">
+                                            </th>
+                                            <th class="appointment-date-col">Appointment Date</th>
+                                            <th>Name</th>
+                                            <th>Phone</th>
+                                            <th>Hospital</th>
+                                            <th>Details</th>
+                                            <th>Send Credit</th>
+                                            <th>Send Details</th>
+                                            <th>Book Cab</th>
+                                            <th>Remarks</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr class="no-data">
+                                            <td colspan="10">No tomorrow's visits found</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="tomorrowsVisitsMessage" class="section-message"></div>
+                        </div>
+
+                        <!-- Later Visits Section -->
+                        <div id="later-visits-section" class="section">
+                            <h2>Later Visits</h2>
+                            <div class="section-controls">
+                                <div class="bulk-actions">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="selectAllLaterVisits">
+                                        <span class="checkmark"></span>
+                                        Select All
+                                    </label>
+                                    <div class="action-dropdown">
+                                        <button id="laterVisitsActionBtn" class="action-btn" disabled>
+                                            <i class="fas fa-cog"></i>
+                                            Actions
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                        <div class="dropdown-menu" id="laterVisitsActionMenu">
+                                            <button class="dropdown-item" data-action="post-visit">
+                                                <i class="fas fa-clipboard-check"></i>
+                                                Mark as Post Visit
+                                            </button>
+                                            <button class="dropdown-item" data-action="cancel">
+                                                <i class="fas fa-times"></i>
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button id="refreshLaterVisitsBtn" class="refresh-btn">
+                                    <i class="fas fa-sync-alt"></i>
+                                    Refresh
+                                </button>
+                            </div>
+                            <div class="table-container">
+                                <table id="laterVisitsTable" class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="checkbox-col">
+                                                <input type="checkbox" class="select-all-checkbox">
+                                            </th>
+                                            <th class="appointment-date-col">Appointment Date</th>
+                                            <th>Name</th>
+                                            <th>Phone</th>
+                                            <th>Hospital</th>
+                                            <th>Details</th>
+                                            <th>Send Credit</th>
+                                            <th>Send Details</th>
+                                            <th>Book Cab</th>
+                                            <th>Remarks</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr class="no-data">
+                                            <td colspan="10">No later visits found</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="laterVisitsMessage" class="section-message"></div>
+                        </div>
+
+                        <!-- Post Visit Section -->
+                        <div id="post-visit-section" class="section">
+                            <h2>Post Visit</h2>
+                            <div class="section-controls">
+                                <div class="bulk-actions">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="selectAllPostVisits">
+                                        <span class="checkmark"></span>
+                                        Select All
+                                    </label>
+                                    <div class="action-dropdown">
+                                        <button id="postVisitsActionBtn" class="action-btn" disabled>
+                                            <i class="fas fa-cog"></i>
+                                            Actions
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                        <div class="dropdown-menu" id="postVisitsActionMenu">
+                                            <button class="dropdown-item" data-action="complete">
+                                                <i class="fas fa-check-circle"></i>
+                                                Mark as Completed
+                                            </button>
+                                            <button class="dropdown-item" data-action="delete">
+                                                <i class="fas fa-trash"></i>
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button id="refreshPostVisitsBtn" class="refresh-btn">
+                                    <i class="fas fa-sync-alt"></i>
+                                    Refresh
+                                </button>
+                            </div>
+                            <div class="table-container">
+                                <table id="postVisitsTable" class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="checkbox-col">
+                                                <input type="checkbox" class="select-all-checkbox">
+                                            </th>
+                                            <th class="appointment-date-col">Appointment Date</th>
+                                            <th>Name</th>
+                                            <th>Hospital</th>
+                                            <th>Phone</th>
+                                            <th>View Details</th>
+                                            <th>Bills Submission</th>
+                                            <th>Reports Submission</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr class="no-data">
+                                            <td colspan="8">No post visits found</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="postVisitsMessage" class="section-message"></div>
+                        </div>
+
+                        <!-- Completed Section -->
+                        <div id="completed-visits-section" class="section">
+                            <h2>Completed Visits</h2>
+                            <div class="section-controls">
+                                <div class="bulk-actions">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="selectAllCompletedVisits">
+                                        <span class="checkmark"></span>
+                                        Select All
+                                    </label>
+                                    <div class="action-dropdown">
+                                        <button id="completedVisitsActionBtn" class="action-btn" disabled>
+                                            <i class="fas fa-cog"></i>
+                                            Actions
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                        <div class="dropdown-menu" id="completedVisitsActionMenu">
+                                            <button class="dropdown-item" data-action="delete">
+                                                <i class="fas fa-trash"></i>
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button id="refreshCompletedVisitsBtn" class="refresh-btn">
+                                    <i class="fas fa-sync-alt"></i>
+                                    Refresh
+                                </button>
+                            </div>
+                            <div class="table-container">
+                                <table id="completedVisitsTable" class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="checkbox-col">
+                                                <input type="checkbox" class="select-all-checkbox">
+                                            </th>
+                                            <th class="appointment-date-col">Appointment Date</th>
+                                            <th>Name</th>
+                                            <th>Hospital</th>
+                                            <th>Phone</th>
+                                            <th>View Details</th>
+                                            <th>Bills Submission</th>
+                                            <th>Reports Submission</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr class="no-data">
+                                            <td colspan="8">No completed visits found</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="completedVisitsMessage" class="section-message"></div>
+                        </div>
+
+                        <!-- Cancelled Section -->
+                        <div id="cancelled-section" class="section">
+                            <h2>Cancelled Visits</h2>
+                            <div class="section-controls">
+                                <div class="bulk-actions">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="selectAllCancelledVisits">
+                                        <span class="checkmark"></span>
+                                        Select All
+                                    </label>
+                                    <div class="action-dropdown">
+                                        <button id="cancelledVisitsActionBtn" class="action-btn" disabled>
+                                            <i class="fas fa-cog"></i>
+                                            Actions
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                        <div class="dropdown-menu" id="cancelledVisitsActionMenu">
+                                            <button class="dropdown-item" data-action="delete">
+                                                <i class="fas fa-trash"></i>
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button id="refreshCancelledVisitsBtn" class="refresh-btn">
+                                    <i class="fas fa-sync-alt"></i>
+                                    Refresh
+                                </button>
+                            </div>
+                            <div class="table-container">
+                                <table id="cancelledVisitsTable" class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="checkbox-col">
+                                                <input type="checkbox" class="select-all-checkbox">
+                                            </th>
+                                            <th>Date Requested</th>
+                                            <th>IYC Number</th>
+                                            <th>Name</th>
+                                            <th>Phone</th>
+                                            <th>Hospital</th>
+                                            <th>Purpose</th>
+                                            <th>Doctor</th>
+                                            <th>Credit Note</th>
+                                            <th>Book Cab</th>
+                                            <th>Remarks</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr class="no-data">
+                                            <td colspan="11">No cancelled visits found</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="cancelledVisitsMessage" class="section-message"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Visit Details Modal -->
+                <div id="visitDetailsModal" class="modal" style="display: none;">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>Visit Details</h3>
+                            <span class="modal-close">&times;</span>
+                        </div>
+                        <div class="modal-body">
+                            <div class="details-grid">
+                                <div class="detail-item">
+                                    <label>IYC Number:</label>
+                                    <span id="modalIycNumber"></span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Name:</label>
+                                    <span id="modalPatientName"></span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Phone:</label>
+                                    <span id="modalPhoneNumber"></span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Email:</label>
+                                    <span id="modalEmail"></span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Hospital:</label>
+                                    <span id="modalHospital"></span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Doctor:</label>
+                                    <span id="modalDoctor"></span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Purpose:</label>
+                                    <span id="modalPurpose"></span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Date of Request:</label>
+                                    <span id="modalDateRequested"></span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Priority:</label>
+                                    <span id="modalPriority"></span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Remarks:</label>
+                                    <span id="modalRemarks"></span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn-secondary" onclick="hospitalVisitManager.closeModal()">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Diet Request Module -->
+            <div id="diet-request-module" class="module" style="display: none;">
+                <div class="module-container">
+                    <!-- Sidebar -->
+                    <div class="sidebar">
+                        <h3>Diet Request</h3>
+                        <ul class="sidebar-menu">
+                            <li class="sidebar-item active" data-section="new-request">
+                                <i class="fas fa-plus-circle"></i>
+                                New Request
+                            </li>
+                            <li class="sidebar-item" data-section="records">
+                                <i class="fas fa-list"></i>
+                                Records
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- Content Area -->
+                    <div class="content-area">
+                        <!-- New Request Form -->
+                        <div id="diet-new-request-section" class="section active">
+                            <h2>New Diet Request</h2>
+                            <form id="dietRequestForm" class="test-form">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="dietPatientName">Name <span class="required">*</span></label>
+                                        <input type="text" id="dietPatientName" name="patientName" placeholder="Search patient name..." required>
+                                        <div class="search-dropdown" id="dietNameSearchDropdown" style="display: none;"></div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="dietEmail">Email</label>
+                                        <input type="email" id="dietEmail" name="email" placeholder="Email address" readonly>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="dietPhoneNumber">Phone No.</label>
+                                        <input type="tel" id="dietPhoneNumber" name="phoneNumber" placeholder="Phone number" readonly>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="dietAnchor">Anchor <span class="required">*</span></label>
+                                        <select id="dietAnchor" name="anchor" required>
+                                            <option value="">Select Anchor</option>
+                                            <option value="Anchor 1">Anchor 1</option>
+                                            <option value="Anchor 2">Anchor 2</option>
+                                            <option value="Anchor 3">Anchor 3</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="dietOthers">Others <span class="required">*</span></label>
+                                        <div class="multi-select-dropdown" id="dietOthersDropdown">
+                                            <div class="multi-select-input" id="dietOthersInput">
+                                                <span class="placeholder">Select Others...</span>
+                                                <i class="fas fa-chevron-down dropdown-arrow"></i>
+                                            </div>
+                                            <div class="multi-select-options" id="dietOthersOptions" style="display: none;">
+                                                <div class="search-box">
+                                                    <input type="text" placeholder="Search..." id="dietOthersSearch">
+                                                </div>
+                                                <div class="options-list">
+                                                    <label class="option-item">
+                                                        <input type="checkbox" value="Dr. Smith">
+                                                        <span>Dr. Smith</span>
+                                                    </label>
+                                                    <label class="option-item">
+                                                        <input type="checkbox" value="Dr. Johnson">
+                                                        <span>Dr. Johnson</span>
+                                                    </label>
+                                                    <label class="option-item">
+                                                        <input type="checkbox" value="Dr. Williams">
+                                                        <span>Dr. Williams</span>
+                                                    </label>
+                                                    <label class="option-item">
+                                                        <input type="checkbox" value="Nutritionist A">
+                                                        <span>Nutritionist A</span>
+                                                    </label>
+                                                    <label class="option-item">
+                                                        <input type="checkbox" value="Nutritionist B">
+                                                        <span>Nutritionist B</span>
+                                                    </label>
+                                                    <label class="option-item">
+                                                        <input type="checkbox" value="Dietician A">
+                                                        <span>Dietician A</span>
+                                                    </label>
+                                                    <label class="option-item">
+                                                        <input type="checkbox" value="Dietician B">
+                                                        <span>Dietician B</span>
+                                                    </label>
+                                                    <label class="option-item">
+                                                        <input type="checkbox" value="Therapist A">
+                                                        <span>Therapist A</span>
+                                                    </label>
+                                                    <label class="option-item">
+                                                        <input type="checkbox" value="Therapist B">
+                                                        <span>Therapist B</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <input type="hidden" id="dietOthers" name="others" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="dietBrunch">Brunch</label>
+                                        <textarea id="dietBrunch" name="brunch" placeholder="Brunch details..." rows="3"></textarea>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="dietLunch">Lunch</label>
+                                        <textarea id="dietLunch" name="lunch" placeholder="Lunch details..." rows="3"></textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="dietDinner">Dinner</label>
+                                        <textarea id="dietDinner" name="dinner" placeholder="Dinner details..." rows="3"></textarea>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="dietOneTimeTakeaway">One time takeaway</label>
+                                        <textarea id="dietOneTimeTakeaway" name="oneTimeTakeaway" placeholder="One time takeaway details..." rows="2"></textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="dietDuration">Duration (in Days) <span class="required">*</span></label>
+                                        <input type="number" id="dietDuration" name="duration" placeholder="Number of days" min="1" required>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="dietStartDate">Start Date <span class="required">*</span></label>
+                                        <input type="date" id="dietStartDate" name="startDate" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="dietEndDate">End Date</label>
+                                        <input type="date" id="dietEndDate" name="endDate" readonly>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group full-width">
+                                        <label for="dietRemarks">Remarks</label>
+                                        <textarea id="dietRemarks" name="remarks" placeholder="Additional remarks..." rows="3"></textarea>
+                                    </div>
+                                </div>
+                                <div class="form-actions">
+                                    <button type="submit" id="saveDietRequestBtn" class="btn-primary" disabled>
+                                        <i class="fas fa-save"></i>
+                                        Raise Diet Request
+                                    </button>
+                                    <button type="button" id="resetDietFormBtn" class="btn-secondary">
+                                        <i class="fas fa-undo"></i>
+                                        Reset
+                                    </button>
+                                </div>
+                            </form>
+                            <div id="dietFormMessage" class="form-message"></div>
+                        </div>
+
+                        <!-- Records Section -->
+                        <div id="diet-records-section" class="section">
+                            <h2>Diet Request Records</h2>
+                            <div class="section-controls">
+                                <div class="bulk-actions">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="selectAllDietRecords">
+                                        <span class="checkmark"></span>
+                                        Select All
+                                    </label>
+                                    <div class="action-dropdown">
+                                        <button id="dietRecordsActionBtn" class="action-btn" disabled>
+                                            <i class="fas fa-cog"></i>
+                                            Actions
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                        <div class="dropdown-menu" id="dietRecordsActionMenu">
+                                            <button class="dropdown-item" data-action="delete">
+                                                <i class="fas fa-trash"></i>
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button id="refreshDietRecordsBtn" class="refresh-btn">
+                                    <i class="fas fa-sync-alt"></i>
+                                    Refresh
+                                </button>
+                            </div>
+                            <div class="table-container">
+                                <table id="dietRecordsTable" class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="checkbox-col">
+                                                <input type="checkbox" class="select-all-checkbox">
+                                            </th>
+                                            <th>Date Requested</th>
+                                            <th>Name</th>
+                                            <th>Email</th>
+                                            <th>Phone</th>
+                                            <th>Anchor</th>
+                                            <th>Others</th>
+                                            <th>Duration</th>
+                                            <th>Start Date</th>
+                                            <th>End Date</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr class="no-data">
+                                            <td colspan="12">No diet requests found</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="dietRecordsMessage" class="section-message"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Diet Request Details Modal -->
+                <div id="dietDetailsModal" class="modal" style="display: none;">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>Diet Request Details</h3>
+                            <span class="modal-close">&times;</span>
+                        </div>
+                        <div class="modal-body">
+                            <div class="details-grid">
+                                <div class="detail-item">
+                                    <label>Name:</label>
+                                    <span id="modalDietPatientName"></span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Email:</label>
+                                    <span id="modalDietEmail"></span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Phone:</label>
+                                    <span id="modalDietPhoneNumber"></span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Anchor:</label>
+                                    <span id="modalDietAnchor"></span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Others:</label>
+                                    <span id="modalDietOthers"></span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Duration:</label>
+                                    <span id="modalDietDuration"></span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Start Date:</label>
+                                    <span id="modalDietStartDate"></span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>End Date:</label>
+                                    <span id="modalDietEndDate"></span>
+                                </div>
+                                <div class="detail-item full-width">
+                                    <label>Brunch:</label>
+                                    <span id="modalDietBrunch"></span>
+                                </div>
+                                <div class="detail-item full-width">
+                                    <label>Lunch:</label>
+                                    <span id="modalDietLunch"></span>
+                                </div>
+                                <div class="detail-item full-width">
+                                    <label>Dinner:</label>
+                                    <span id="modalDietDinner"></span>
+                                </div>
+                                <div class="detail-item full-width">
+                                    <label>One Time Takeaway:</label>
+                                    <span id="modalDietOneTimeTakeaway"></span>
+                                </div>
+                                <div class="detail-item full-width">
+                                    <label>Remarks:</label>
+                                    <span id="modalDietRemarks"></span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn-secondary" onclick="dietRequestManager.closeModal()">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="isolation-module" class="module" style="display: none;">
+                <h2>Isolation Module</h2>
+                <p>This module will be implemented based on your requirements.</p>
+            </div>
+
+            <div id="appointments-module" class="module" style="display: none;">
+                <h2>Appointments Module</h2>
+                <p>This module will be implemented based on your requirements.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="config.js"></script>
+    <script src="google-sheets.js"></script>
+    <script src="auth.js"></script>
+    <script src="blood-test.js"></script>
+    <script src="ultrasound.js"></script>
+    <script src="hospital-visit.js"></script>
+    <script src="diet-request.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
