@@ -199,9 +199,19 @@ class DietRequestManager {
         }
 
         dietRequestModule.addEventListener('change', (e) => {
+            // Only handle events within the diet request module
+            if (!e.target.closest('#diet-request-module')) {
+                return;
+            }
+
+            // Stop event propagation to prevent other modules from handling it
+            e.stopPropagation();
+
             if (e.target.classList.contains('diet-record-checkbox')) {
+                console.log('Diet request: handling record checkbox');
                 this.handleRecordSelection(e.target);
-            } else if (e.target.classList.contains('select-all-checkbox')) {
+            } else if (e.target.classList.contains('select-all-checkbox') && e.target.id === 'selectAllDietRecordsHeader') {
+                console.log('Diet request: handling select all checkbox');
                 this.handleSelectAll(e.target);
             }
         });
@@ -217,6 +227,11 @@ class DietRequestManager {
         }
 
         dietRequestModule.addEventListener('click', (e) => {
+            // Skip if clicking on checkboxes
+            if (e.target.type === 'checkbox') {
+                return;
+            }
+
             // Check if clicked element is an action button or find closest action button
             const actionBtn = e.target.classList.contains('action-btn') ? e.target : e.target.closest('.action-btn');
             if (actionBtn) {
@@ -1453,13 +1468,13 @@ class DietRequestManager {
 
     // Update section controls
     updateSectionControls(sectionName) {
-        const selectAllId = this.getSelectAllId(sectionName);
         const actionBtnId = this.getActionBtnId(sectionName);
 
         // Reset select all checkbox
-        const selectAllCheckbox = document.getElementById(selectAllId);
+        const selectAllCheckbox = document.getElementById('selectAllDietRecordsHeader');
         if (selectAllCheckbox) {
             selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = false;
         }
 
         // Reset action button
@@ -1472,13 +1487,7 @@ class DietRequestManager {
         this.selectedRecords[sectionName].clear();
     }
 
-    // Get select all checkbox ID
-    getSelectAllId(sectionName) {
-        const mapping = {
-            'records': 'selectAllDietRecords'
-        };
-        return mapping[sectionName];
-    }
+
 
     // Get action button ID
     getActionBtnId(sectionName) {
@@ -1490,37 +1499,70 @@ class DietRequestManager {
 
     // Handle record selection
     handleRecordSelection(checkbox) {
-        const recordId = checkbox.value;
-        const isChecked = checkbox.checked;
+        try {
+            console.log('Diet request: handleRecordSelection called');
 
-        if (isChecked) {
-            this.selectedRecords[this.currentSection].add(recordId);
-        } else {
-            this.selectedRecords[this.currentSection].delete(recordId);
-        }
+            // Ensure we're only working within the diet request module
+            if (!checkbox.closest('#diet-request-module')) {
+                console.log('Diet request: ignoring record selection from outside module');
+                return;
+            }
 
-        this.updateActionButtonState();
-        this.updateSelectAllState();
-    }
-
-    // Handle select all
-    handleSelectAll(selectAllCheckbox) {
-        const isChecked = selectAllCheckbox.checked;
-        const checkboxes = document.querySelectorAll(`#${this.currentSection}-section .diet-record-checkbox`);
-
-        checkboxes.forEach(checkbox => {
-            checkbox.checked = isChecked;
             const recordId = checkbox.value;
+            const isChecked = checkbox.checked;
+            console.log(`Diet request: ${isChecked ? 'selecting' : 'deselecting'} record ${recordId}`);
 
             if (isChecked) {
                 this.selectedRecords[this.currentSection].add(recordId);
             } else {
                 this.selectedRecords[this.currentSection].delete(recordId);
             }
-        });
 
-        this.updateActionButtonState();
+            this.updateActionButtonState();
+            this.updateSelectAllState();
+            console.log('Diet request: handleRecordSelection completed successfully');
+        } catch (error) {
+            console.error('Diet request: Error in handleRecordSelection:', error);
+            // Fail silently instead of showing alert
+        }
     }
+
+    // Handle select all
+    handleSelectAll(selectAllCheckbox) {
+        try {
+            console.log('Diet request: handleSelectAll called');
+
+            // Ensure we're only working within the diet request module
+            if (!selectAllCheckbox.closest('#diet-request-module')) {
+                console.log('Diet request: ignoring select all from outside module');
+                return;
+            }
+
+            const isChecked = selectAllCheckbox.checked;
+            const checkboxes = document.querySelectorAll('#diet-records-section .diet-record-checkbox');
+
+            console.log(`Diet request: ${isChecked ? 'selecting' : 'deselecting'} ${checkboxes.length} checkboxes`);
+
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = isChecked;
+                const recordId = checkbox.value;
+
+                if (isChecked) {
+                    this.selectedRecords[this.currentSection].add(recordId);
+                } else {
+                    this.selectedRecords[this.currentSection].delete(recordId);
+                }
+            });
+
+            this.updateActionButtonState();
+            console.log('Diet request: handleSelectAll completed successfully');
+        } catch (error) {
+            console.error('Diet request: Error in handleSelectAll:', error);
+            // Fail silently instead of showing alert
+        }
+    }
+
+
 
     // Update action button state
     updateActionButtonState() {
@@ -1535,12 +1577,11 @@ class DietRequestManager {
 
     // Update select all state
     updateSelectAllState() {
-        const selectAllId = this.getSelectAllId(this.currentSection);
-        const selectAllCheckbox = document.getElementById(selectAllId);
+        const selectAllCheckbox = document.getElementById('selectAllDietRecordsHeader');
 
         if (selectAllCheckbox) {
-            const checkboxes = document.querySelectorAll(`#${this.currentSection}-section .diet-record-checkbox`);
-            const checkedCheckboxes = document.querySelectorAll(`#${this.currentSection}-section .diet-record-checkbox:checked`);
+            const checkboxes = document.querySelectorAll('#diet-records-section .diet-record-checkbox');
+            const checkedCheckboxes = document.querySelectorAll('#diet-records-section .diet-record-checkbox:checked');
 
             if (checkedCheckboxes.length === 0) {
                 selectAllCheckbox.checked = false;
