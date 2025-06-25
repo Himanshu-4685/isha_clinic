@@ -925,7 +925,7 @@ class DietRequestManager {
         if (records.length === 0) {
             tbody.innerHTML = `
                 <tr class="no-data">
-                    <td colspan="12">No diet requests found</td>
+                    <td colspan="9">No diet requests found</td>
                 </tr>
             `;
             return;
@@ -938,10 +938,6 @@ class DietRequestManager {
                 </td>
                 <td>${record.dateRequested}</td>
                 <td>${record.patientName}</td>
-                <td>${record.email}</td>
-                <td>${record.phoneNumber}</td>
-                <td>${record.anchor}</td>
-                <td>${record.others}</td>
                 <td>${record.duration} days</td>
                 <td>${record.startDate}</td>
                 <td>${record.endDate}</td>
@@ -949,6 +945,11 @@ class DietRequestManager {
                 <td>
                     <button class="action-button details-button" onclick="dietRequestManager.showRecordDetails('${record.id}')" title="View Details">
                         Details
+                    </button>
+                </td>
+                <td>
+                    <button class="action-button renew-button" onclick="dietRequestManager.handleRenewRequest('${record.id}')" title="Renew Request">
+                        Renew
                     </button>
                 </td>
             </tr>
@@ -1027,6 +1028,374 @@ class DietRequestManager {
         const modal = document.getElementById('dietDetailsModal');
         if (modal) {
             modal.style.display = 'none';
+        }
+    }
+
+    // Handle renew request
+    async handleRenewRequest(recordId) {
+        // Find the record data
+        let recordData = null;
+        for (const sectionName in this.sectionData) {
+            const record = this.sectionData[sectionName].find(r => r.id === recordId);
+            if (record) {
+                recordData = record;
+                break;
+            }
+        }
+
+        if (!recordData) {
+            console.error('Record not found for renewal:', recordId);
+            return;
+        }
+
+        // Store the original record data for renewal
+        this.renewingRecord = recordData;
+
+        // Populate readonly fields
+        document.getElementById('renewDietPatientName').textContent = recordData.patientName || '';
+        document.getElementById('renewDietEmail').textContent = recordData.email || '';
+        document.getElementById('renewDietPhoneNumber').textContent = recordData.phoneNumber || '';
+
+        // Populate editable fields with current values
+        document.getElementById('renewDietAnchor').value = recordData.anchor || '';
+        document.getElementById('renewDietDuration').value = recordData.duration || '';
+        document.getElementById('renewDietStartDate').value = recordData.startDate || '';
+        document.getElementById('renewDietEndDate').value = recordData.endDate || '';
+        document.getElementById('renewDietBrunch').value = recordData.brunch || '';
+        document.getElementById('renewDietLunch').value = recordData.lunch || '';
+        document.getElementById('renewDietDinner').value = recordData.dinner || '';
+        document.getElementById('renewDietOneTimeTakeaway').value = recordData.oneTimeTakeaway || '';
+        document.getElementById('renewDietRemarks').value = recordData.remarks || '';
+
+        // Set up the others multi-select dropdown
+        await this.setupRenewOthersDropdown(recordData.others);
+
+        // Set up date calculation for renewal form
+        this.setupRenewDateCalculation();
+
+        // Show modal
+        const modal = document.getElementById('dietRenewModal');
+        modal.style.display = 'flex';
+
+        // Add event listeners
+        this.setupRenewModalEventListeners();
+    }
+
+    // Setup others dropdown for renew modal
+    async setupRenewOthersDropdown(selectedOthers) {
+        // Populate anchors dropdown
+        const anchorSelect = document.getElementById('renewDietAnchor');
+        if (anchorSelect && this.systemConfig && this.systemConfig.anchors) {
+            // Clear existing options except the first one
+            while (anchorSelect.children.length > 1) {
+                anchorSelect.removeChild(anchorSelect.lastChild);
+            }
+
+            // Add options from system config
+            this.systemConfig.anchors.forEach(anchor => {
+                const option = document.createElement('option');
+                option.value = anchor.name || anchor;
+                option.textContent = anchor.name || anchor;
+                anchorSelect.appendChild(option);
+            });
+        }
+
+        // Populate others dropdown
+        const optionsContainer = document.querySelector('#renewDietOthersOptions .options-list');
+        if (optionsContainer && this.systemConfig && this.systemConfig.others) {
+            // Clear existing options
+            optionsContainer.innerHTML = '';
+
+            // Add new options from system config
+            this.systemConfig.others.forEach(name => {
+                const optionItem = document.createElement('label');
+                optionItem.className = 'option-item';
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.value = name;
+
+                const span = document.createElement('span');
+                span.textContent = name;
+
+                optionItem.appendChild(checkbox);
+                optionItem.appendChild(span);
+                optionsContainer.appendChild(optionItem);
+            });
+
+            // Set selected values
+            if (selectedOthers) {
+                const selectedValues = selectedOthers.split(', ').filter(v => v.trim());
+                selectedValues.forEach(value => {
+                    const checkbox = optionsContainer.querySelector(`input[value="${value}"]`);
+                    if (checkbox) {
+                        checkbox.checked = true;
+                    }
+                });
+                this.updateRenewSelectedOptions();
+            }
+        }
+    }
+
+    // Setup date calculation for renew form
+    setupRenewDateCalculation() {
+        const durationInput = document.getElementById('renewDietDuration');
+        const startDateInput = document.getElementById('renewDietStartDate');
+        const endDateInput = document.getElementById('renewDietEndDate');
+
+        const calculateEndDate = () => {
+            const duration = parseInt(durationInput.value);
+            const startDate = startDateInput.value;
+
+            if (duration && startDate) {
+                const start = new Date(startDate);
+                const end = new Date(start);
+                end.setDate(start.getDate() + duration - 1);
+                endDateInput.value = end.toISOString().split('T')[0];
+            } else {
+                endDateInput.value = '';
+            }
+        };
+
+        durationInput.addEventListener('input', calculateEndDate);
+        startDateInput.addEventListener('change', calculateEndDate);
+    }
+
+    // Setup event listeners for renew modal
+    setupRenewModalEventListeners() {
+        const modal = document.getElementById('dietRenewModal');
+
+        // Close modal when clicking outside
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                this.closeRenewModal();
+            }
+        });
+
+        // Close button
+        const closeBtn = modal.querySelector('.modal-close');
+        closeBtn.addEventListener('click', () => {
+            this.closeRenewModal();
+        });
+
+        // ESC key
+        const handleKeyPress = (e) => {
+            if (e.key === 'Escape') {
+                this.closeRenewModal();
+                document.removeEventListener('keydown', handleKeyPress);
+            }
+        };
+        document.addEventListener('keydown', handleKeyPress);
+
+        // Others dropdown functionality
+        this.setupRenewOthersDropdownEvents();
+    }
+
+    // Setup others dropdown events for renew modal
+    setupRenewOthersDropdownEvents() {
+        const dropdown = document.getElementById('renewDietOthersDropdown');
+        const input = document.getElementById('renewDietOthersInput');
+        const options = document.getElementById('renewDietOthersOptions');
+        const searchBox = document.getElementById('renewDietOthersSearch');
+
+        if (!dropdown || !input || !options) return;
+
+        // Toggle dropdown
+        input.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isVisible = options.style.display === 'block';
+            if (isVisible) {
+                this.closeRenewOthersDropdown();
+            } else {
+                this.openRenewOthersDropdown();
+            }
+        });
+
+        // Handle option selection
+        options.addEventListener('change', (e) => {
+            if (e.target.type === 'checkbox') {
+                this.updateRenewSelectedOptions();
+            }
+        });
+
+        // Search functionality
+        if (searchBox) {
+            searchBox.addEventListener('input', (e) => {
+                this.filterRenewOptions(e.target.value);
+            });
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!dropdown.contains(e.target)) {
+                this.closeRenewOthersDropdown();
+            }
+        });
+    }
+
+    // Open renew others dropdown
+    openRenewOthersDropdown() {
+        const options = document.getElementById('renewDietOthersOptions');
+        const input = document.getElementById('renewDietOthersInput');
+        const arrow = input.querySelector('.dropdown-arrow');
+
+        options.style.display = 'block';
+        input.classList.add('active');
+        if (arrow) arrow.classList.add('rotated');
+    }
+
+    // Close renew others dropdown
+    closeRenewOthersDropdown() {
+        const options = document.getElementById('renewDietOthersOptions');
+        const input = document.getElementById('renewDietOthersInput');
+        const arrow = input.querySelector('.dropdown-arrow');
+
+        options.style.display = 'none';
+        input.classList.remove('active');
+        if (arrow) arrow.classList.remove('rotated');
+    }
+
+    // Update selected options for renew modal
+    updateRenewSelectedOptions() {
+        const checkboxes = document.querySelectorAll('#renewDietOthersOptions input[type="checkbox"]:checked');
+        const selectedValues = Array.from(checkboxes).map(cb => cb.value);
+        const hiddenInput = document.getElementById('renewDietOthers');
+        const input = document.getElementById('renewDietOthersInput');
+
+        // Update hidden input value
+        hiddenInput.value = selectedValues.join(', ');
+
+        // Update display
+        const placeholder = input.querySelector('.placeholder');
+        let selectedItemsContainer = input.querySelector('.selected-items');
+
+        if (!selectedItemsContainer) {
+            selectedItemsContainer = document.createElement('div');
+            selectedItemsContainer.className = 'selected-items';
+            input.insertBefore(selectedItemsContainer, input.querySelector('.dropdown-arrow'));
+        }
+
+        if (selectedValues.length === 0) {
+            placeholder.style.display = 'block';
+            selectedItemsContainer.style.display = 'none';
+        } else {
+            placeholder.style.display = 'none';
+            selectedItemsContainer.style.display = 'flex';
+
+            selectedItemsContainer.innerHTML = selectedValues.map(value => `
+                <span class="selected-tag">
+                    ${value}
+                    <span class="remove-tag" data-value="${value}">×</span>
+                </span>
+            `).join('');
+
+            // Handle tag removal
+            selectedItemsContainer.addEventListener('click', (e) => {
+                if (e.target.classList.contains('remove-tag')) {
+                    e.stopPropagation();
+                    const valueToRemove = e.target.getAttribute('data-value');
+                    const checkbox = document.querySelector(`#renewDietOthersOptions input[value="${valueToRemove}"]`);
+                    if (checkbox) {
+                        checkbox.checked = false;
+                        this.updateRenewSelectedOptions();
+                    }
+                }
+            });
+        }
+    }
+
+    // Filter options for renew modal
+    filterRenewOptions(searchTerm) {
+        const options = document.querySelectorAll('#renewDietOthersOptions .option-item');
+        const term = searchTerm.toLowerCase();
+
+        options.forEach(option => {
+            const text = option.querySelector('span').textContent.toLowerCase();
+            if (text.includes(term)) {
+                option.classList.remove('hidden');
+            } else {
+                option.classList.add('hidden');
+            }
+        });
+    }
+
+    // Close renew modal
+    closeRenewModal() {
+        const modal = document.getElementById('dietRenewModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+        this.renewingRecord = null;
+    }
+
+    // Save renew request
+    async saveRenewRequest() {
+        const form = document.getElementById('dietRenewForm');
+        const formData = new FormData(form);
+        const data = {};
+
+        for (let [key, value] of formData.entries()) {
+            data[key] = value.trim();
+        }
+
+        // Get selected others values
+        const othersHiddenInput = document.getElementById('renewDietOthers');
+        data.others = othersHiddenInput ? othersHiddenInput.value : '';
+
+        // Validate required fields
+        const requiredFields = ['anchor', 'duration', 'startDate'];
+        const errors = [];
+
+        requiredFields.forEach(field => {
+            if (!data[field] || data[field] === '') {
+                errors.push(`${field} is required`);
+            }
+        });
+
+        if (!data.others) {
+            errors.push('Others field is required');
+        }
+
+        if (errors.length > 0) {
+            alert('Please fill in all required fields:\n' + errors.join('\n'));
+            return;
+        }
+
+        try {
+            // Prepare renewal data
+            const renewalData = {
+                dateRequested: new Date().toISOString().split('T')[0],
+                patientName: this.renewingRecord.patientName,
+                email: this.renewingRecord.email,
+                phoneNumber: this.renewingRecord.phoneNumber,
+                anchor: data.anchor,
+                others: data.others,
+                brunch: data.brunch || '',
+                lunch: data.lunch || '',
+                dinner: data.dinner || '',
+                oneTimeTakeaway: data.oneTimeTakeaway || '',
+                duration: data.duration,
+                startDate: data.startDate,
+                endDate: data.endDate || '',
+                remarks: data.remarks || '',
+                status: 'Active'
+            };
+
+            // Save the renewal as a new diet request
+            const result = await googleSheetsAPI.saveDietRequest(renewalData);
+
+            if (result.success) {
+                alert('Diet request renewed successfully!');
+                this.closeRenewModal();
+                // Refresh the records table
+                this.loadSectionData(this.currentSection);
+            } else {
+                alert('Failed to renew diet request: ' + (result.message || 'Unknown error'));
+            }
+
+        } catch (error) {
+            console.error('Error renewing diet request:', error);
+            alert('An error occurred while renewing the request. Please try again.');
         }
     }
 

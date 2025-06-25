@@ -1728,20 +1728,17 @@
                                             </th>
                                             <th>Date Requested</th>
                                             <th>Name</th>
-                                            <th>Email</th>
-                                            <th>Phone</th>
-                                            <th>Anchor</th>
-                                            <th>Others</th>
                                             <th>Duration</th>
                                             <th>Start Date</th>
                                             <th>End Date</th>
                                             <th>Status</th>
                                             <th>Actions</th>
+                                            <th>Renew</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <tr class="no-data">
-                                            <td colspan="12">No diet requests found</td>
+                                            <td colspan="9">No diet requests found</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -1816,6 +1813,97 @@
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn-secondary" onclick="dietRequestManager.closeModal()">Close</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Diet Request Renew Modal -->
+                <div id="dietRenewModal" class="modal" style="display: none;">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>Renew Diet Request</h3>
+                            <span class="modal-close">&times;</span>
+                        </div>
+                        <div class="modal-body">
+                            <form id="dietRenewForm">
+                                <div class="details-grid">
+                                    <!-- Read-only fields -->
+                                    <div class="detail-item">
+                                        <label>Name:</label>
+                                        <span id="renewDietPatientName" class="readonly-field"></span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label>Email:</label>
+                                        <span id="renewDietEmail" class="readonly-field"></span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label>Phone:</label>
+                                        <span id="renewDietPhoneNumber" class="readonly-field"></span>
+                                    </div>
+
+                                    <!-- Editable fields -->
+                                    <div class="detail-item">
+                                        <label>Anchor <span class="required">*</span>:</label>
+                                        <select id="renewDietAnchor" name="anchor" required>
+                                            <option value="">Select Anchor</option>
+                                        </select>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label>Others <span class="required">*</span>:</label>
+                                        <div class="multi-select-dropdown" id="renewDietOthersDropdown">
+                                            <div class="multi-select-input" id="renewDietOthersInput">
+                                                <span class="placeholder">Select Others</span>
+                                                <span class="dropdown-arrow">▼</span>
+                                            </div>
+                                            <div class="multi-select-options" id="renewDietOthersOptions" style="display: none;">
+                                                <div class="search-box">
+                                                    <input type="text" id="renewDietOthersSearch" placeholder="Search...">
+                                                </div>
+                                                <div class="options-list">
+                                                    <!-- Options will be populated dynamically -->
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <input type="hidden" id="renewDietOthers" name="others">
+                                    </div>
+                                    <div class="detail-item">
+                                        <label>Duration <span class="required">*</span>:</label>
+                                        <input type="number" id="renewDietDuration" name="duration" min="1" max="365" required>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label>Start Date <span class="required">*</span>:</label>
+                                        <input type="date" id="renewDietStartDate" name="startDate" required>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label>End Date:</label>
+                                        <input type="date" id="renewDietEndDate" name="endDate" readonly>
+                                    </div>
+                                    <div class="detail-item full-width">
+                                        <label>Brunch:</label>
+                                        <textarea id="renewDietBrunch" name="brunch" rows="2" placeholder="Brunch details..."></textarea>
+                                    </div>
+                                    <div class="detail-item full-width">
+                                        <label>Lunch:</label>
+                                        <textarea id="renewDietLunch" name="lunch" rows="2" placeholder="Lunch details..."></textarea>
+                                    </div>
+                                    <div class="detail-item full-width">
+                                        <label>Dinner:</label>
+                                        <textarea id="renewDietDinner" name="dinner" rows="2" placeholder="Dinner details..."></textarea>
+                                    </div>
+                                    <div class="detail-item full-width">
+                                        <label>One Time Takeaway:</label>
+                                        <textarea id="renewDietOneTimeTakeaway" name="oneTimeTakeaway" rows="2" placeholder="One time takeaway details..."></textarea>
+                                    </div>
+                                    <div class="detail-item full-width">
+                                        <label>Remarks:</label>
+                                        <textarea id="renewDietRemarks" name="remarks" rows="3" placeholder="Additional remarks..."></textarea>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn-secondary" onclick="dietRequestManager.closeRenewModal()">Cancel</button>
+                            <button type="button" class="btn-primary" onclick="dietRequestManager.saveRenewRequest()">Save Renewal</button>
                         </div>
                     </div>
                 </div>
