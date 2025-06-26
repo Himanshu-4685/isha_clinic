@@ -52,6 +52,7 @@
                         <i class="fas fa-utensils"></i>
                         <span>Diet Request</span>
                     </div>
+
                     <div class="nav-item" data-module="isolation">
                         <i class="fas fa-shield-alt"></i>
                         <span>Isolation</span>
@@ -175,6 +176,10 @@
                                     <button type="submit" id="saveTestBtn" disabled>
                                         <i class="fas fa-save"></i>
                                         Save Test
+                                    </button>
+                                    <button type="button" id="updateBloodTestDetailsBtn" class="btn-secondary">
+                                        <i class="fas fa-edit"></i>
+                                        Update Details
                                     </button>
                                     <button type="button" id="resetFormBtn">
                                         <i class="fas fa-undo"></i>
@@ -580,6 +585,10 @@
                                     <button type="submit" id="saveUltrasoundBtn" disabled>
                                         <i class="fas fa-save"></i>
                                         Save Ultrasound
+                                    </button>
+                                    <button type="button" id="updateUltrasoundDetailsBtn" class="btn-secondary">
+                                        <i class="fas fa-edit"></i>
+                                        Update Details
                                     </button>
                                     <button type="button" id="resetUltrasoundFormBtn">
                                         <i class="fas fa-undo"></i>
@@ -1013,6 +1022,10 @@
                                     <button type="submit" id="saveVisitBtn" disabled>
                                         <i class="fas fa-save"></i>
                                         Save Request
+                                    </button>
+                                    <button type="button" id="updateHospitalVisitDetailsBtn" class="btn-secondary">
+                                        <i class="fas fa-edit"></i>
+                                        Update Details
                                     </button>
                                     <button type="button" id="resetVisitFormBtn">
                                         <i class="fas fa-undo"></i>
@@ -1566,6 +1579,11 @@
                 </div>
             </div>
 
+
+
+
+            </div>
+
             <!-- Diet Request Module -->
             <div id="diet-request-module" class="module" style="display: none;">
                 <div class="module-container">
@@ -1592,20 +1610,35 @@
                             <form id="dietRequestForm" class="test-form">
                                 <div class="form-row">
                                     <div class="form-group">
-                                        <label for="dietPatientName">Name <span class="required">*</span></label>
-                                        <input type="text" id="dietPatientName" name="patientName" placeholder="Search patient name..." required>
-                                        <div class="search-dropdown" id="dietNameSearchDropdown" style="display: none;"></div>
+                                        <label for="dietDateRequested">Date Requested</label>
+                                        <input type="date" id="dietDateRequested" name="dateRequested" readonly>
                                     </div>
                                     <div class="form-group">
-                                        <label for="dietEmail">Email</label>
-                                        <input type="email" id="dietEmail" name="email" placeholder="Email address" readonly>
+                                        <label for="dietIycNumber">IYC Number <span class="required">*</span></label>
+                                        <input type="text" id="dietIycNumber" name="iycNumber" placeholder="Enter IYC Number" required>
+                                        <div class="loading-indicator" id="dietIycLoading" style="display: none;">
+                                            <i class="fas fa-spinner fa-spin"></i> Looking up patient...
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="form-row">
                                     <div class="form-group">
-                                        <label for="dietPhoneNumber">Phone No.</label>
-                                        <input type="tel" id="dietPhoneNumber" name="phoneNumber" placeholder="Phone number" readonly>
+                                        <label for="dietPatientName">Name <span class="required">*</span></label>
+                                        <input type="text" id="dietPatientName" name="patientName" placeholder="Patient name will be auto-filled" required>
+                                        <div class="search-dropdown" id="dietNameSearchDropdown" style="display: none;"></div>
                                     </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="dietEmail">Email</label>
+                                        <input type="email" id="dietEmail" name="email" placeholder="Email address">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="dietPhoneNumber">Phone No.</label>
+                                        <input type="tel" id="dietPhoneNumber" name="phoneNumber" placeholder="Phone number">
+                                    </div>
+                                </div>
+                                <div class="form-row">
                                     <div class="form-group">
                                         <label for="dietAnchor">Anchor <span class="required">*</span></label>
                                         <select id="dietAnchor" name="anchor" required>
@@ -1615,8 +1648,6 @@
                                             <option value="Anchor 3">Anchor 3</option>
                                         </select>
                                     </div>
-                                </div>
-                                <div class="form-row">
                                     <div class="form-group">
                                         <label for="dietOthers">Others <span class="required">*</span></label>
                                         <div class="multi-select-dropdown" id="dietOthersDropdown">
@@ -1635,43 +1666,43 @@
                                         </div>
                                         <input type="hidden" id="dietOthers" name="others" required>
                                     </div>
+                                </div>
+                                <div class="form-row">
                                     <div class="form-group">
                                         <label for="dietBrunch">Brunch</label>
                                         <textarea id="dietBrunch" name="brunch" placeholder="Brunch details..." rows="3"></textarea>
                                     </div>
-                                </div>
-                                <div class="form-row">
                                     <div class="form-group">
                                         <label for="dietLunch">Lunch</label>
                                         <textarea id="dietLunch" name="lunch" placeholder="Lunch details..." rows="3"></textarea>
                                     </div>
+                                </div>
+                                <div class="form-row">
                                     <div class="form-group">
                                         <label for="dietDinner">Dinner</label>
                                         <textarea id="dietDinner" name="dinner" placeholder="Dinner details..." rows="3"></textarea>
                                     </div>
-                                </div>
-                                <div class="form-row">
                                     <div class="form-group">
                                         <label for="dietOneTimeTakeaway">One time takeaway</label>
                                         <textarea id="dietOneTimeTakeaway" name="oneTimeTakeaway" placeholder="One time takeaway details..." rows="2"></textarea>
                                     </div>
+                                </div>
+                                <div class="form-row">
                                     <div class="form-group">
                                         <label for="dietDuration">Duration (in Days) <span class="required">*</span></label>
                                         <input type="number" id="dietDuration" name="duration" placeholder="Number of days" min="1" required>
                                     </div>
-                                </div>
-                                <div class="form-row">
                                     <div class="form-group">
                                         <label for="dietStartDate">Start Date <span class="required">*</span></label>
                                         <input type="date" id="dietStartDate" name="startDate" required>
                                     </div>
+                                </div>
+                                <div class="form-row">
                                     <div class="form-group">
                                         <label for="dietEndDate">End Date</label>
                                         <input type="date" id="dietEndDate" name="endDate" readonly>
                                     </div>
-                                </div>
-                                <div class="form-row">
-                                    <div class="form-group full-width">
+                                    <div class="form-group">
                                         <label for="dietRemarks">Remarks</label>
                                         <textarea id="dietRemarks" name="remarks" placeholder="Additional remarks..." rows="3"></textarea>
                                     </div>
@@ -1680,6 +1711,10 @@
                                     <button type="submit" id="saveDietRequestBtn" class="btn-primary" disabled>
                                         <i class="fas fa-save"></i>
                                         Raise Diet Request
+                                    </button>
+                                    <button type="button" id="updatePatientDetailsBtn" class="btn-secondary">
+                                        <i class="fas fa-edit"></i>
+                                        Update Details
                                     </button>
                                     <button type="button" id="resetDietFormBtn" class="btn-secondary">
                                         <i class="fas fa-undo"></i>
@@ -1739,166 +1774,6 @@
                                 </table>
                             </div>
                             <div id="dietRecordsMessage" class="section-message"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Diet Request Details Modal -->
-                <div id="dietDetailsModal" class="modal" style="display: none;">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h3>Diet Request Details</h3>
-                            <span class="modal-close">&times;</span>
-                        </div>
-                        <div class="modal-body">
-                            <div class="details-grid">
-                                <div class="detail-item">
-                                    <label>Name:</label>
-                                    <span id="modalDietPatientName"></span>
-                                </div>
-                                <div class="detail-item">
-                                    <label>Email:</label>
-                                    <span id="modalDietEmail"></span>
-                                </div>
-                                <div class="detail-item">
-                                    <label>Phone:</label>
-                                    <span id="modalDietPhoneNumber"></span>
-                                </div>
-                                <div class="detail-item">
-                                    <label>Anchor:</label>
-                                    <span id="modalDietAnchor"></span>
-                                </div>
-                                <div class="detail-item">
-                                    <label>Others:</label>
-                                    <span id="modalDietOthers"></span>
-                                </div>
-                                <div class="detail-item">
-                                    <label>Duration:</label>
-                                    <span id="modalDietDuration"></span>
-                                </div>
-                                <div class="detail-item">
-                                    <label>Start Date:</label>
-                                    <span id="modalDietStartDate"></span>
-                                </div>
-                                <div class="detail-item">
-                                    <label>End Date:</label>
-                                    <span id="modalDietEndDate"></span>
-                                </div>
-                                <div class="detail-item full-width">
-                                    <label>Brunch:</label>
-                                    <span id="modalDietBrunch"></span>
-                                </div>
-                                <div class="detail-item full-width">
-                                    <label>Lunch:</label>
-                                    <span id="modalDietLunch"></span>
-                                </div>
-                                <div class="detail-item full-width">
-                                    <label>Dinner:</label>
-                                    <span id="modalDietDinner"></span>
-                                </div>
-                                <div class="detail-item full-width">
-                                    <label>One Time Takeaway:</label>
-                                    <span id="modalDietOneTimeTakeaway"></span>
-                                </div>
-                                <div class="detail-item full-width">
-                                    <label>Remarks:</label>
-                                    <span id="modalDietRemarks"></span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn-secondary" onclick="dietRequestManager.closeModal()">Close</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Diet Request Renew Modal -->
-                <div id="dietRenewModal" class="modal" style="display: none;">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h3>Renew Diet Request</h3>
-                            <span class="modal-close">&times;</span>
-                        </div>
-                        <div class="modal-body">
-                            <form id="dietRenewForm">
-                                <div class="details-grid">
-                                    <!-- Read-only fields -->
-                                    <div class="detail-item">
-                                        <label>Name:</label>
-                                        <span id="renewDietPatientName" class="readonly-field"></span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Email:</label>
-                                        <span id="renewDietEmail" class="readonly-field"></span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Phone:</label>
-                                        <span id="renewDietPhoneNumber" class="readonly-field"></span>
-                                    </div>
-
-                                    <!-- Editable fields -->
-                                    <div class="detail-item">
-                                        <label>Anchor <span class="required">*</span>:</label>
-                                        <select id="renewDietAnchor" name="anchor" required>
-                                            <option value="">Select Anchor</option>
-                                        </select>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Others <span class="required">*</span>:</label>
-                                        <div class="multi-select-dropdown" id="renewDietOthersDropdown">
-                                            <div class="multi-select-input" id="renewDietOthersInput">
-                                                <span class="placeholder">Select Others</span>
-                                                <span class="dropdown-arrow">▼</span>
-                                            </div>
-                                            <div class="multi-select-options" id="renewDietOthersOptions" style="display: none;">
-                                                <div class="search-box">
-                                                    <input type="text" id="renewDietOthersSearch" placeholder="Search...">
-                                                </div>
-                                                <div class="options-list">
-                                                    <!-- Options will be populated dynamically -->
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <input type="hidden" id="renewDietOthers" name="others">
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Duration <span class="required">*</span>:</label>
-                                        <input type="number" id="renewDietDuration" name="duration" min="1" max="365" required>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Start Date <span class="required">*</span>:</label>
-                                        <input type="date" id="renewDietStartDate" name="startDate" required>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>End Date:</label>
-                                        <input type="date" id="renewDietEndDate" name="endDate" readonly>
-                                    </div>
-                                    <div class="detail-item full-width">
-                                        <label>Brunch:</label>
-                                        <textarea id="renewDietBrunch" name="brunch" rows="2" placeholder="Brunch details..."></textarea>
-                                    </div>
-                                    <div class="detail-item full-width">
-                                        <label>Lunch:</label>
-                                        <textarea id="renewDietLunch" name="lunch" rows="2" placeholder="Lunch details..."></textarea>
-                                    </div>
-                                    <div class="detail-item full-width">
-                                        <label>Dinner:</label>
-                                        <textarea id="renewDietDinner" name="dinner" rows="2" placeholder="Dinner details..."></textarea>
-                                    </div>
-                                    <div class="detail-item full-width">
-                                        <label>One Time Takeaway:</label>
-                                        <textarea id="renewDietOneTimeTakeaway" name="oneTimeTakeaway" rows="2" placeholder="One time takeaway details..."></textarea>
-                                    </div>
-                                    <div class="detail-item full-width">
-                                        <label>Remarks:</label>
-                                        <textarea id="renewDietRemarks" name="remarks" rows="3" placeholder="Additional remarks..."></textarea>
-                                    </div>
-                                </div>
-                            </form>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn-secondary" onclick="dietRequestManager.closeRenewModal()">Cancel</button>
-                            <button type="button" class="btn-primary" onclick="dietRequestManager.saveRenewRequest()">Save Renewal</button>
                         </div>
                     </div>
                 </div>

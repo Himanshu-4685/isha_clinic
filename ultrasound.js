@@ -129,6 +129,14 @@ class UltrasoundManager {
                 this.resetForm();
             });
         }
+
+        // Handle update details button
+        const updateDetailsBtn = document.getElementById('updateUltrasoundDetailsBtn');
+        if (updateDetailsBtn) {
+            updateDetailsBtn.addEventListener('click', () => {
+                this.updatePatientDetails();
+            });
+        }
     }
 
     // Setup form validation
@@ -987,6 +995,175 @@ class UltrasoundManager {
         });
 
         console.log(`Updated referred by dropdown with ${referredByList.length} options`);
+    }
+
+    // Update patient details from form
+    updatePatientDetails() {
+        // Get current form data
+        const formData = {
+            iycNumber: document.getElementById('ultrasoundIycNumber')?.value || '',
+            patientName: document.getElementById('ultrasoundPatientName')?.value || '',
+            email: document.getElementById('ultrasoundEmail')?.value || '',
+            phoneNumber: document.getElementById('ultrasoundPhoneNumber')?.value || ''
+        };
+
+        console.log('Ultrasound - Form data for update modal:', formData);
+        this.showUpdateDetailsModal(formData);
+    }
+
+    // Show update details modal
+    showUpdateDetailsModal(formData) {
+        // Create modal HTML with editable patient fields
+        const modalHtml = `
+            <div id="ultrasoundUpdateDetailsModal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Update Patient Details</h3>
+                        <span class="modal-close" onclick="ultrasoundManager.closeUpdateDetailsModal()">&times;</span>
+                    </div>
+                    <div class="modal-body">
+                        <div class="details-grid">
+                            <div class="detail-item">
+                                <label>IYC Number:</label>
+                                <input type="text" class="readonly-field" value="${formData.iycNumber || ''}" readonly>
+                            </div>
+                            <div class="detail-item">
+                                <label>Name: <span class="required">*</span></label>
+                                <input type="text" id="updatePatientName" value="${formData.patientName || ''}" required>
+                            </div>
+                            <div class="detail-item">
+                                <label>Email: <span class="required">*</span></label>
+                                <input type="email" id="updatePatientEmail" value="${formData.email || ''}" required>
+                            </div>
+                            <div class="detail-item">
+                                <label>Phone: <span class="required">*</span></label>
+                                <input type="tel" id="updatePatientPhone" value="${formData.phoneNumber || ''}" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-primary" onclick="ultrasoundManager.savePatientDetails()">Save Changes</button>
+                        <button type="button" class="btn-secondary" onclick="ultrasoundManager.closeUpdateDetailsModal()">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Add modal to page
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        // Show modal with proper display
+        const modal = document.getElementById('ultrasoundUpdateDetailsModal');
+        modal.style.display = 'flex';
+
+        // Add event listener for clicking outside modal to close
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                this.closeUpdateDetailsModal();
+            }
+        });
+
+        // Add keyboard event listener for ESC key
+        const handleKeyPress = (e) => {
+            if (e.key === 'Escape') {
+                this.closeUpdateDetailsModal();
+                document.removeEventListener('keydown', handleKeyPress);
+            }
+        };
+        document.addEventListener('keydown', handleKeyPress);
+    }
+
+    // Close update details modal
+    closeUpdateDetailsModal() {
+        const modal = document.getElementById('ultrasoundUpdateDetailsModal');
+        if (modal) {
+            modal.remove();
+        }
+    }
+
+    // Save patient details
+    async savePatientDetails() {
+        try {
+            // Get form values from modal
+            const name = document.getElementById('updatePatientName').value.trim();
+            const email = document.getElementById('updatePatientEmail').value.trim();
+            const phone = document.getElementById('updatePatientPhone').value.trim();
+            const iycNumber = document.querySelector('#ultrasoundUpdateDetailsModal .readonly-field').value.trim();
+
+            // Validate required fields
+            if (!name || !email || !phone) {
+                alert('Please fill in all required fields (Name, Email, Phone)');
+                return;
+            }
+
+            // Validate email format
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                alert('Please enter a valid email address');
+                return;
+            }
+
+            // Prepare patient data for update
+            const patientData = {
+                iycNumber: iycNumber,
+                name: name,
+                email: email,
+                phone: phone
+            };
+
+            // Update patient in database
+            const result = await googleSheetsAPI.updatePatientDetails(patientData);
+
+            if (result && result.success) {
+                // Update the form fields with the new values
+                const nameInput = document.getElementById('ultrasoundPatientName');
+                const emailInput = document.getElementById('ultrasoundEmail');
+                const phoneInput = document.getElementById('ultrasoundPhoneNumber');
+
+                if (nameInput) nameInput.value = name;
+                if (emailInput) emailInput.value = email;
+                if (phoneInput) phoneInput.value = phone;
+
+                this.showMessage('ultrasoundFormMessage', 'Patient details updated successfully!', 'success');
+                this.closeUpdateDetailsModal();
+
+                // Refresh the records table if we're on that section
+                if (this.currentSection !== 'new-ultrasound') {
+                    this.loadSectionData(this.currentSection);
+                }
+            } else {
+                const errorMessage = result ? (result.message || 'Failed to update patient details') : 'No response from server';
+                this.showMessage('ultrasoundFormMessage', errorMessage, 'error');
+            }
+        } catch (error) {
+            console.error('Error updating patient details:', error);
+            let errorMessage = 'An error occurred while updating patient details';
+
+            // Provide more specific error messages
+            if (error.message && error.message.includes('Doctype')) {
+                errorMessage = 'Server error: Please make sure the backend server is running on port 3001';
+            } else if (error.message) {
+                errorMessage = `Error: ${error.message}`;
+            }
+
+            this.showMessage('ultrasoundFormMessage', errorMessage, 'error');
+        }
+    }
+
+    // Show message
+    showMessage(elementId, message, type) {
+        const messageElement = document.getElementById(elementId);
+        if (messageElement) {
+            messageElement.textContent = message;
+            messageElement.className = `form-message ${type}`;
+
+            if (message) {
+                setTimeout(() => {
+                    messageElement.textContent = '';
+                    messageElement.className = 'form-message';
+                }, 5000);
+            }
+        }
     }
 }
 

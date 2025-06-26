@@ -1,4 +1,4 @@
-// Diet Request module functionality
+// Diet Request Module - Clean Implementation
 console.log('Loading diet-request.js...');
 
 class DietRequestManager {
@@ -12,14 +12,14 @@ class DietRequestManager {
         this.selectedRecords = {
             'records': new Set()
         };
-        this.editingCell = null;
+        this.systemConfig = null;
         this.patients = [];
+        this.loadingData = false;
     }
 
     // Initialize the diet request module
     init() {
-        console.log('Diet Request - init() called');
-        console.log('Diet Request - Current section:', this.currentSection);
+        console.log('Diet Request - Initializing module...');
 
         this.setupSidebarNavigation();
         this.setupNewRequestForm();
@@ -27,31 +27,16 @@ class DietRequestManager {
         this.setupTableInteractions();
         this.setupBulkActions();
         this.setupRefreshButtons();
-        this.loadPatients();
-        this.setDefaultStartDate();
-        this.setupMultiSelectDropdown();
-        this.restoreFormData();
-        this.setupModuleVisibilityListener();
         this.loadSystemConfig();
+        this.loadPatientData();
+        this.setDefaultStartDate();
 
         // Load data for current section if not new-request
         if (this.currentSection !== 'new-request') {
             this.loadSectionData(this.currentSection);
         }
 
-        console.log('Diet Request - init() completed');
-    }
-
-    // Method called when module becomes active
-    onModuleActivated() {
-        console.log('Diet Request module activated, current section:', this.currentSection);
-        // Restore form data when module becomes active
-        if (this.currentSection === 'new-request') {
-            setTimeout(() => {
-                console.log('Restoring form data after module activation');
-                this.restoreFormData();
-            }, 200);
-        }
+        console.log('Diet Request - Module initialized successfully');
     }
 
     // Setup sidebar navigation
@@ -59,7 +44,7 @@ class DietRequestManager {
         const sidebarItems = document.querySelectorAll('#diet-request-module .sidebar-item');
 
         sidebarItems.forEach(item => {
-            item.addEventListener('click', (e) => {
+            item.addEventListener('click', () => {
                 const section = item.getAttribute('data-section');
                 this.switchSection(section);
             });
@@ -85,25 +70,18 @@ class DietRequestManager {
             section.classList.remove('active');
         });
 
-        // Show selected section
-        const sectionId = sectionName === 'new-request' ? 'diet-new-request-section' :
-                         sectionName === 'records' ? 'diet-records-section' :
-                         `diet-${sectionName}-section`;
+        // Show target section
+        const targetSection = document.getElementById(`diet-${sectionName}-section`);
+        if (targetSection) {
+            targetSection.classList.add('active');
+        }
 
-        const selectedSection = document.getElementById(sectionId);
-        if (selectedSection) {
-            selectedSection.classList.add('active');
-            this.currentSection = sectionName;
+        // Update current section
+        this.currentSection = sectionName;
 
-            // Load data for the section
-            if (sectionName !== 'new-request') {
-                this.loadSectionData(sectionName);
-            } else {
-                // When switching to new-request section, restore form data
-                setTimeout(() => {
-                    this.restoreFormData();
-                }, 100);
-            }
+        // Load section data if needed
+        if (sectionName !== 'new-request') {
+            this.loadSectionData(sectionName);
         }
     }
 
@@ -112,20 +90,26 @@ class DietRequestManager {
         console.log('Diet Request - Setting up new request form');
 
         const form = document.getElementById('dietRequestForm');
+        const iycInput = document.getElementById('dietIycNumber');
         const nameInput = document.getElementById('dietPatientName');
         const resetBtn = document.getElementById('resetDietFormBtn');
         const durationInput = document.getElementById('dietDuration');
         const startDateInput = document.getElementById('dietStartDate');
-        const endDateInput = document.getElementById('dietEndDate');
 
-        console.log('Diet Request - Form elements:', {
-            form: !!form,
-            nameInput: !!nameInput,
-            resetBtn: !!resetBtn,
-            durationInput: !!durationInput,
-            startDateInput: !!startDateInput,
-            endDateInput: !!endDateInput
-        });
+        // Handle IYC number input with debouncing
+        if (iycInput) {
+            console.log('Diet Request - Adding event listener to IYC input');
+            let debounceTimer;
+            iycInput.addEventListener('input', () => {
+                console.log('Diet Request - IYC input event triggered, value:', iycInput.value);
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => {
+                    this.handleIYCLookup(iycInput.value);
+                }, 500);
+            });
+        } else {
+            console.error('Diet Request - IYC input element not found!');
+        }
 
         // Handle name input for search
         if (nameInput) {
@@ -145,11 +129,15 @@ class DietRequestManager {
             });
         }
 
-        // Handle duration and date calculations
-        if (durationInput && startDateInput && endDateInput) {
+        // Handle duration change to calculate end date
+        if (durationInput) {
             durationInput.addEventListener('input', () => {
                 this.calculateEndDate();
             });
+        }
+
+        // Handle start date change to calculate end date
+        if (startDateInput) {
             startDateInput.addEventListener('change', () => {
                 this.calculateEndDate();
             });
@@ -169,6 +157,14 @@ class DietRequestManager {
                 this.resetForm();
             });
         }
+
+        // Handle update details button
+        const updateDetailsBtn = document.getElementById('updatePatientDetailsBtn');
+        if (updateDetailsBtn) {
+            updateDetailsBtn.addEventListener('click', () => {
+                this.updatePatientDetails();
+            });
+        }
     }
 
     // Setup form validation
@@ -180,38 +176,26 @@ class DietRequestManager {
         inputs.forEach(input => {
             input.addEventListener('input', () => {
                 this.validateForm();
-                this.saveFormData(); // Save form data on input
             });
             input.addEventListener('change', () => {
                 this.validateForm();
-                this.saveFormData(); // Save form data on change
             });
         });
     }
 
     // Setup table interactions
     setupTableInteractions() {
-        // Setup checkbox interactions specifically for diet request module
         const dietRequestModule = document.getElementById('diet-request-module');
-        if (!dietRequestModule) {
-            console.error('Diet request module not found for table interactions');
-            return;
-        }
+        if (!dietRequestModule) return;
 
+        // Handle record selection
         dietRequestModule.addEventListener('change', (e) => {
-            // Only handle events within the diet request module
-            if (!e.target.closest('#diet-request-module')) {
-                return;
-            }
-
-            // Stop event propagation to prevent other modules from handling it
+            if (!e.target.closest('#diet-request-module')) return;
             e.stopPropagation();
 
             if (e.target.classList.contains('diet-record-checkbox')) {
-                console.log('Diet request: handling record checkbox');
                 this.handleRecordSelection(e.target);
             } else if (e.target.classList.contains('select-all-checkbox') && e.target.id === 'selectAllDietRecordsHeader') {
-                console.log('Diet request: handling select all checkbox');
                 this.handleSelectAll(e.target);
             }
         });
@@ -219,20 +203,12 @@ class DietRequestManager {
 
     // Setup bulk actions
     setupBulkActions() {
-        // Setup action button clicks specifically for diet request module
         const dietRequestModule = document.getElementById('diet-request-module');
-        if (!dietRequestModule) {
-            console.error('Diet request module not found');
-            return;
-        }
+        if (!dietRequestModule) return;
 
         dietRequestModule.addEventListener('click', (e) => {
-            // Skip if clicking on checkboxes
-            if (e.target.type === 'checkbox') {
-                return;
-            }
+            if (e.target.type === 'checkbox') return;
 
-            // Check if clicked element is an action button or find closest action button
             const actionBtn = e.target.classList.contains('action-btn') ? e.target : e.target.closest('.action-btn');
             if (actionBtn) {
                 e.preventDefault();
@@ -241,168 +217,161 @@ class DietRequestManager {
             } else if (e.target.classList.contains('dropdown-item')) {
                 this.handleBulkAction(e.target);
             } else {
-                // Close all dropdowns when clicking elsewhere
                 this.closeAllDropdowns();
-            }
-        });
-
-        // Also add direct event listeners to each action button as backup
-        const actionButtons = [
-            'dietRecordsActionBtn'
-        ];
-
-        actionButtons.forEach(btnId => {
-            const btn = document.getElementById(btnId);
-            if (btn) {
-                btn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    this.toggleActionDropdown(btn);
-                });
             }
         });
     }
 
     // Setup refresh buttons
     setupRefreshButtons() {
-        const refreshButtons = [
-            'refreshDietRecordsBtn'
-        ];
-
-        refreshButtons.forEach(btnId => {
-            const btn = document.getElementById(btnId);
-            if (btn) {
-                btn.addEventListener('click', () => {
-                    const section = btnId.replace('refresh', '').replace('Btn', '').toLowerCase();
-                    const sectionName = section.replace(/([A-Z])/g, '-$1').toLowerCase();
-                    this.loadSectionData(sectionName);
-                });
-            }
-        });
-    }
-
-    // Load patients for search functionality
-    async loadPatients() {
-        try {
-            const result = await googleSheetsAPI.getAllPatients();
-            
-            if (result.success) {
-                this.patients = result.patients;
-            } else {
-                console.error('Failed to load patients:', result.message);
-            }
-        } catch (error) {
-            console.error('Error loading patients:', error);
+        const refreshBtn = document.getElementById('refreshDietRecordsBtn');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', () => {
+                this.loadSectionData('records');
+            });
         }
     }
 
-    // Handle name search
-    handleNameSearch(searchTerm) {
-        const dropdown = document.getElementById('dietNameSearchDropdown');
-        
-        if (!searchTerm || searchTerm.trim() === '' || searchTerm.length < 2) {
-            this.hideNameDropdown();
+    // Load system configuration
+    async loadSystemConfig() {
+        try {
+            console.log('Diet Request - Loading system configuration...');
+            const result = await googleSheetsAPI.getSystemConfig();
+            console.log('Diet Request - System config API result:', result);
+
+            if (result && result.success) {
+                this.systemConfig = result.data;
+                console.log('Diet Request - System config data stored:', this.systemConfig);
+                this.setupAnchorDropdown();
+                this.setupMultiSelectDropdown();
+                console.log('Diet Request - System configuration loaded successfully');
+            } else {
+                console.error('Diet Request - Failed to load system configuration:', result);
+            }
+        } catch (error) {
+            console.error('Diet Request - Error loading system configuration:', error);
+        }
+    }
+
+    // Set default start date to today
+    setDefaultStartDate() {
+        const startDateInput = document.getElementById('dietStartDate');
+        const dateRequestedInput = document.getElementById('dietDateRequested');
+
+        if (startDateInput) {
+            const today = new Date().toISOString().split('T')[0];
+            startDateInput.value = today;
+            this.calculateEndDate();
+        }
+
+        if (dateRequestedInput) {
+            const today = new Date().toISOString().split('T')[0];
+            dateRequestedInput.value = today;
+        }
+    }
+
+    // Calculate end date based on duration
+    calculateEndDate() {
+        const startDateInput = document.getElementById('dietStartDate');
+        const durationInput = document.getElementById('dietDuration');
+        const endDateInput = document.getElementById('dietEndDate');
+
+        if (startDateInput && durationInput && endDateInput) {
+            const startDate = new Date(startDateInput.value);
+            const duration = parseInt(durationInput.value);
+
+            if (!isNaN(duration) && duration > 0) {
+                const endDate = new Date(startDate);
+                endDate.setDate(startDate.getDate() + duration - 1);
+                endDateInput.value = endDate.toISOString().split('T')[0];
+            } else {
+                endDateInput.value = '';
+            }
+        }
+    }
+
+    // Setup anchor dropdown with data from C5
+    setupAnchorDropdown() {
+        if (!this.systemConfig || !this.systemConfig.anchors) return;
+
+        const anchorSelect = document.getElementById('dietAnchor');
+        if (!anchorSelect) return;
+
+        // Clear existing options except the first placeholder
+        anchorSelect.innerHTML = '<option value="">Select Anchor</option>';
+
+        // Populate with anchor names from C5
+        this.systemConfig.anchors.forEach(anchor => {
+            const option = document.createElement('option');
+            option.value = anchor.name;
+            option.textContent = anchor.name;
+            anchorSelect.appendChild(option);
+        });
+
+        console.log('Diet Request - Anchor dropdown populated with', this.systemConfig.anchors.length, 'options');
+    }
+
+    // Setup multi-select dropdown for "Others" field
+    setupMultiSelectDropdown() {
+        console.log('Diet Request - setupMultiSelectDropdown called');
+        console.log('Diet Request - systemConfig:', this.systemConfig);
+        console.log('Diet Request - systemConfig.others:', this.systemConfig?.others);
+
+        if (!this.systemConfig || !this.systemConfig.others) {
+            console.log('Diet Request - No system config or others data available');
             return;
         }
 
-        const filteredPatients = this.patients.filter(patient => 
-            patient.name.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-
-        if (filteredPatients.length > 0) {
-            this.showNameDropdown(filteredPatients);
-        } else {
-            this.hideNameDropdown();
-        }
-    }
-
-    // Show name search dropdown
-    showNameDropdown(patients) {
-        const dropdown = document.getElementById('dietNameSearchDropdown');
-        if (!dropdown) return;
-
-        dropdown.innerHTML = '';
-        
-        patients.slice(0, 10).forEach(patient => { // Limit to 10 results
-            const item = document.createElement('div');
-            item.className = 'search-dropdown-item';
-            item.textContent = `${patient.name} (${patient.iycNumber})`;
-            item.addEventListener('click', () => {
-                this.selectPatient(patient);
-            });
-            dropdown.appendChild(item);
-        });
-
-        dropdown.style.display = 'block';
-    }
-
-    // Hide name search dropdown
-    hideNameDropdown() {
-        const dropdown = document.getElementById('dietNameSearchDropdown');
-        if (dropdown) {
-            dropdown.style.display = 'none';
-        }
-    }
-
-    // Select patient from dropdown
-    selectPatient(patient) {
-        const nameInput = document.getElementById('dietPatientName');
-        const emailInput = document.getElementById('dietEmail');
-        const phoneInput = document.getElementById('dietPhoneNumber');
-
-        if (nameInput) {
-            nameInput.value = patient.name;
-            nameInput.style.backgroundColor = '#e8f5e8';
-        }
-        if (emailInput) {
-            emailInput.value = patient.email || '';
-            emailInput.style.backgroundColor = '#e8f5e8';
-        }
-        if (phoneInput) {
-            phoneInput.value = patient.phone;
-            phoneInput.style.backgroundColor = '#e8f5e8';
-        }
-
-        this.hideNameDropdown();
-        this.validateForm();
-        this.saveFormData(); // Save form data when patient is selected
-    }
-
-    // Setup multi-select dropdown
-    setupMultiSelectDropdown() {
         const dropdown = document.getElementById('dietOthersDropdown');
         const input = document.getElementById('dietOthersInput');
         const options = document.getElementById('dietOthersOptions');
-        const searchBox = document.getElementById('dietOthersSearch');
-        const hiddenInput = document.getElementById('dietOthers');
-        const arrow = input.querySelector('.dropdown-arrow');
+        const optionsList = options?.querySelector('.options-list');
+        const searchInput = document.getElementById('dietOthersSearch');
 
-        if (!dropdown || !input || !options) return;
+        console.log('Diet Request - DOM elements found:', {
+            dropdown: !!dropdown,
+            input: !!input,
+            options: !!options,
+            optionsList: !!optionsList,
+            searchInput: !!searchInput
+        });
 
-        let selectedValues = [];
+        if (!dropdown || !input || !options || !optionsList) {
+            console.log('Diet Request - Missing required DOM elements for others dropdown');
+            return;
+        }
 
-        // Toggle dropdown
-        input.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const isVisible = options.style.display === 'block';
+        // Populate options with names from C7
+        optionsList.innerHTML = '';
+        this.systemConfig.others.forEach(other => {
+            // Handle both string array and object array formats
+            const name = typeof other === 'string' ? other : other.name;
+            const optionDiv = document.createElement('div');
+            optionDiv.className = 'option-item';
+            optionDiv.innerHTML = `
+                <input type="checkbox" id="diet_${name}" value="${name}">
+                <label for="diet_${name}">${name}</label>
+            `;
+            optionsList.appendChild(optionDiv);
+        });
 
-            if (isVisible) {
-                this.closeMultiSelectDropdown();
-            } else {
-                this.openMultiSelectDropdown();
-            }
+        console.log('Diet Request - Others dropdown populated with', this.systemConfig.others.length, 'options');
+
+        // Handle dropdown toggle
+        input.addEventListener('click', () => {
+            options.style.display = options.style.display === 'block' ? 'none' : 'block';
         });
 
         // Handle option selection
-        options.addEventListener('change', (e) => {
+        optionsList.addEventListener('change', (e) => {
             if (e.target.type === 'checkbox') {
                 this.updateSelectedOptions();
             }
         });
 
-        // Search functionality
-        if (searchBox) {
-            searchBox.addEventListener('input', (e) => {
+        // Handle search
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
                 this.filterOptions(e.target.value);
             });
         }
@@ -410,360 +379,148 @@ class DietRequestManager {
         // Close dropdown when clicking outside
         document.addEventListener('click', (e) => {
             if (!dropdown.contains(e.target)) {
-                this.closeMultiSelectDropdown();
+                options.style.display = 'none';
             }
         });
-    }
-
-    // Open multi-select dropdown
-    openMultiSelectDropdown() {
-        const options = document.getElementById('dietOthersOptions');
-        const input = document.getElementById('dietOthersInput');
-        const arrow = input.querySelector('.dropdown-arrow');
-
-        options.style.display = 'block';
-        input.classList.add('active');
-        arrow.classList.add('rotated');
-    }
-
-    // Close multi-select dropdown
-    closeMultiSelectDropdown() {
-        const options = document.getElementById('dietOthersOptions');
-        const input = document.getElementById('dietOthersInput');
-        const arrow = input.querySelector('.dropdown-arrow');
-
-        options.style.display = 'none';
-        input.classList.remove('active');
-        arrow.classList.remove('rotated');
     }
 
     // Update selected options display
     updateSelectedOptions() {
-        const checkboxes = document.querySelectorAll('#dietOthersOptions input[type="checkbox"]:checked');
-        const selectedValues = Array.from(checkboxes).map(cb => cb.value);
-        const hiddenInput = document.getElementById('dietOthers');
+        const optionsList = document.querySelector('#dietOthersOptions .options-list');
         const input = document.getElementById('dietOthersInput');
+        const hiddenInput = document.getElementById('dietOthers');
 
-        // Update hidden input value
-        hiddenInput.value = selectedValues.join(', ');
+        if (!optionsList || !input || !hiddenInput) return;
+
+        const selectedOptions = [];
+        const checkboxes = optionsList.querySelectorAll('input[type="checkbox"]:checked');
+
+        checkboxes.forEach(checkbox => {
+            selectedOptions.push(checkbox.value);
+        });
 
         // Update display
         const placeholder = input.querySelector('.placeholder');
-        let selectedItemsContainer = input.querySelector('.selected-items');
-
-        if (!selectedItemsContainer) {
-            selectedItemsContainer = document.createElement('div');
-            selectedItemsContainer.className = 'selected-items';
-            input.insertBefore(selectedItemsContainer, input.querySelector('.dropdown-arrow'));
-        }
-
-        if (selectedValues.length === 0) {
-            placeholder.style.display = 'block';
-            selectedItemsContainer.style.display = 'none';
+        if (selectedOptions.length > 0) {
+            placeholder.textContent = selectedOptions.join(', ');
+            placeholder.style.color = '#333';
         } else {
-            placeholder.style.display = 'none';
-            selectedItemsContainer.style.display = 'flex';
-
-            selectedItemsContainer.innerHTML = selectedValues.map(value => `
-                <span class="selected-tag">
-                    ${value}
-                    <span class="remove-tag" data-value="${value}">×</span>
-                </span>
-            `).join('');
-
-            // Handle tag removal
-            selectedItemsContainer.addEventListener('click', (e) => {
-                if (e.target.classList.contains('remove-tag')) {
-                    e.stopPropagation();
-                    const valueToRemove = e.target.getAttribute('data-value');
-                    const checkbox = document.querySelector(`#dietOthersOptions input[value="${valueToRemove}"]`);
-                    if (checkbox) {
-                        checkbox.checked = false;
-                        this.updateSelectedOptions();
-                    }
-                }
-            });
+            placeholder.textContent = 'Select Others...';
+            placeholder.style.color = '#999';
         }
 
+        // Update hidden input
+        hiddenInput.value = selectedOptions.join(', ');
+
+        // Trigger validation
         this.validateForm();
-        this.saveFormData(); // Save form data when selection changes
     }
 
     // Filter options based on search
     filterOptions(searchTerm) {
-        const options = document.querySelectorAll('#dietOthersOptions .option-item');
+        const optionsList = document.querySelector('#dietOthersOptions .options-list');
+        if (!optionsList) return;
+
+        const options = optionsList.querySelectorAll('.option-item');
         const term = searchTerm.toLowerCase();
 
         options.forEach(option => {
-            const text = option.querySelector('span').textContent.toLowerCase();
-            if (text.includes(term)) {
-                option.classList.remove('hidden');
-            } else {
-                option.classList.add('hidden');
-            }
+            const label = option.querySelector('label').textContent.toLowerCase();
+            option.style.display = label.includes(term) ? 'block' : 'none';
         });
     }
 
-    // Save form data to localStorage
-    saveFormData() {
-        const form = document.getElementById('dietRequestForm');
-        if (!form) return;
+    // Handle IYC number lookup
+    async handleIYCLookup(iycNumber) {
+        console.log('Diet Request - handleIYCLookup called with:', iycNumber);
+        console.log('Diet Request - googleSheetsAPI.isInitialized:', googleSheetsAPI.isInitialized);
 
-        const formData = new FormData(form);
-        const data = {};
+        const loadingIndicator = document.getElementById('dietIycLoading');
+        const nameInput = document.getElementById('dietPatientName');
+        const emailInput = document.getElementById('dietEmail');
+        const phoneInput = document.getElementById('dietPhoneNumber');
 
-        for (let [key, value] of formData.entries()) {
-            data[key] = value;
-        }
+        console.log('Diet Request - Form elements found:', {
+            loadingIndicator: !!loadingIndicator,
+            nameInput: !!nameInput,
+            emailInput: !!emailInput,
+            phoneInput: !!phoneInput
+        });
 
-        // Also save the selected others values
-        const hiddenInput = document.getElementById('dietOthers');
-        if (hiddenInput && hiddenInput.value) {
-            data.others = hiddenInput.value;
-        }
-
-        console.log('Saving form data:', data);
-        localStorage.setItem('dietRequestFormData', JSON.stringify(data));
-    }
-
-    // Restore form data from localStorage
-    restoreFormData() {
-        const savedData = localStorage.getItem('dietRequestFormData');
-        console.log('Attempting to restore form data:', savedData);
-
-        if (!savedData) {
-            console.log('No saved form data found');
+        if (!iycNumber || iycNumber.trim() === '') {
+            // Clear fields if IYC is empty
+            if (nameInput) nameInput.value = '';
+            if (emailInput) emailInput.value = '';
+            if (phoneInput) phoneInput.value = '';
+            if (loadingIndicator) loadingIndicator.style.display = 'none';
+            this.validateForm();
             return;
         }
 
         try {
-            const data = JSON.parse(savedData);
-            const form = document.getElementById('dietRequestForm');
-            if (!form) {
-                console.log('Form not found for restoration');
-                return;
-            }
+            // Show loading indicator
+            if (loadingIndicator) loadingIndicator.style.display = 'block';
 
-            console.log('Restoring form data:', data);
+            console.log('Diet Request - About to call googleSheetsAPI.lookupPatientByIYC');
+            // Lookup patient data
+            const result = await googleSheetsAPI.lookupPatientByIYC(iycNumber.trim());
+            console.log('Diet Request - API result:', result);
 
-            // Restore form fields
-            Object.keys(data).forEach(key => {
-                if (key === 'others') return; // Handle others separately
-
-                const field = form.querySelector(`[name="${key}"]`);
-                if (field && data[key]) {
-                    if (field.type === 'checkbox' || field.type === 'radio') {
-                        field.checked = data[key] === 'on' || data[key] === true;
-                    } else {
-                        field.value = data[key];
-                    }
-
-                    // Apply auto-filled styling for restored data
-                    if (['patientName', 'email', 'phoneNumber'].includes(key) && data[key]) {
-                        field.style.backgroundColor = '#e8f5e8';
-                    }
-
-                    console.log(`Restored field ${key}:`, data[key]);
+            if (result.found) {
+                // Populate fields with found data
+                if (nameInput) {
+                    nameInput.value = result.name;
+                    nameInput.style.backgroundColor = '#e8f5e8'; // Light green to indicate auto-filled
+                    nameInput.placeholder = 'Auto-filled from database (editable)';
                 }
-            });
-
-            // Restore others selection
-            if (data.others) {
-                console.log('Restoring others selection:', data.others);
-                const hiddenInput = document.getElementById('dietOthers');
-                if (hiddenInput) {
-                    hiddenInput.value = data.others;
+                if (emailInput) {
+                    emailInput.value = result.email || '';
+                    emailInput.style.backgroundColor = '#e8f5e8'; // Light green to indicate auto-filled
+                    emailInput.placeholder = 'Auto-filled from database (editable)';
                 }
-
-                const selectedValues = data.others.split(', ').filter(v => v.trim());
-                selectedValues.forEach(value => {
-                    const checkbox = document.querySelector(`#dietOthersOptions input[value="${value}"]`);
-                    if (checkbox) {
-                        checkbox.checked = true;
-                        console.log(`Checked option: ${value}`);
-                    }
-                });
-                this.updateSelectedOptions();
+                if (phoneInput) {
+                    phoneInput.value = result.phone || '';
+                    phoneInput.style.backgroundColor = '#e8f5e8'; // Light green to indicate auto-filled
+                    phoneInput.placeholder = 'Auto-filled from database (editable)';
+                }
+            } else {
+                // Clear fields if not found
+                if (nameInput) {
+                    nameInput.value = '';
+                    nameInput.style.backgroundColor = '';
+                    nameInput.placeholder = 'Patient not found - enter manually';
+                }
+                if (emailInput) {
+                    emailInput.value = '';
+                    emailInput.style.backgroundColor = '';
+                    emailInput.placeholder = 'Enter email manually';
+                }
+                if (phoneInput) {
+                    phoneInput.value = '';
+                    phoneInput.style.backgroundColor = '';
+                    phoneInput.placeholder = 'Enter phone number manually';
+                }
             }
+        } catch (error) {
+            console.error('Error looking up patient:', error);
 
-            // Recalculate end date if start date and duration are present
-            if (data.startDate && data.duration) {
-                this.calculateEndDate();
+            // Allow manual entry on error
+            if (nameInput) {
+                nameInput.style.backgroundColor = '';
+                nameInput.placeholder = 'Lookup failed - enter manually';
             }
-
+            if (emailInput) {
+                emailInput.style.backgroundColor = '';
+                emailInput.placeholder = 'Enter email manually';
+            }
+            if (phoneInput) {
+                phoneInput.style.backgroundColor = '';
+                phoneInput.placeholder = 'Enter phone number manually';
+            }
+        } finally {
+            // Hide loading indicator
+            if (loadingIndicator) loadingIndicator.style.display = 'none';
             this.validateForm();
-            console.log('Form data restoration completed');
-        } catch (error) {
-            console.error('Error restoring form data:', error);
-        }
-    }
-
-    // Clear saved form data
-    clearSavedFormData() {
-        console.log('Clearing saved form data');
-        localStorage.removeItem('dietRequestFormData');
-    }
-
-    // Manual method to check and restore form data (for debugging)
-    checkAndRestoreFormData() {
-        console.log('Manual form data restoration triggered');
-        const savedData = localStorage.getItem('dietRequestFormData');
-        console.log('Current saved data:', savedData);
-        this.restoreFormData();
-    }
-
-    // Setup module visibility listener
-    setupModuleVisibilityListener() {
-        // Use MutationObserver to detect when the module becomes visible
-        const dietModule = document.getElementById('diet-request-module');
-        if (!dietModule) return;
-
-        const observer = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
-                    const isVisible = dietModule.style.display !== 'none';
-                    if (isVisible && this.currentSection === 'new-request') {
-                        console.log('Diet request module became visible, restoring form data');
-                        setTimeout(() => {
-                            this.restoreFormData();
-                        }, 200);
-                    }
-                }
-            });
-        });
-
-        observer.observe(dietModule, {
-            attributes: true,
-            attributeFilter: ['style']
-        });
-
-        // Also listen for class changes that might indicate module activation
-        const observer2 = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-                    if (dietModule.classList.contains('active') && this.currentSection === 'new-request') {
-                        console.log('Diet request module became active, restoring form data');
-                        setTimeout(() => {
-                            this.restoreFormData();
-                        }, 200);
-                    }
-                }
-            });
-        });
-
-        observer2.observe(dietModule, {
-            attributes: true,
-            attributeFilter: ['class']
-        });
-    }
-
-    // Load system configuration
-    async loadSystemConfig() {
-        try {
-            console.log('Loading system configuration...');
-            const result = await googleSheetsAPI.getSystemConfig();
-
-            if (result.success) {
-                console.log('System config loaded successfully');
-
-                // Update anchors dropdown
-                this.updateAnchorsDropdown(result.data.anchors);
-
-                // Update others dropdown
-                this.updateOthersDropdown(result.data.others);
-
-                // Store config for later use
-                this.systemConfig = result.data;
-            } else {
-                console.error('Failed to load system config:', result.message);
-            }
-        } catch (error) {
-            console.error('Error loading system config:', error);
-        }
-    }
-
-    // Update anchors dropdown with data from system config
-    updateAnchorsDropdown(anchors) {
-        const anchorSelect = document.getElementById('dietAnchor');
-        if (!anchorSelect || !Array.isArray(anchors)) return;
-
-        // Clear existing options except the first one
-        while (anchorSelect.children.length > 1) {
-            anchorSelect.removeChild(anchorSelect.lastChild);
-        }
-
-        // Add new options from system config
-        anchors.forEach(anchor => {
-            const option = document.createElement('option');
-            option.value = anchor.name || anchor;
-            option.textContent = anchor.name || anchor;
-            anchorSelect.appendChild(option);
-        });
-
-        console.log(`Updated anchors dropdown with ${anchors.length} options`);
-    }
-
-    // Update others dropdown with data from system config
-    updateOthersDropdown(othersList) {
-        const optionsContainer = document.querySelector('#dietOthersOptions .options-list');
-        if (!optionsContainer || !Array.isArray(othersList)) return;
-
-        // Clear existing options
-        optionsContainer.innerHTML = '';
-
-        // Add new options from system config
-        othersList.forEach(name => {
-            const optionItem = document.createElement('label');
-            optionItem.className = 'option-item';
-
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.value = name;
-
-            const span = document.createElement('span');
-            span.textContent = name;
-
-            optionItem.appendChild(checkbox);
-            optionItem.appendChild(span);
-            optionsContainer.appendChild(optionItem);
-        });
-
-        console.log(`Updated others dropdown with ${othersList.length} options`);
-    }
-
-    // Set default start date to tomorrow
-    setDefaultStartDate() {
-        const startDateInput = document.getElementById('dietStartDate');
-        if (startDateInput) {
-            const tomorrow = new Date();
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            const tomorrowString = tomorrow.toISOString().split('T')[0];
-            startDateInput.value = tomorrowString;
-
-            // Trigger end date calculation if duration is already set
-            this.calculateEndDate();
-        }
-    }
-
-    // Calculate end date based on start date and duration
-    calculateEndDate() {
-        const durationInput = document.getElementById('dietDuration');
-        const startDateInput = document.getElementById('dietStartDate');
-        const endDateInput = document.getElementById('dietEndDate');
-
-        if (durationInput && startDateInput && endDateInput) {
-            const duration = parseInt(durationInput.value);
-            const startDate = startDateInput.value;
-
-            if (duration && startDate) {
-                const start = new Date(startDate);
-                const end = new Date(start);
-                end.setDate(start.getDate() + duration - 1); // -1 because start date is day 1
-
-                endDateInput.value = end.toISOString().split('T')[0];
-            } else {
-                endDateInput.value = '';
-            }
         }
     }
 
@@ -782,7 +539,7 @@ class DietRequestManager {
         }
 
         // Check required fields
-        const requiredFields = ['patientName', 'anchor', 'duration', 'startDate'];
+        const requiredFields = ['iycNumber', 'patientName', 'anchor', 'duration', 'startDate'];
         const errors = [];
 
         requiredFields.forEach(field => {
@@ -791,7 +548,7 @@ class DietRequestManager {
             }
         });
 
-        // Special validation for "others" field (multi-select dropdown)
+        // Special validation for "others" field
         const othersHiddenInput = document.getElementById('dietOthers');
         if (othersHiddenInput) {
             const othersValue = othersHiddenInput.value.trim();
@@ -825,18 +582,18 @@ class DietRequestManager {
             saveBtn.disabled = true;
             saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
 
-            // Get selected others values from hidden input
-            const othersHiddenInput = document.getElementById('dietOthers');
-            const selectedOthers = othersHiddenInput ? othersHiddenInput.value : '';
+            // Get selected others values
+            const selectedOthers = document.getElementById('dietOthers').value;
 
             // Prepare diet request data
             const dietRequestData = {
-                dateRequested: new Date().toISOString().split('T')[0], // Current date
+                dateRequested: new Date().toISOString().split('T')[0],
+                iycNumber: this.formData.iycNumber,
                 patientName: this.formData.patientName,
                 email: this.formData.email || '',
                 phoneNumber: this.formData.phoneNumber || '',
                 anchor: this.formData.anchor,
-                others: selectedOthers, // Already formatted as comma-separated string
+                others: selectedOthers,
                 brunch: this.formData.brunch || '',
                 lunch: this.formData.lunch || '',
                 dinner: this.formData.dinner || '',
@@ -852,8 +609,23 @@ class DietRequestManager {
             const result = await googleSheetsAPI.saveDietRequest(dietRequestData);
 
             if (result.success) {
-                this.showMessage('dietFormMessage', 'Diet request saved successfully!', 'success');
-                this.clearSavedFormData(); // Clear saved data on successful submission
+                // Show initial success message
+                this.showMessage('dietFormMessage', 'Diet request saved successfully! Sending email...', 'success');
+
+                // Send email notification
+                try {
+                    const emailResult = await googleSheetsAPI.sendDietRequestEmail(result.dietRequestId);
+
+                    if (emailResult.success) {
+                        this.showMessage('dietFormMessage', 'Diet request saved and email sent successfully!', 'success');
+                    } else {
+                        this.showMessage('dietFormMessage', 'Diet request saved but email failed to send. Please contact administrator.', 'warning');
+                    }
+                } catch (emailError) {
+                    console.error('Error sending diet request email:', emailError);
+                    this.showMessage('dietFormMessage', 'Diet request saved but email failed to send. Please contact administrator.', 'warning');
+                }
+
                 this.resetForm();
             } else {
                 this.showMessage('dietFormMessage', result.message || 'Failed to save diet request', 'error');
@@ -879,16 +651,12 @@ class DietRequestManager {
             const inputs = form.querySelectorAll('input, textarea');
             inputs.forEach(input => {
                 input.style.backgroundColor = '';
-                input.placeholder = input.getAttribute('placeholder') || '';
             });
 
             // Reset multi-select dropdown
             const checkboxes = document.querySelectorAll('#dietOthersOptions input[type="checkbox"]');
             checkboxes.forEach(cb => cb.checked = false);
             this.updateSelectedOptions();
-
-            // Clear saved form data
-            this.clearSavedFormData();
 
             // Reset to default start date
             this.setDefaultStartDate();
@@ -901,117 +669,415 @@ class DietRequestManager {
         }
     }
 
-    // Load section data
-    async loadSectionData(sectionName) {
-        this.showSectionLoading(sectionName, true);
-
+    // Load patient data for name search
+    async loadPatientData() {
         try {
-            const result = await googleSheetsAPI.getDietRequests();
-            console.log(`Loading ${sectionName} data:`, result);
+            console.log('Diet Request - Loading patient data...');
+            const result = await googleSheetsAPI.getAllPatients();
 
-            if (result.success) {
-                this.sectionData[sectionName] = result.dietRequests;
-                this.renderSectionTable(sectionName);
-                this.updateSectionControls(sectionName);
+            if (result && result.success) {
+                this.patients = result.patients || [];
+                console.log('Diet Request - Patient data loaded successfully:', this.patients.length, 'patients');
             } else {
-                console.error(`Failed to load ${sectionName} data:`, result.message);
-                this.showSectionMessage(sectionName, 'Failed to load data: ' + result.message, 'error');
+                console.error('Diet Request - Failed to load patient data');
+                this.patients = [];
             }
         } catch (error) {
-            console.error(`Error loading ${sectionName} data:`, error);
-            this.showSectionMessage(sectionName, 'Failed to load data. Please try again.', 'error');
+            console.error('Diet Request - Error loading patient data:', error);
+            this.patients = [];
+        }
+    }
+
+    // Handle name search
+    handleNameSearch(searchTerm) {
+        if (!searchTerm || searchTerm.trim() === '' || searchTerm.length < 2) {
+            this.hideNameDropdown();
+            return;
+        }
+
+        const filteredPatients = this.patients.filter(patient =>
+            patient.name.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+
+        if (filteredPatients.length > 0) {
+            this.showNameDropdown(filteredPatients);
+        } else {
+            this.hideNameDropdown();
+        }
+    }
+
+    // Show name search dropdown
+    showNameDropdown(patients) {
+        const dropdown = document.getElementById('dietNameSearchDropdown');
+        if (!dropdown) return;
+
+        dropdown.innerHTML = '';
+
+        patients.slice(0, 10).forEach(patient => { // Limit to 10 results
+            const item = document.createElement('div');
+            item.className = 'search-dropdown-item';
+            item.textContent = `${patient.name} (${patient.iycNumber})`;
+            item.addEventListener('click', () => {
+                this.selectPatient(patient);
+            });
+            dropdown.appendChild(item);
+        });
+
+        dropdown.style.display = 'block';
+    }
+
+    // Hide name search dropdown
+    hideNameDropdown() {
+        const dropdown = document.getElementById('dietNameSearchDropdown');
+        if (dropdown) {
+            dropdown.style.display = 'none';
+        }
+    }
+
+    // Select patient from dropdown
+    selectPatient(patient) {
+        const iycInput = document.getElementById('dietIycNumber');
+        const nameInput = document.getElementById('dietPatientName');
+        const emailInput = document.getElementById('dietEmail');
+        const phoneInput = document.getElementById('dietPhoneNumber');
+
+        if (iycInput) iycInput.value = patient.iycNumber;
+        if (nameInput) {
+            nameInput.value = patient.name;
+            nameInput.style.backgroundColor = '#e8f5e8';
+        }
+        if (emailInput) {
+            emailInput.value = patient.email || '';
+            emailInput.style.backgroundColor = '#e8f5e8';
+        }
+        if (phoneInput) {
+            phoneInput.value = patient.phone || '';
+            phoneInput.style.backgroundColor = '#e8f5e8';
+        }
+
+        this.hideNameDropdown();
+        this.validateForm();
+    }
+
+    // Show message
+    showMessage(elementId, message, type) {
+        const messageElement = document.getElementById(elementId);
+        if (messageElement) {
+            messageElement.textContent = message;
+            messageElement.className = `form-message ${type}`;
+
+            if (message) {
+                setTimeout(() => {
+                    messageElement.textContent = '';
+                    messageElement.className = 'form-message';
+                }, 5000);
+            }
+        }
+    }
+
+    // Load section data
+    async loadSectionData(sectionName) {
+        if (this.loadingData) return;
+
+        this.loadingData = true;
+        console.log(`Diet Request - Loading data for section: ${sectionName}`);
+
+        try {
+            if (sectionName === 'records') {
+                const result = await googleSheetsAPI.getDietRequests();
+
+                if (result && result.success) {
+                    this.sectionData[sectionName] = result.dietRequests || [];
+                    this.renderSectionTable(sectionName);
+                    this.updateSectionControls(sectionName);
+                } else {
+                    console.error('Diet Request - Failed to load records');
+                    this.showMessage('dietRecordsMessage', 'Failed to load records', 'error');
+                }
+            }
+        } catch (error) {
+            console.error(`Diet Request - Error loading ${sectionName} data:`, error);
+            this.showMessage(`diet${sectionName.charAt(0).toUpperCase() + sectionName.slice(1)}Message`, 'Error loading data', 'error');
         } finally {
-            this.showSectionLoading(sectionName, false);
+            this.loadingData = false;
         }
     }
 
     // Render section table
     renderSectionTable(sectionName) {
-        const tableId = this.getSectionTableId(sectionName);
-        const table = document.getElementById(tableId);
+        console.log(`Diet Request - Rendering table for section: ${sectionName}`);
 
-        if (!table) return;
+        if (sectionName === 'records') {
+            this.renderRecordsTable();
+        }
+    }
 
-        const tbody = table.querySelector('tbody');
-        if (!tbody) return;
+    // Render records table
+    renderRecordsTable() {
+        const tableBody = document.querySelector('#dietRecordsTable tbody');
+        if (!tableBody) return;
 
-        const records = this.sectionData[sectionName] || [];
+        const records = this.sectionData['records'] || [];
 
         if (records.length === 0) {
-            tbody.innerHTML = `
-                <tr class="no-data">
-                    <td colspan="9">No diet requests found</td>
+            tableBody.innerHTML = '<tr class="no-data"><td colspan="9">No diet requests found</td></tr>';
+            return;
+        }
+
+        tableBody.innerHTML = records.map(record => {
+            const statusClass = this.getStatusClass(record.status);
+            return `
+                <tr data-id="${record.id}">
+                    <td class="checkbox-col">
+                        <input type="checkbox" class="diet-record-checkbox" value="${record.id}">
+                    </td>
+                    <td>${record.dateRequested}</td>
+                    <td>${record.patientName}</td>
+                    <td>${record.duration} days</td>
+                    <td>${record.startDate}</td>
+                    <td>${record.endDate}</td>
+                    <td><span class="status-badge ${statusClass}">${record.status}</span></td>
+                    <td>
+                        <button class="btn-icon" onclick="dietRequestManager.viewRecord('${record.id}')" title="View Details">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </td>
+                    <td>
+                        <button class="btn-icon" onclick="dietRequestManager.renewRecord('${record.id}')" title="Renew Request">
+                            <i class="fas fa-redo"></i>
+                        </button>
+                    </td>
                 </tr>
             `;
-            return;
+        }).join('');
+    }
+
+    // Get status class for styling
+    getStatusClass(status) {
+        switch (status?.toLowerCase()) {
+            case 'active': return 'status-active';
+            case 'completed': return 'status-completed';
+            case 'cancelled': return 'status-cancelled';
+            default: return 'status-active';
+        }
+    }
+
+    // Update section controls
+    updateSectionControls(sectionName) {
+        console.log(`Diet Request - Updating controls for section: ${sectionName}`);
+
+        if (sectionName === 'records') {
+            this.updateRecordsControls();
+        }
+    }
+
+    // Update records controls
+    updateRecordsControls() {
+        const actionBtn = document.getElementById('dietRecordsActionBtn');
+        const selectedCount = this.selectedRecords['records'].size;
+
+        if (actionBtn) {
+            actionBtn.disabled = selectedCount === 0;
+            actionBtn.textContent = selectedCount > 0 ?
+                `Actions (${selectedCount})` : 'Actions';
+        }
+    }
+
+    // Handle record selection
+    handleRecordSelection(checkbox) {
+        const recordId = checkbox.value;
+        const isChecked = checkbox.checked;
+
+        if (isChecked) {
+            this.selectedRecords['records'].add(recordId);
+        } else {
+            this.selectedRecords['records'].delete(recordId);
         }
 
-        tbody.innerHTML = records.map((record, index) => `
-            <tr data-record-id="${record.id}" data-row-index="${record.rowIndex}">
-                <td class="checkbox-col">
-                    <input type="checkbox" class="diet-record-checkbox" value="${record.id}">
-                </td>
-                <td>${record.dateRequested}</td>
-                <td>${record.patientName}</td>
-                <td>${record.duration} days</td>
-                <td>${record.startDate}</td>
-                <td>${record.endDate}</td>
-                <td><span class="status-badge status-${record.status.toLowerCase()}">${record.status}</span></td>
-                <td>
-                    <button class="action-button details-button" onclick="dietRequestManager.showRecordDetails('${record.id}')" title="View Details">
-                        Details
-                    </button>
-                </td>
-                <td>
-                    <button class="action-button renew-button" onclick="dietRequestManager.handleRenewRequest('${record.id}')" title="Renew Request">
-                        Renew
-                    </button>
-                </td>
-            </tr>
-        `).join('');
+        this.updateRecordsControls();
+        this.updateSelectAllState('records');
     }
 
-    // Get section table ID
-    getSectionTableId(sectionName) {
-        const mapping = {
-            'records': 'dietRecordsTable'
-        };
-        return mapping[sectionName];
+    // Handle select all
+    handleSelectAll(selectAllCheckbox) {
+        const isChecked = selectAllCheckbox.checked;
+        const checkboxes = document.querySelectorAll('.diet-record-checkbox');
+
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = isChecked;
+            const recordId = checkbox.value;
+
+            if (isChecked) {
+                this.selectedRecords['records'].add(recordId);
+            } else {
+                this.selectedRecords['records'].delete(recordId);
+            }
+        });
+
+        this.updateRecordsControls();
     }
 
-    // Show record details in modal
-    async showRecordDetails(recordId) {
-        // Find the record data
-        let recordData = null;
-        for (const sectionName in this.sectionData) {
-            const record = this.sectionData[sectionName].find(r => r.id === recordId);
-            if (record) {
-                recordData = record;
-                break;
+    // Update select all state
+    updateSelectAllState(sectionName) {
+        if (sectionName === 'records') {
+            const selectAllCheckbox = document.getElementById('selectAllDietRecordsHeader');
+            const checkboxes = document.querySelectorAll('.diet-record-checkbox');
+            const checkedCount = document.querySelectorAll('.diet-record-checkbox:checked').length;
+
+            if (selectAllCheckbox) {
+                selectAllCheckbox.checked = checkboxes.length > 0 && checkedCount === checkboxes.length;
+                selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < checkboxes.length;
             }
         }
+    }
 
-        if (!recordData) {
-            console.error('Record not found:', recordId);
+    // Toggle action dropdown
+    toggleActionDropdown(button) {
+        const dropdown = button.nextElementSibling;
+        if (dropdown) {
+            const isVisible = dropdown.style.display === 'block';
+            this.closeAllDropdowns();
+            dropdown.style.display = isVisible ? 'none' : 'block';
+        }
+    }
+
+    // Close all dropdowns
+    closeAllDropdowns() {
+        const dropdowns = document.querySelectorAll('#diet-request-module .dropdown-menu');
+        dropdowns.forEach(dropdown => {
+            dropdown.style.display = 'none';
+        });
+    }
+
+    // Handle bulk action
+    async handleBulkAction(item) {
+        const action = item.getAttribute('data-action');
+        const selectedIds = Array.from(this.selectedRecords['records']);
+
+        if (selectedIds.length === 0) {
+            alert('Please select records to perform this action.');
             return;
         }
 
-        // Populate modal with record data
-        document.getElementById('modalDietPatientName').textContent = recordData.patientName || '';
-        document.getElementById('modalDietEmail').textContent = recordData.email || '';
-        document.getElementById('modalDietPhoneNumber').textContent = recordData.phoneNumber || '';
-        document.getElementById('modalDietAnchor').textContent = recordData.anchor || '';
-        document.getElementById('modalDietOthers').textContent = recordData.others || '';
-        document.getElementById('modalDietDuration').textContent = recordData.duration ? `${recordData.duration} days` : '';
-        document.getElementById('modalDietStartDate').textContent = recordData.startDate || '';
-        document.getElementById('modalDietEndDate').textContent = recordData.endDate || '';
-        document.getElementById('modalDietBrunch').textContent = recordData.brunch || 'Not specified';
-        document.getElementById('modalDietLunch').textContent = recordData.lunch || 'Not specified';
-        document.getElementById('modalDietDinner').textContent = recordData.dinner || 'Not specified';
-        document.getElementById('modalDietOneTimeTakeaway').textContent = recordData.oneTimeTakeaway || 'Not specified';
-        document.getElementById('modalDietRemarks').textContent = recordData.remarks || 'No remarks';
+        if (action === 'delete') {
+            await this.deleteRecords(selectedIds);
+        }
 
-        // Show modal
+        this.closeAllDropdowns();
+    }
+
+    // Delete records
+    async deleteRecords(recordIds) {
+        if (!confirm(`Are you sure you want to delete ${recordIds.length} record(s)?`)) {
+            return;
+        }
+
+        try {
+            const result = await googleSheetsAPI.deleteDietRequests(recordIds);
+
+            if (result.success) {
+                this.showMessage('dietRecordsMessage', `Successfully deleted ${recordIds.length} record(s)`, 'success');
+                this.selectedRecords['records'].clear();
+                this.loadSectionData('records');
+            } else {
+                this.showMessage('dietRecordsMessage', result.message || 'Failed to delete records', 'error');
+            }
+        } catch (error) {
+            console.error('Error deleting records:', error);
+            this.showMessage('dietRecordsMessage', 'An error occurred while deleting records', 'error');
+        }
+    }
+
+    // View record details
+    viewRecord(recordId) {
+        const record = this.sectionData['records'].find(r => r.id === recordId);
+        if (record) {
+            // Create and show a modal with record details
+            this.showRecordDetailsModal(record);
+        }
+    }
+
+    // Show record details modal
+    showRecordDetailsModal(record) {
+        // Create modal HTML
+        const modalHtml = `
+            <div id="dietDetailsModal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Diet Request Details</h3>
+                        <span class="modal-close" onclick="dietRequestManager.closeModal()">&times;</span>
+                    </div>
+                    <div class="modal-body">
+                        <div class="details-grid">
+                            <div class="detail-item">
+                                <label>Name:</label>
+                                <span>${record.patientName}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>IYC Number:</label>
+                                <span>${record.iycNumber || 'N/A'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Email:</label>
+                                <span>${record.email || 'N/A'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Phone:</label>
+                                <span>${record.phoneNumber || 'N/A'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Anchor:</label>
+                                <span>${record.anchor}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Others:</label>
+                                <span>${record.others}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Duration:</label>
+                                <span>${record.duration} days</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Start Date:</label>
+                                <span>${record.startDate}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>End Date:</label>
+                                <span>${record.endDate}</span>
+                            </div>
+                            <div class="detail-item full-width">
+                                <label>Brunch:</label>
+                                <span>${record.brunch || 'N/A'}</span>
+                            </div>
+                            <div class="detail-item full-width">
+                                <label>Lunch:</label>
+                                <span>${record.lunch || 'N/A'}</span>
+                            </div>
+                            <div class="detail-item full-width">
+                                <label>Dinner:</label>
+                                <span>${record.dinner || 'N/A'}</span>
+                            </div>
+                            <div class="detail-item full-width">
+                                <label>One Time Takeaway:</label>
+                                <span>${record.oneTimeTakeaway || 'N/A'}</span>
+                            </div>
+                            <div class="detail-item full-width">
+                                <label>Remarks:</label>
+                                <span>${record.remarks || 'N/A'}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-secondary" onclick="dietRequestManager.closeModal()">Close</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Add modal to page
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        // Show modal with proper display
         const modal = document.getElementById('dietDetailsModal');
         modal.style.display = 'flex';
 
@@ -1020,12 +1086,6 @@ class DietRequestManager {
             if (e.target === modal) {
                 this.closeModal();
             }
-        });
-
-        // Add event listener for close button
-        const closeBtn = modal.querySelector('.modal-close');
-        closeBtn.addEventListener('click', () => {
-            this.closeModal();
         });
 
         // Add keyboard event listener for ESC key
@@ -1042,158 +1102,121 @@ class DietRequestManager {
     closeModal() {
         const modal = document.getElementById('dietDetailsModal');
         if (modal) {
-            modal.style.display = 'none';
+            modal.remove();
         }
     }
 
-    // Handle renew request
-    async handleRenewRequest(recordId) {
-        // Find the record data
-        let recordData = null;
-        for (const sectionName in this.sectionData) {
-            const record = this.sectionData[sectionName].find(r => r.id === recordId);
-            if (record) {
-                recordData = record;
-                break;
-            }
+    // Renew record
+    renewRecord(recordId) {
+        const record = this.sectionData['records'].find(r => r.id === recordId);
+        if (record) {
+            this.showRenewModal(record);
         }
+    }
 
-        if (!recordData) {
-            console.error('Record not found for renewal:', recordId);
-            return;
-        }
+    // Show renew modal
+    showRenewModal(record) {
+        // Create modal HTML with editable fields
+        const modalHtml = `
+            <div id="dietRenewModal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Renew Diet Request</h3>
+                        <span class="modal-close" onclick="dietRequestManager.closeRenewModal()">&times;</span>
+                    </div>
+                    <div class="modal-body">
+                        <div class="details-grid">
+                            <div class="detail-item">
+                                <label>IYC Number:</label>
+                                <input type="text" class="readonly-field" value="${record.iycNumber || ''}" readonly>
+                            </div>
+                            <div class="detail-item">
+                                <label>Name:</label>
+                                <input type="text" class="readonly-field" value="${record.patientName}" readonly>
+                            </div>
+                            <div class="detail-item">
+                                <label>Phone:</label>
+                                <input type="text" class="readonly-field" value="${record.phoneNumber || ''}" readonly>
+                            </div>
+                            <div class="detail-item">
+                                <label>Email:</label>
+                                <input type="text" class="readonly-field" value="${record.email || ''}" readonly>
+                            </div>
+                            <div class="detail-item">
+                                <label>Duration (days):</label>
+                                <input type="number" id="renewDuration" value="${record.duration}" min="1" max="365">
+                            </div>
+                            <div class="detail-item">
+                                <label>Start Date:</label>
+                                <input type="date" id="renewStartDate" value="${record.startDate}">
+                            </div>
+                            <div class="detail-item">
+                                <label>End Date:</label>
+                                <input type="date" id="renewEndDate" value="${record.endDate}">
+                            </div>
+                            <div class="detail-item">
+                                <label>Anchor:</label>
+                                <select id="renewAnchor">
+                                    <option value="">Select Anchor</option>
+                                    <option value="${record.anchor}" selected>${record.anchor}</option>
+                                </select>
+                            </div>
+                            <div class="detail-item full-width">
+                                <label>Others:</label>
+                                <select id="renewOthers" multiple>
+                                    <option value="Option1">Option1</option>
+                                    <option value="Option2">Option2</option>
+                                    <option value="Option3">Option3</option>
+                                </select>
+                            </div>
+                            <div class="detail-item full-width">
+                                <label>Brunch:</label>
+                                <textarea id="renewBrunch" rows="2">${record.brunch || ''}</textarea>
+                            </div>
+                            <div class="detail-item full-width">
+                                <label>Lunch:</label>
+                                <textarea id="renewLunch" rows="2">${record.lunch || ''}</textarea>
+                            </div>
+                            <div class="detail-item full-width">
+                                <label>Dinner:</label>
+                                <textarea id="renewDinner" rows="2">${record.dinner || ''}</textarea>
+                            </div>
+                            <div class="detail-item full-width">
+                                <label>One Time Takeaway:</label>
+                                <textarea id="renewOneTimeTakeaway" rows="2">${record.oneTimeTakeaway || ''}</textarea>
+                            </div>
+                            <div class="detail-item full-width">
+                                <label>Remarks:</label>
+                                <textarea id="renewRemarks" rows="3">${record.remarks || ''}</textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-primary" onclick="dietRequestManager.saveRenewal('${record.id}')">Save Renewal</button>
+                        <button type="button" class="btn-secondary" onclick="dietRequestManager.closeRenewModal()">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        `;
 
-        // Store the original record data for renewal
-        this.renewingRecord = recordData;
+        // Add modal to page
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
 
-        // Populate readonly fields
-        document.getElementById('renewDietPatientName').textContent = recordData.patientName || '';
-        document.getElementById('renewDietEmail').textContent = recordData.email || '';
-        document.getElementById('renewDietPhoneNumber').textContent = recordData.phoneNumber || '';
-
-        // Populate editable fields with current values
-        document.getElementById('renewDietAnchor').value = recordData.anchor || '';
-        document.getElementById('renewDietDuration').value = recordData.duration || '';
-        document.getElementById('renewDietStartDate').value = recordData.startDate || '';
-        document.getElementById('renewDietEndDate').value = recordData.endDate || '';
-        document.getElementById('renewDietBrunch').value = recordData.brunch || '';
-        document.getElementById('renewDietLunch').value = recordData.lunch || '';
-        document.getElementById('renewDietDinner').value = recordData.dinner || '';
-        document.getElementById('renewDietOneTimeTakeaway').value = recordData.oneTimeTakeaway || '';
-        document.getElementById('renewDietRemarks').value = recordData.remarks || '';
-
-        // Set up the others multi-select dropdown
-        await this.setupRenewOthersDropdown(recordData.others);
-
-        // Set up date calculation for renewal form
-        this.setupRenewDateCalculation();
-
-        // Show modal
+        // Show modal with proper display
         const modal = document.getElementById('dietRenewModal');
         modal.style.display = 'flex';
 
-        // Add event listeners
-        this.setupRenewModalEventListeners();
-    }
+        // Load anchor and others options
+        this.loadRenewDropdownOptions();
 
-    // Setup others dropdown for renew modal
-    async setupRenewOthersDropdown(selectedOthers) {
-        // Populate anchors dropdown
-        const anchorSelect = document.getElementById('renewDietAnchor');
-        if (anchorSelect && this.systemConfig && this.systemConfig.anchors) {
-            // Clear existing options except the first one
-            while (anchorSelect.children.length > 1) {
-                anchorSelect.removeChild(anchorSelect.lastChild);
-            }
-
-            // Add options from system config
-            this.systemConfig.anchors.forEach(anchor => {
-                const option = document.createElement('option');
-                option.value = anchor.name || anchor;
-                option.textContent = anchor.name || anchor;
-                anchorSelect.appendChild(option);
-            });
-        }
-
-        // Populate others dropdown
-        const optionsContainer = document.querySelector('#renewDietOthersOptions .options-list');
-        if (optionsContainer && this.systemConfig && this.systemConfig.others) {
-            // Clear existing options
-            optionsContainer.innerHTML = '';
-
-            // Add new options from system config
-            this.systemConfig.others.forEach(name => {
-                const optionItem = document.createElement('label');
-                optionItem.className = 'option-item';
-
-                const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.value = name;
-
-                const span = document.createElement('span');
-                span.textContent = name;
-
-                optionItem.appendChild(checkbox);
-                optionItem.appendChild(span);
-                optionsContainer.appendChild(optionItem);
-            });
-
-            // Set selected values
-            if (selectedOthers) {
-                const selectedValues = selectedOthers.split(', ').filter(v => v.trim());
-                selectedValues.forEach(value => {
-                    const checkbox = optionsContainer.querySelector(`input[value="${value}"]`);
-                    if (checkbox) {
-                        checkbox.checked = true;
-                    }
-                });
-                this.updateRenewSelectedOptions();
-            }
-        }
-    }
-
-    // Setup date calculation for renew form
-    setupRenewDateCalculation() {
-        const durationInput = document.getElementById('renewDietDuration');
-        const startDateInput = document.getElementById('renewDietStartDate');
-        const endDateInput = document.getElementById('renewDietEndDate');
-
-        const calculateEndDate = () => {
-            const duration = parseInt(durationInput.value);
-            const startDate = startDateInput.value;
-
-            if (duration && startDate) {
-                const start = new Date(startDate);
-                const end = new Date(start);
-                end.setDate(start.getDate() + duration - 1);
-                endDateInput.value = end.toISOString().split('T')[0];
-            } else {
-                endDateInput.value = '';
-            }
-        };
-
-        durationInput.addEventListener('input', calculateEndDate);
-        startDateInput.addEventListener('change', calculateEndDate);
-    }
-
-    // Setup event listeners for renew modal
-    setupRenewModalEventListeners() {
-        const modal = document.getElementById('dietRenewModal');
-
-        // Close modal when clicking outside
+        // Add event listener for clicking outside modal to close
         modal.addEventListener('click', (e) => {
             if (e.target === modal) {
                 this.closeRenewModal();
             }
         });
 
-        // Close button
-        const closeBtn = modal.querySelector('.modal-close');
-        closeBtn.addEventListener('click', () => {
-            this.closeRenewModal();
-        });
-
-        // ESC key
+        // Add keyboard event listener for ESC key
         const handleKeyPress = (e) => {
             if (e.key === 'Escape') {
                 this.closeRenewModal();
@@ -1202,484 +1225,292 @@ class DietRequestManager {
         };
         document.addEventListener('keydown', handleKeyPress);
 
-        // Others dropdown functionality
-        this.setupRenewOthersDropdownEvents();
-    }
+        // Add date change listener to auto-calculate end date
+        const startDateInput = document.getElementById('renewStartDate');
+        const durationInput = document.getElementById('renewDuration');
+        const endDateInput = document.getElementById('renewEndDate');
 
-    // Setup others dropdown events for renew modal
-    setupRenewOthersDropdownEvents() {
-        const dropdown = document.getElementById('renewDietOthersDropdown');
-        const input = document.getElementById('renewDietOthersInput');
-        const options = document.getElementById('renewDietOthersOptions');
-        const searchBox = document.getElementById('renewDietOthersSearch');
+        const updateEndDate = () => {
+            const startDate = startDateInput.value;
+            const duration = parseInt(durationInput.value);
 
-        if (!dropdown || !input || !options) return;
-
-        // Toggle dropdown
-        input.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const isVisible = options.style.display === 'block';
-            if (isVisible) {
-                this.closeRenewOthersDropdown();
-            } else {
-                this.openRenewOthersDropdown();
+            if (startDate && duration) {
+                const start = new Date(startDate);
+                const end = new Date(start);
+                end.setDate(start.getDate() + duration - 1);
+                endDateInput.value = end.toISOString().split('T')[0];
             }
-        });
+        };
 
-        // Handle option selection
-        options.addEventListener('change', (e) => {
-            if (e.target.type === 'checkbox') {
-                this.updateRenewSelectedOptions();
-            }
-        });
-
-        // Search functionality
-        if (searchBox) {
-            searchBox.addEventListener('input', (e) => {
-                this.filterRenewOptions(e.target.value);
-            });
-        }
-
-        // Close dropdown when clicking outside
-        document.addEventListener('click', (e) => {
-            if (!dropdown.contains(e.target)) {
-                this.closeRenewOthersDropdown();
-            }
-        });
-    }
-
-    // Open renew others dropdown
-    openRenewOthersDropdown() {
-        const options = document.getElementById('renewDietOthersOptions');
-        const input = document.getElementById('renewDietOthersInput');
-        const arrow = input.querySelector('.dropdown-arrow');
-
-        options.style.display = 'block';
-        input.classList.add('active');
-        if (arrow) arrow.classList.add('rotated');
-    }
-
-    // Close renew others dropdown
-    closeRenewOthersDropdown() {
-        const options = document.getElementById('renewDietOthersOptions');
-        const input = document.getElementById('renewDietOthersInput');
-        const arrow = input.querySelector('.dropdown-arrow');
-
-        options.style.display = 'none';
-        input.classList.remove('active');
-        if (arrow) arrow.classList.remove('rotated');
-    }
-
-    // Update selected options for renew modal
-    updateRenewSelectedOptions() {
-        const checkboxes = document.querySelectorAll('#renewDietOthersOptions input[type="checkbox"]:checked');
-        const selectedValues = Array.from(checkboxes).map(cb => cb.value);
-        const hiddenInput = document.getElementById('renewDietOthers');
-        const input = document.getElementById('renewDietOthersInput');
-
-        // Update hidden input value
-        hiddenInput.value = selectedValues.join(', ');
-
-        // Update display
-        const placeholder = input.querySelector('.placeholder');
-        let selectedItemsContainer = input.querySelector('.selected-items');
-
-        if (!selectedItemsContainer) {
-            selectedItemsContainer = document.createElement('div');
-            selectedItemsContainer.className = 'selected-items';
-            input.insertBefore(selectedItemsContainer, input.querySelector('.dropdown-arrow'));
-        }
-
-        if (selectedValues.length === 0) {
-            placeholder.style.display = 'block';
-            selectedItemsContainer.style.display = 'none';
-        } else {
-            placeholder.style.display = 'none';
-            selectedItemsContainer.style.display = 'flex';
-
-            selectedItemsContainer.innerHTML = selectedValues.map(value => `
-                <span class="selected-tag">
-                    ${value}
-                    <span class="remove-tag" data-value="${value}">×</span>
-                </span>
-            `).join('');
-
-            // Handle tag removal
-            selectedItemsContainer.addEventListener('click', (e) => {
-                if (e.target.classList.contains('remove-tag')) {
-                    e.stopPropagation();
-                    const valueToRemove = e.target.getAttribute('data-value');
-                    const checkbox = document.querySelector(`#renewDietOthersOptions input[value="${valueToRemove}"]`);
-                    if (checkbox) {
-                        checkbox.checked = false;
-                        this.updateRenewSelectedOptions();
-                    }
-                }
-            });
-        }
-    }
-
-    // Filter options for renew modal
-    filterRenewOptions(searchTerm) {
-        const options = document.querySelectorAll('#renewDietOthersOptions .option-item');
-        const term = searchTerm.toLowerCase();
-
-        options.forEach(option => {
-            const text = option.querySelector('span').textContent.toLowerCase();
-            if (text.includes(term)) {
-                option.classList.remove('hidden');
-            } else {
-                option.classList.add('hidden');
-            }
-        });
+        startDateInput.addEventListener('change', updateEndDate);
+        durationInput.addEventListener('change', updateEndDate);
     }
 
     // Close renew modal
     closeRenewModal() {
         const modal = document.getElementById('dietRenewModal');
         if (modal) {
-            modal.style.display = 'none';
+            modal.remove();
         }
-        this.renewingRecord = null;
     }
 
-    // Save renew request
-    async saveRenewRequest() {
-        const form = document.getElementById('dietRenewForm');
-        const formData = new FormData(form);
-        const data = {};
-
-        for (let [key, value] of formData.entries()) {
-            data[key] = value.trim();
-        }
-
-        // Get selected others values
-        const othersHiddenInput = document.getElementById('renewDietOthers');
-        data.others = othersHiddenInput ? othersHiddenInput.value : '';
-
-        // Validate required fields
-        const requiredFields = ['anchor', 'duration', 'startDate'];
-        const errors = [];
-
-        requiredFields.forEach(field => {
-            if (!data[field] || data[field] === '') {
-                errors.push(`${field} is required`);
-            }
-        });
-
-        if (!data.others) {
-            errors.push('Others field is required');
-        }
-
-        if (errors.length > 0) {
-            alert('Please fill in all required fields:\n' + errors.join('\n'));
-            return;
-        }
-
+    // Load dropdown options for renew modal
+    async loadRenewDropdownOptions() {
         try {
-            // Prepare renewal data
+            // Load anchor options from system config
+            const anchorSelect = document.getElementById('renewAnchor');
+            const othersSelect = document.getElementById('renewOthers');
+
+            if (this.systemConfig) {
+                // Load anchor options (C5)
+                if (this.systemConfig.anchors && Array.isArray(this.systemConfig.anchors)) {
+                    anchorSelect.innerHTML = '<option value="">Select Anchor</option>';
+                    this.systemConfig.anchors.forEach(anchor => {
+                        const option = document.createElement('option');
+                        option.value = anchor.name;
+                        option.textContent = anchor.name;
+                        anchorSelect.appendChild(option);
+                    });
+                }
+
+                // Load others options (C7)
+                if (this.systemConfig.others && Array.isArray(this.systemConfig.others)) {
+                    othersSelect.innerHTML = '';
+                    this.systemConfig.others.forEach(other => {
+                        // Handle both string array and object array formats
+                        const name = typeof other === 'string' ? other : other.name;
+                        const option = document.createElement('option');
+                        option.value = name;
+                        option.textContent = name;
+                        othersSelect.appendChild(option);
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('Error loading dropdown options:', error);
+        }
+    }
+
+    // Save renewal
+    async saveRenewal(originalRecordId) {
+        try {
+            // Get form values
             const renewalData = {
-                dateRequested: new Date().toISOString().split('T')[0],
-                patientName: this.renewingRecord.patientName,
-                email: this.renewingRecord.email,
-                phoneNumber: this.renewingRecord.phoneNumber,
-                anchor: data.anchor,
-                others: data.others,
-                brunch: data.brunch || '',
-                lunch: data.lunch || '',
-                dinner: data.dinner || '',
-                oneTimeTakeaway: data.oneTimeTakeaway || '',
-                duration: data.duration,
-                startDate: data.startDate,
-                endDate: data.endDate || '',
-                remarks: data.remarks || '',
-                status: 'Active'
+                originalRecordId: originalRecordId,
+                duration: parseInt(document.getElementById('renewDuration').value),
+                startDate: document.getElementById('renewStartDate').value,
+                endDate: document.getElementById('renewEndDate').value,
+                anchor: document.getElementById('renewAnchor').value,
+                others: Array.from(document.getElementById('renewOthers').selectedOptions).map(option => option.value),
+                brunch: document.getElementById('renewBrunch').value,
+                lunch: document.getElementById('renewLunch').value,
+                dinner: document.getElementById('renewDinner').value,
+                oneTimeTakeaway: document.getElementById('renewOneTimeTakeaway').value,
+                remarks: document.getElementById('renewRemarks').value
             };
 
-            // Save the renewal as a new diet request
-            const result = await googleSheetsAPI.saveDietRequest(renewalData);
+            // Validate required fields
+            if (!renewalData.duration || !renewalData.startDate || !renewalData.endDate) {
+                alert('Please fill in all required fields (Duration, Start Date, End Date)');
+                return;
+            }
+
+            // Get original record data for read-only fields
+            const originalRecord = this.sectionData['records'].find(r => r.id === originalRecordId);
+            if (!originalRecord) {
+                alert('Original record not found');
+                return;
+            }
+
+            // Create new record with original read-only data and new editable data
+            const newRecord = {
+                ...originalRecord,
+                id: 'diet_' + Date.now(), // Generate new ID
+                dateRequested: new Date().toISOString().split('T')[0], // Today's date
+                duration: renewalData.duration,
+                startDate: renewalData.startDate,
+                endDate: renewalData.endDate,
+                anchor: renewalData.anchor,
+                others: renewalData.others,
+                brunch: renewalData.brunch,
+                lunch: renewalData.lunch,
+                dinner: renewalData.dinner,
+                oneTimeTakeaway: renewalData.oneTimeTakeaway,
+                remarks: renewalData.remarks,
+                status: 'Active' // New renewal starts as active
+            };
+
+            // Save to Google Sheets
+            const result = await googleSheetsAPI.saveDietRequest(newRecord);
 
             if (result.success) {
-                alert('Diet request renewed successfully!');
+                this.showMessage('dietRecordsMessage', 'Diet request renewed successfully!', 'success');
                 this.closeRenewModal();
                 // Refresh the records table
-                this.loadSectionData(this.currentSection);
+                this.loadSectionData('records');
             } else {
-                alert('Failed to renew diet request: ' + (result.message || 'Unknown error'));
+                this.showMessage('dietRecordsMessage', result.message || 'Failed to renew diet request', 'error');
             }
-
         } catch (error) {
-            console.error('Error renewing diet request:', error);
-            alert('An error occurred while renewing the request. Please try again.');
+            console.error('Error saving renewal:', error);
+            this.showMessage('dietRecordsMessage', 'An error occurred while saving the renewal', 'error');
         }
     }
 
-    // Show message
-    showMessage(elementId, message, type) {
-        const messageDiv = document.getElementById(elementId);
-        if (messageDiv) {
-            messageDiv.className = `form-message ${type}`;
-            messageDiv.textContent = message;
-
-            // Auto-hide success messages
-            if (type === 'success') {
-                setTimeout(() => {
-                    messageDiv.textContent = '';
-                    messageDiv.className = 'form-message';
-                }, 3000);
-            }
-        }
-    }
-
-    // Show section loading
-    showSectionLoading(sectionName, show) {
-        let messageId = `${sectionName.replace('-', '')}Message`;
-        const messageDiv = document.getElementById(messageId);
-
-        if (messageDiv) {
-            if (show) {
-                messageDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
-                messageDiv.className = 'section-message loading';
-                messageDiv.style.display = 'block';
-            } else {
-                messageDiv.style.display = 'none';
-            }
-        }
-    }
-
-    // Show section message
-    showSectionMessage(sectionName, message, type) {
-        let messageId = `${sectionName.replace('-', '')}Message`;
-        const messageDiv = document.getElementById(messageId);
-
-        if (messageDiv) {
-            messageDiv.className = `section-message ${type}`;
-            messageDiv.textContent = message;
-
-            // Auto-hide success messages
-            if (type === 'success') {
-                setTimeout(() => {
-                    messageDiv.textContent = '';
-                    messageDiv.className = 'section-message';
-                }, 3000);
-            }
-        }
-    }
-
-    // Update section controls
-    updateSectionControls(sectionName) {
-        const actionBtnId = this.getActionBtnId(sectionName);
-
-        // Reset select all checkbox
-        const selectAllCheckbox = document.getElementById('selectAllDietRecordsHeader');
-        if (selectAllCheckbox) {
-            selectAllCheckbox.checked = false;
-            selectAllCheckbox.indeterminate = false;
-        }
-
-        // Reset action button
-        const actionBtn = document.getElementById(actionBtnId);
-        if (actionBtn) {
-            actionBtn.disabled = true;
-        }
-
-        // Clear selections
-        this.selectedRecords[sectionName].clear();
-    }
-
-
-
-    // Get action button ID
-    getActionBtnId(sectionName) {
-        const mapping = {
-            'records': 'dietRecordsActionBtn'
+    // Update patient details from form
+    updatePatientDetails() {
+        // Get current form data
+        const formData = {
+            iycNumber: document.getElementById('dietIycNumber')?.value || '',
+            patientName: document.getElementById('dietPatientName')?.value || '',
+            email: document.getElementById('dietEmail')?.value || '',
+            phoneNumber: document.getElementById('dietPhoneNumber')?.value || ''
         };
-        return mapping[sectionName];
+
+        console.log('Diet Request - Form data for update modal:', formData);
+        this.showUpdateDetailsModal(formData);
     }
 
-    // Handle record selection
-    handleRecordSelection(checkbox) {
-        try {
-            console.log('Diet request: handleRecordSelection called');
+    // Show update details modal
+    showUpdateDetailsModal(formData) {
+        // Create modal HTML with editable patient fields
+        const modalHtml = `
+            <div id="dietUpdateDetailsModal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Update Patient Details</h3>
+                        <span class="modal-close" onclick="dietRequestManager.closeUpdateDetailsModal()">&times;</span>
+                    </div>
+                    <div class="modal-body">
+                        <div class="details-grid">
+                            <div class="detail-item">
+                                <label>IYC Number:</label>
+                                <input type="text" class="readonly-field" value="${formData.iycNumber || ''}" readonly>
+                            </div>
+                            <div class="detail-item">
+                                <label>Name: <span class="required">*</span></label>
+                                <input type="text" id="updatePatientName" value="${formData.patientName || ''}" required>
+                            </div>
+                            <div class="detail-item">
+                                <label>Email: <span class="required">*</span></label>
+                                <input type="email" id="updatePatientEmail" value="${formData.email || ''}" required>
+                            </div>
+                            <div class="detail-item">
+                                <label>Phone: <span class="required">*</span></label>
+                                <input type="tel" id="updatePatientPhone" value="${formData.phoneNumber || ''}" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-primary" onclick="dietRequestManager.savePatientDetails()">Save Changes</button>
+                        <button type="button" class="btn-secondary" onclick="dietRequestManager.closeUpdateDetailsModal()">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        `;
 
-            // Ensure we're only working within the diet request module
-            if (!checkbox.closest('#diet-request-module')) {
-                console.log('Diet request: ignoring record selection from outside module');
-                return;
+        // Add modal to page
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        // Show modal with proper display
+        const modal = document.getElementById('dietUpdateDetailsModal');
+        modal.style.display = 'flex';
+
+        // Add event listener for clicking outside modal to close
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                this.closeUpdateDetailsModal();
             }
+        });
 
-            const recordId = checkbox.value;
-            const isChecked = checkbox.checked;
-            console.log(`Diet request: ${isChecked ? 'selecting' : 'deselecting'} record ${recordId}`);
-
-            if (isChecked) {
-                this.selectedRecords[this.currentSection].add(recordId);
-            } else {
-                this.selectedRecords[this.currentSection].delete(recordId);
+        // Add keyboard event listener for ESC key
+        const handleKeyPress = (e) => {
+            if (e.key === 'Escape') {
+                this.closeUpdateDetailsModal();
+                document.removeEventListener('keydown', handleKeyPress);
             }
+        };
+        document.addEventListener('keydown', handleKeyPress);
+    }
 
-            this.updateActionButtonState();
-            this.updateSelectAllState();
-            console.log('Diet request: handleRecordSelection completed successfully');
-        } catch (error) {
-            console.error('Diet request: Error in handleRecordSelection:', error);
-            // Fail silently instead of showing alert
+    // Close update details modal
+    closeUpdateDetailsModal() {
+        const modal = document.getElementById('dietUpdateDetailsModal');
+        if (modal) {
+            modal.remove();
         }
     }
 
-    // Handle select all
-    handleSelectAll(selectAllCheckbox) {
+    // Save patient details
+    async savePatientDetails() {
         try {
-            console.log('Diet request: handleSelectAll called');
+            // Get form values from modal
+            const name = document.getElementById('updatePatientName').value.trim();
+            const email = document.getElementById('updatePatientEmail').value.trim();
+            const phone = document.getElementById('updatePatientPhone').value.trim();
+            const iycNumber = document.querySelector('#dietUpdateDetailsModal .readonly-field').value.trim();
 
-            // Ensure we're only working within the diet request module
-            if (!selectAllCheckbox.closest('#diet-request-module')) {
-                console.log('Diet request: ignoring select all from outside module');
+            // Validate required fields
+            if (!name || !email || !phone) {
+                alert('Please fill in all required fields (Name, Email, Phone)');
                 return;
             }
 
-            const isChecked = selectAllCheckbox.checked;
-            const checkboxes = document.querySelectorAll('#diet-records-section .diet-record-checkbox');
+            // Validate email format
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                alert('Please enter a valid email address');
+                return;
+            }
 
-            console.log(`Diet request: ${isChecked ? 'selecting' : 'deselecting'} ${checkboxes.length} checkboxes`);
+            // Prepare patient data for update
+            const patientData = {
+                iycNumber: iycNumber,
+                name: name,
+                email: email,
+                phone: phone
+            };
 
-            checkboxes.forEach(checkbox => {
-                checkbox.checked = isChecked;
-                const recordId = checkbox.value;
+            // Update patient in database
+            const result = await googleSheetsAPI.updatePatientDetails(patientData);
 
-                if (isChecked) {
-                    this.selectedRecords[this.currentSection].add(recordId);
-                } else {
-                    this.selectedRecords[this.currentSection].delete(recordId);
+            if (result && result.success) {
+                // Update the form fields with the new values
+                const dietNameInput = document.getElementById('dietPatientName');
+                const dietEmailInput = document.getElementById('dietEmail');
+                const dietPhoneInput = document.getElementById('dietPhoneNumber');
+
+                if (dietNameInput) dietNameInput.value = name;
+                if (dietEmailInput) dietEmailInput.value = email;
+                if (dietPhoneInput) dietPhoneInput.value = phone;
+
+                this.showMessage('dietFormMessage', 'Patient details updated successfully!', 'success');
+                this.closeUpdateDetailsModal();
+
+                // Refresh the records table if we're on that section
+                if (this.currentSection === 'records') {
+                    this.loadSectionData('records');
                 }
-            });
-
-            this.updateActionButtonState();
-            console.log('Diet request: handleSelectAll completed successfully');
-        } catch (error) {
-            console.error('Diet request: Error in handleSelectAll:', error);
-            // Fail silently instead of showing alert
-        }
-    }
-
-
-
-    // Update action button state
-    updateActionButtonState() {
-        const actionBtnId = this.getActionBtnId(this.currentSection);
-        const actionBtn = document.getElementById(actionBtnId);
-
-        if (actionBtn) {
-            const hasSelection = this.selectedRecords[this.currentSection].size > 0;
-            actionBtn.disabled = !hasSelection;
-        }
-    }
-
-    // Update select all state
-    updateSelectAllState() {
-        const selectAllCheckbox = document.getElementById('selectAllDietRecordsHeader');
-
-        if (selectAllCheckbox) {
-            const checkboxes = document.querySelectorAll('#diet-records-section .diet-record-checkbox');
-            const checkedCheckboxes = document.querySelectorAll('#diet-records-section .diet-record-checkbox:checked');
-
-            if (checkedCheckboxes.length === 0) {
-                selectAllCheckbox.checked = false;
-                selectAllCheckbox.indeterminate = false;
-            } else if (checkedCheckboxes.length === checkboxes.length) {
-                selectAllCheckbox.checked = true;
-                selectAllCheckbox.indeterminate = false;
             } else {
-                selectAllCheckbox.checked = false;
-                selectAllCheckbox.indeterminate = true;
-            }
-        }
-    }
-
-    // Toggle action dropdown
-    toggleActionDropdown(button) {
-        const dropdown = button.nextElementSibling;
-        const isVisible = dropdown.style.display === 'block';
-
-        // Close all dropdowns first
-        this.closeAllDropdowns();
-
-        if (!isVisible) {
-            dropdown.style.display = 'block';
-        }
-    }
-
-    // Close all dropdowns
-    closeAllDropdowns() {
-        const dropdowns = document.querySelectorAll('#diet-request-module .dropdown-menu');
-        dropdowns.forEach(dropdown => {
-            dropdown.style.display = 'none';
-        });
-    }
-
-    // Handle bulk action
-    async handleBulkAction(actionItem) {
-        const action = actionItem.getAttribute('data-action');
-        const selectedRecordIds = Array.from(this.selectedRecords[this.currentSection]);
-
-        console.log('Bulk action:', {
-            action,
-            selectedRecordIds,
-            selectedCount: selectedRecordIds.length
-        });
-
-        if (selectedRecordIds.length === 0) {
-            this.showSectionMessage(this.currentSection, 'No records selected', 'warning');
-            return;
-        }
-
-        // Close dropdown
-        this.closeAllDropdowns();
-
-        // Confirm action
-        const actionText = actionItem.textContent.trim();
-        if (!confirm(`Are you sure you want to ${actionText.toLowerCase()} ${selectedRecordIds.length} record(s)?`)) {
-            return;
-        }
-
-        try {
-            this.showSectionLoading(this.currentSection, true);
-
-            if (action === 'delete') {
-                await this.deleteSelectedRecords();
-            }
-
-            // Clear selections
-            this.selectedRecords[this.currentSection].clear();
-
-            // Reload data
-            await this.loadSectionData(this.currentSection);
-
-            this.showSectionMessage(this.currentSection, `Successfully ${actionText.toLowerCase()} ${selectedRecordIds.length} record(s)`, 'success');
-
-        } catch (error) {
-            console.error('Error performing bulk action:', error);
-            this.showSectionMessage(this.currentSection, 'Failed to perform action: ' + error.message, 'error');
-        } finally {
-            this.showSectionLoading(this.currentSection, false);
-        }
-    }
-
-    // Delete selected records
-    async deleteSelectedRecords() {
-        const selectedRecordIds = Array.from(this.selectedRecords[this.currentSection]);
-
-        try {
-            const result = await googleSheetsAPI.deleteDietRequests(selectedRecordIds);
-
-            if (!result.success) {
-                throw new Error(result.message || 'Failed to delete records');
+                const errorMessage = result ? (result.message || 'Failed to update patient details') : 'No response from server';
+                this.showMessage('dietFormMessage', errorMessage, 'error');
             }
         } catch (error) {
-            console.error('Error deleting records:', error);
-            throw error;
+            console.error('Error updating patient details:', error);
+            let errorMessage = 'An error occurred while updating patient details';
+
+            // Provide more specific error messages
+            if (error.message && error.message.includes('Doctype')) {
+                errorMessage = 'Server error: Please make sure the backend server is running on port 3001';
+            } else if (error.message) {
+                errorMessage = `Error: ${error.message}`;
+            }
+
+            this.showMessage('dietFormMessage', errorMessage, 'error');
         }
     }
+
+
 }
 
 // Global instance
@@ -1690,18 +1521,5 @@ document.addEventListener('DOMContentLoaded', () => {
     dietRequestManager = new DietRequestManager();
 });
 
-// Global function for testing form persistence
-window.testDietFormPersistence = function() {
-    if (dietRequestManager) {
-        dietRequestManager.checkAndRestoreFormData();
-    } else {
-        console.log('Diet request manager not initialized');
-    }
-};
-
-// Global function to check saved data
-window.checkDietFormData = function() {
-    const savedData = localStorage.getItem('dietRequestFormData');
-    console.log('Saved diet form data:', savedData);
-    return savedData;
-};
+// Export for debugging
+window.dietRequestManager = dietRequestManager;
