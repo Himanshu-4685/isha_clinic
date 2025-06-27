@@ -115,6 +115,14 @@ class BloodTestManager {
                 this.resetForm();
             });
         }
+
+        // Handle update details button
+        const updateDetailsBtn = document.getElementById('updateBloodTestDetailsBtn');
+        if (updateDetailsBtn) {
+            updateDetailsBtn.addEventListener('click', () => {
+                this.updatePatientDetails();
+            });
+        }
     }
 
     // Setup form validation
@@ -990,6 +998,252 @@ class BloodTestManager {
         });
 
         console.log(`Updated referred by dropdown with ${referredByList.length} options`);
+    }
+
+    // Update patient details from form
+    updatePatientDetails() {
+        // Get current form data
+        const formData = {
+            iycNumber: document.getElementById('iycNumber')?.value || '',
+            patientName: document.getElementById('patientName')?.value || '',
+            email: document.getElementById('email')?.value || '',
+            phoneNumber: document.getElementById('phoneNumber')?.value || ''
+        };
+
+        console.log('Blood Test - Form data for update modal:', formData);
+        this.showUpdateDetailsModal(formData);
+    }
+
+    // Show update details modal
+    showUpdateDetailsModal(formData) {
+        // Create modal HTML with editable patient fields
+        const modalHtml = `
+            <div id="bloodTestUpdateDetailsModal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Update Patient Details</h3>
+                        <span class="modal-close" onclick="bloodTestManager.closeUpdateDetailsModal()">&times;</span>
+                    </div>
+                    <div class="modal-body">
+                        <div class="details-grid">
+                            <div class="detail-item">
+                                <label>IYC Number:</label>
+                                <input type="text" class="readonly-field" value="${formData.iycNumber || ''}" readonly>
+                            </div>
+                            <div class="detail-item">
+                                <label>Name: <span class="required">*</span></label>
+                                <input type="text" id="updatePatientName" value="${formData.patientName || ''}" required>
+                            </div>
+                            <div class="detail-item">
+                                <label>Email: <span class="required">*</span></label>
+                                <input type="email" id="updatePatientEmail" value="${formData.email || ''}" required>
+                            </div>
+                            <div class="detail-item">
+                                <label>Phone: <span class="required">*</span></label>
+                                <input type="tel" id="updatePatientPhone" value="${formData.phoneNumber || ''}" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-primary" onclick="bloodTestManager.savePatientDetails()">Save Changes</button>
+                        <button type="button" class="btn-secondary" onclick="bloodTestManager.closeUpdateDetailsModal()">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Add modal to page
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        // Show modal with proper display
+        const modal = document.getElementById('bloodTestUpdateDetailsModal');
+        modal.style.display = 'flex';
+
+        // Add event listener for clicking outside modal to close
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                this.closeUpdateDetailsModal();
+            }
+        });
+
+        // Add keyboard event listener for ESC key
+        const handleKeyPress = (e) => {
+            if (e.key === 'Escape') {
+                this.closeUpdateDetailsModal();
+                document.removeEventListener('keydown', handleKeyPress);
+            }
+        };
+        document.addEventListener('keydown', handleKeyPress);
+    }
+
+    // Close update details modal
+    closeUpdateDetailsModal() {
+        const modal = document.getElementById('bloodTestUpdateDetailsModal');
+        if (modal) {
+            modal.remove();
+        }
+    }
+
+    // Save patient details
+    async savePatientDetails() {
+        try {
+            // Get form values from modal
+            const name = document.getElementById('updatePatientName').value.trim();
+            const email = document.getElementById('updatePatientEmail').value.trim();
+            const phone = document.getElementById('updatePatientPhone').value.trim();
+            const iycNumber = document.querySelector('#bloodTestUpdateDetailsModal .readonly-field').value.trim();
+
+            // Validate required fields
+            if (!name || !email || !phone) {
+                alert('Please fill in all required fields (Name, Email, Phone)');
+                return;
+            }
+
+            // Validate email format
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                alert('Please enter a valid email address');
+                return;
+            }
+
+            // Prepare patient data for update
+            const patientData = {
+                iycNumber: iycNumber,
+                name: name,
+                email: email,
+                phone: phone
+            };
+
+            // Update patient in database
+            const result = await googleSheetsAPI.updatePatientDetails(patientData);
+
+            if (result && result.success) {
+                // Update the form fields with the new values
+                const nameInput = document.getElementById('patientName');
+                const emailInput = document.getElementById('email');
+                const phoneInput = document.getElementById('phoneNumber');
+
+                if (nameInput) nameInput.value = name;
+                if (emailInput) emailInput.value = email;
+                if (phoneInput) phoneInput.value = phone;
+
+                this.showMessage('formMessage', 'Patient details updated successfully!', 'success');
+                this.closeUpdateDetailsModal();
+
+                // Refresh the records table if we're on that section
+                if (this.currentSection !== 'new-test') {
+                    this.loadSectionData(this.currentSection);
+                }
+            } else {
+                const errorMessage = result ? (result.message || 'Failed to update patient details') : 'No response from server';
+                this.showMessage('formMessage', errorMessage, 'error');
+            }
+        } catch (error) {
+            console.error('Error updating patient details:', error);
+            let errorMessage = 'An error occurred while updating patient details';
+
+            // Provide more specific error messages
+            if (error.message && error.message.includes('Doctype')) {
+                errorMessage = 'Server error: Please make sure the backend server is running on port 3001';
+            } else if (error.message) {
+                errorMessage = `Error: ${error.message}`;
+            }
+
+            this.showMessage('formMessage', errorMessage, 'error');
+        }
+    }
+
+    // Show message
+    showMessage(elementId, message, type) {
+        const messageElement = document.getElementById(elementId);
+        if (messageElement) {
+            messageElement.textContent = message;
+            messageElement.className = `form-message ${type}`;
+
+            if (message) {
+                setTimeout(() => {
+                    messageElement.textContent = '';
+                    messageElement.className = 'form-message';
+                }, 5000);
+            }
+        }
+    }
+
+    // Send Message functionality (placeholder for WhatsApp API integration)
+    async sendMessage(sectionName) {
+        console.log(`Blood Test - Send Message clicked for section: ${sectionName}`);
+
+        try {
+            // Get selected tests from the current section
+            const selectedTestIds = Array.from(this.selectedTests[sectionName]);
+            const sectionData = this.sectionData[sectionName];
+
+            if (selectedTestIds.length === 0) {
+                this.showSectionMessage(sectionName, 'Please select at least one test to send messages', 'warning');
+                return;
+            }
+
+            // Collect patient data for selected tests
+            const selectedTests = selectedTestIds.map(testId => {
+                return sectionData.find(test => test.id.toString() === testId.toString());
+            }).filter(test => test !== undefined);
+
+            console.log('Blood Test - Selected tests for messaging:', selectedTests);
+
+            // Prepare message data structure for future WhatsApp API integration
+            const messageData = {
+                module: 'blood-test',
+                section: sectionName,
+                recipients: selectedTests.map(test => ({
+                    name: test.name,
+                    phone: test.phone,
+                    iycNumber: test.iycNumber,
+                    testName: test.testName,
+                    date: test.date,
+                    referredBy: test.referredBy
+                })),
+                messageTemplate: this.getMessageTemplate(sectionName),
+                timestamp: new Date().toISOString()
+            };
+
+            console.log('Blood Test - Message data prepared:', messageData);
+
+            // TODO: Replace this placeholder with actual WhatsApp API call
+            // Example: await whatsappAPI.sendBulkMessages(messageData);
+
+            // Placeholder success message
+            this.showSectionMessage(
+                sectionName,
+                `Message sending prepared for ${selectedTests.length} patient(s). WhatsApp API integration pending.`,
+                'info'
+            );
+
+            // Log for future development
+            console.log('Blood Test - WhatsApp API integration point - messageData ready:', messageData);
+
+        } catch (error) {
+            console.error('Blood Test - Error in sendMessage:', error);
+            this.showSectionMessage(sectionName, 'Error preparing message data: ' + error.message, 'error');
+        }
+    }
+
+    // Get message template based on section (placeholder for future customization)
+    getMessageTemplate(sectionName) {
+        const templates = {
+            'upcoming-test': {
+                subject: 'Blood Test Reminder',
+                body: 'Dear {name}, this is a reminder for your upcoming blood test ({testName}) scheduled for {date}. Please arrive 15 minutes early. Referred by: {referredBy}. IYC: {iycNumber}'
+            },
+            'pending-review': {
+                subject: 'Blood Test Results Ready',
+                body: 'Dear {name}, your blood test results ({testName}) are ready for review. Please contact us to schedule a consultation. Referred by: {referredBy}. IYC: {iycNumber}'
+            }
+        };
+
+        return templates[sectionName] || {
+            subject: 'Blood Test Update',
+            body: 'Dear {name}, we have an update regarding your blood test ({testName}). Please contact us for more information. IYC: {iycNumber}'
+        };
     }
 }
 

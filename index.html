@@ -52,6 +52,7 @@
                         <i class="fas fa-utensils"></i>
                         <span>Diet Request</span>
                     </div>
+
                     <div class="nav-item" data-module="isolation">
                         <i class="fas fa-shield-alt"></i>
                         <span>Isolation</span>
@@ -176,6 +177,10 @@
                                         <i class="fas fa-save"></i>
                                         Save Test
                                     </button>
+                                    <button type="button" id="updateBloodTestDetailsBtn" class="btn-secondary">
+                                        <i class="fas fa-edit"></i>
+                                        Update Details
+                                    </button>
                                     <button type="button" id="resetFormBtn">
                                         <i class="fas fa-undo"></i>
                                         Reset Form
@@ -277,10 +282,16 @@
                                         </div>
                                     </div>
                                 </div>
-                                <button id="refreshUpcomingBtn" class="refresh-btn">
-                                    <i class="fas fa-sync-alt"></i>
-                                    Refresh
-                                </button>
+                                <div class="section-actions">
+                                    <button id="sendMessageUpcomingBtn" class="send-message-btn" onclick="bloodTestManager.sendMessage('upcoming-test')">
+                                        <i class="fas fa-comment"></i>
+                                        Send Message
+                                    </button>
+                                    <button id="refreshUpcomingBtn" class="refresh-btn">
+                                        <i class="fas fa-sync-alt"></i>
+                                        Refresh
+                                    </button>
+                                </div>
                             </div>
                             <div class="table-container">
                                 <table id="upcomingTestsTable" class="data-table">
@@ -332,10 +343,16 @@
                                         </div>
                                     </div>
                                 </div>
-                                <button id="refreshReviewBtn" class="refresh-btn">
-                                    <i class="fas fa-sync-alt"></i>
-                                    Refresh
-                                </button>
+                                <div class="section-actions">
+                                    <button id="sendMessageReviewBtn" class="send-message-btn" onclick="bloodTestManager.sendMessage('pending-review')">
+                                        <i class="fas fa-comment"></i>
+                                        Send Message
+                                    </button>
+                                    <button id="refreshReviewBtn" class="refresh-btn">
+                                        <i class="fas fa-sync-alt"></i>
+                                        Refresh
+                                    </button>
+                                </div>
                             </div>
                             <div class="table-container">
                                 <table id="reviewTestsTable" class="data-table">
@@ -581,6 +598,10 @@
                                         <i class="fas fa-save"></i>
                                         Save Ultrasound
                                     </button>
+                                    <button type="button" id="updateUltrasoundDetailsBtn" class="btn-secondary">
+                                        <i class="fas fa-edit"></i>
+                                        Update Details
+                                    </button>
                                     <button type="button" id="resetUltrasoundFormBtn">
                                         <i class="fas fa-undo"></i>
                                         Reset Form
@@ -683,10 +704,16 @@
                                         </div>
                                     </div>
                                 </div>
-                                <button id="refreshUpcomingUltrasoundBtn" class="refresh-btn">
-                                    <i class="fas fa-sync-alt"></i>
-                                    Refresh
-                                </button>
+                                <div class="section-actions">
+                                    <button id="sendMessageUpcomingUltrasoundBtn" class="send-message-btn" onclick="ultrasoundManager.sendMessage('upcoming-ultrasound')">
+                                        <i class="fas fa-comment"></i>
+                                        Send Message
+                                    </button>
+                                    <button id="refreshUpcomingUltrasoundBtn" class="refresh-btn">
+                                        <i class="fas fa-sync-alt"></i>
+                                        Refresh
+                                    </button>
+                                </div>
                             </div>
                             <div class="table-container">
                                 <table id="upcomingUltrasoundsTable" class="data-table">
@@ -739,10 +766,16 @@
                                         </div>
                                     </div>
                                 </div>
-                                <button id="refreshReviewUltrasoundBtn" class="refresh-btn">
-                                    <i class="fas fa-sync-alt"></i>
-                                    Refresh
-                                </button>
+                                <div class="section-actions">
+                                    <button id="sendMessageReviewUltrasoundBtn" class="send-message-btn" onclick="ultrasoundManager.sendMessage('pending-review-ultrasound')">
+                                        <i class="fas fa-comment"></i>
+                                        Send Message
+                                    </button>
+                                    <button id="refreshReviewUltrasoundBtn" class="refresh-btn">
+                                        <i class="fas fa-sync-alt"></i>
+                                        Refresh
+                                    </button>
+                                </div>
                             </div>
                             <div class="table-container">
                                 <table id="reviewUltrasoundsTable" class="data-table">
@@ -1013,6 +1046,10 @@
                                     <button type="submit" id="saveVisitBtn" disabled>
                                         <i class="fas fa-save"></i>
                                         Save Request
+                                    </button>
+                                    <button type="button" id="updateHospitalVisitDetailsBtn" class="btn-secondary">
+                                        <i class="fas fa-edit"></i>
+                                        Update Details
                                     </button>
                                     <button type="button" id="resetVisitFormBtn">
                                         <i class="fas fa-undo"></i>
@@ -1566,6 +1603,11 @@
                 </div>
             </div>
 
+
+
+
+            </div>
+
             <!-- Diet Request Module -->
             <div id="diet-request-module" class="module" style="display: none;">
                 <div class="module-container">
@@ -1592,20 +1634,35 @@
                             <form id="dietRequestForm" class="test-form">
                                 <div class="form-row">
                                     <div class="form-group">
-                                        <label for="dietPatientName">Name <span class="required">*</span></label>
-                                        <input type="text" id="dietPatientName" name="patientName" placeholder="Search patient name..." required>
-                                        <div class="search-dropdown" id="dietNameSearchDropdown" style="display: none;"></div>
+                                        <label for="dietDateRequested">Date Requested</label>
+                                        <input type="date" id="dietDateRequested" name="dateRequested" readonly>
                                     </div>
                                     <div class="form-group">
-                                        <label for="dietEmail">Email</label>
-                                        <input type="email" id="dietEmail" name="email" placeholder="Email address" readonly>
+                                        <label for="dietIycNumber">IYC Number <span class="required">*</span></label>
+                                        <input type="text" id="dietIycNumber" name="iycNumber" placeholder="Enter IYC Number" required>
+                                        <div class="loading-indicator" id="dietIycLoading" style="display: none;">
+                                            <i class="fas fa-spinner fa-spin"></i> Looking up patient...
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="form-row">
                                     <div class="form-group">
-                                        <label for="dietPhoneNumber">Phone No.</label>
-                                        <input type="tel" id="dietPhoneNumber" name="phoneNumber" placeholder="Phone number" readonly>
+                                        <label for="dietPatientName">Name <span class="required">*</span></label>
+                                        <input type="text" id="dietPatientName" name="patientName" placeholder="Patient name will be auto-filled" required>
+                                        <div class="search-dropdown" id="dietNameSearchDropdown" style="display: none;"></div>
                                     </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="dietEmail">Email</label>
+                                        <input type="email" id="dietEmail" name="email" placeholder="Email address">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="dietPhoneNumber">Phone No.</label>
+                                        <input type="tel" id="dietPhoneNumber" name="phoneNumber" placeholder="Phone number">
+                                    </div>
+                                </div>
+                                <div class="form-row">
                                     <div class="form-group">
                                         <label for="dietAnchor">Anchor <span class="required">*</span></label>
                                         <select id="dietAnchor" name="anchor" required>
@@ -1615,8 +1672,6 @@
                                             <option value="Anchor 3">Anchor 3</option>
                                         </select>
                                     </div>
-                                </div>
-                                <div class="form-row">
                                     <div class="form-group">
                                         <label for="dietOthers">Others <span class="required">*</span></label>
                                         <div class="multi-select-dropdown" id="dietOthersDropdown">
@@ -1629,84 +1684,49 @@
                                                     <input type="text" placeholder="Search..." id="dietOthersSearch">
                                                 </div>
                                                 <div class="options-list">
-                                                    <label class="option-item">
-                                                        <input type="checkbox" value="Dr. Smith">
-                                                        <span>Dr. Smith</span>
-                                                    </label>
-                                                    <label class="option-item">
-                                                        <input type="checkbox" value="Dr. Johnson">
-                                                        <span>Dr. Johnson</span>
-                                                    </label>
-                                                    <label class="option-item">
-                                                        <input type="checkbox" value="Dr. Williams">
-                                                        <span>Dr. Williams</span>
-                                                    </label>
-                                                    <label class="option-item">
-                                                        <input type="checkbox" value="Nutritionist A">
-                                                        <span>Nutritionist A</span>
-                                                    </label>
-                                                    <label class="option-item">
-                                                        <input type="checkbox" value="Nutritionist B">
-                                                        <span>Nutritionist B</span>
-                                                    </label>
-                                                    <label class="option-item">
-                                                        <input type="checkbox" value="Dietician A">
-                                                        <span>Dietician A</span>
-                                                    </label>
-                                                    <label class="option-item">
-                                                        <input type="checkbox" value="Dietician B">
-                                                        <span>Dietician B</span>
-                                                    </label>
-                                                    <label class="option-item">
-                                                        <input type="checkbox" value="Therapist A">
-                                                        <span>Therapist A</span>
-                                                    </label>
-                                                    <label class="option-item">
-                                                        <input type="checkbox" value="Therapist B">
-                                                        <span>Therapist B</span>
-                                                    </label>
+                                                    <!-- Options will be loaded from system config -->
                                                 </div>
                                             </div>
                                         </div>
                                         <input type="hidden" id="dietOthers" name="others" required>
                                     </div>
+                                </div>
+                                <div class="form-row">
                                     <div class="form-group">
                                         <label for="dietBrunch">Brunch</label>
                                         <textarea id="dietBrunch" name="brunch" placeholder="Brunch details..." rows="3"></textarea>
                                     </div>
-                                </div>
-                                <div class="form-row">
                                     <div class="form-group">
                                         <label for="dietLunch">Lunch</label>
                                         <textarea id="dietLunch" name="lunch" placeholder="Lunch details..." rows="3"></textarea>
                                     </div>
+                                </div>
+                                <div class="form-row">
                                     <div class="form-group">
                                         <label for="dietDinner">Dinner</label>
                                         <textarea id="dietDinner" name="dinner" placeholder="Dinner details..." rows="3"></textarea>
                                     </div>
-                                </div>
-                                <div class="form-row">
                                     <div class="form-group">
                                         <label for="dietOneTimeTakeaway">One time takeaway</label>
                                         <textarea id="dietOneTimeTakeaway" name="oneTimeTakeaway" placeholder="One time takeaway details..." rows="2"></textarea>
                                     </div>
+                                </div>
+                                <div class="form-row">
                                     <div class="form-group">
                                         <label for="dietDuration">Duration (in Days) <span class="required">*</span></label>
                                         <input type="number" id="dietDuration" name="duration" placeholder="Number of days" min="1" required>
                                     </div>
-                                </div>
-                                <div class="form-row">
                                     <div class="form-group">
                                         <label for="dietStartDate">Start Date <span class="required">*</span></label>
                                         <input type="date" id="dietStartDate" name="startDate" required>
                                     </div>
+                                </div>
+                                <div class="form-row">
                                     <div class="form-group">
                                         <label for="dietEndDate">End Date</label>
                                         <input type="date" id="dietEndDate" name="endDate" readonly>
                                     </div>
-                                </div>
-                                <div class="form-row">
-                                    <div class="form-group full-width">
+                                    <div class="form-group">
                                         <label for="dietRemarks">Remarks</label>
                                         <textarea id="dietRemarks" name="remarks" placeholder="Additional remarks..." rows="3"></textarea>
                                     </div>
@@ -1715,6 +1735,10 @@
                                     <button type="submit" id="saveDietRequestBtn" class="btn-primary" disabled>
                                         <i class="fas fa-save"></i>
                                         Raise Diet Request
+                                    </button>
+                                    <button type="button" id="updatePatientDetailsBtn" class="btn-secondary">
+                                        <i class="fas fa-edit"></i>
+                                        Update Details
                                     </button>
                                     <button type="button" id="resetDietFormBtn" class="btn-secondary">
                                         <i class="fas fa-undo"></i>
@@ -1730,11 +1754,6 @@
                             <h2>Diet Request Records</h2>
                             <div class="section-controls">
                                 <div class="bulk-actions">
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="selectAllDietRecords">
-                                        <span class="checkmark"></span>
-                                        Select All
-                                    </label>
                                     <div class="action-dropdown">
                                         <button id="dietRecordsActionBtn" class="action-btn" disabled>
                                             <i class="fas fa-cog"></i>
@@ -1759,98 +1778,26 @@
                                     <thead>
                                         <tr>
                                             <th class="checkbox-col">
-                                                <input type="checkbox" class="select-all-checkbox">
+                                                <input type="checkbox" class="select-all-checkbox" id="selectAllDietRecordsHeader">
                                             </th>
                                             <th>Date Requested</th>
                                             <th>Name</th>
-                                            <th>Email</th>
-                                            <th>Phone</th>
-                                            <th>Anchor</th>
-                                            <th>Others</th>
                                             <th>Duration</th>
                                             <th>Start Date</th>
                                             <th>End Date</th>
                                             <th>Status</th>
                                             <th>Actions</th>
+                                            <th>Renew</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <tr class="no-data">
-                                            <td colspan="12">No diet requests found</td>
+                                            <td colspan="9">No diet requests found</td>
                                         </tr>
                                     </tbody>
                                 </table>
                             </div>
                             <div id="dietRecordsMessage" class="section-message"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Diet Request Details Modal -->
-                <div id="dietDetailsModal" class="modal" style="display: none;">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h3>Diet Request Details</h3>
-                            <span class="modal-close">&times;</span>
-                        </div>
-                        <div class="modal-body">
-                            <div class="details-grid">
-                                <div class="detail-item">
-                                    <label>Name:</label>
-                                    <span id="modalDietPatientName"></span>
-                                </div>
-                                <div class="detail-item">
-                                    <label>Email:</label>
-                                    <span id="modalDietEmail"></span>
-                                </div>
-                                <div class="detail-item">
-                                    <label>Phone:</label>
-                                    <span id="modalDietPhoneNumber"></span>
-                                </div>
-                                <div class="detail-item">
-                                    <label>Anchor:</label>
-                                    <span id="modalDietAnchor"></span>
-                                </div>
-                                <div class="detail-item">
-                                    <label>Others:</label>
-                                    <span id="modalDietOthers"></span>
-                                </div>
-                                <div class="detail-item">
-                                    <label>Duration:</label>
-                                    <span id="modalDietDuration"></span>
-                                </div>
-                                <div class="detail-item">
-                                    <label>Start Date:</label>
-                                    <span id="modalDietStartDate"></span>
-                                </div>
-                                <div class="detail-item">
-                                    <label>End Date:</label>
-                                    <span id="modalDietEndDate"></span>
-                                </div>
-                                <div class="detail-item full-width">
-                                    <label>Brunch:</label>
-                                    <span id="modalDietBrunch"></span>
-                                </div>
-                                <div class="detail-item full-width">
-                                    <label>Lunch:</label>
-                                    <span id="modalDietLunch"></span>
-                                </div>
-                                <div class="detail-item full-width">
-                                    <label>Dinner:</label>
-                                    <span id="modalDietDinner"></span>
-                                </div>
-                                <div class="detail-item full-width">
-                                    <label>One Time Takeaway:</label>
-                                    <span id="modalDietOneTimeTakeaway"></span>
-                                </div>
-                                <div class="detail-item full-width">
-                                    <label>Remarks:</label>
-                                    <span id="modalDietRemarks"></span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn-secondary" onclick="dietRequestManager.closeModal()">Close</button>
                         </div>
                     </div>
                 </div>

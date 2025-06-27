@@ -105,14 +105,12 @@ class ClinicApp {
             case 'diet-request':
                 if (typeof dietRequestManager !== 'undefined') {
                     console.log('Diet request module already initialized');
-                    // Call module activation method to restore form data
-                    if (typeof dietRequestManager.onModuleActivated === 'function') {
-                        dietRequestManager.onModuleActivated();
-                    }
+                    // Any module-specific switching logic can go here
                 } else {
                     console.error('dietRequestManager not found');
                 }
                 break;
+
             case 'isolation':
                 // Initialize isolation module when implemented
                 console.log('Isolation module selected (not yet implemented)');
@@ -151,6 +149,8 @@ class ClinicApp {
             console.log('Initializing diet request module on startup');
             dietRequestManager.init();
         }
+
+
 
         // Add other module initializations here as they are implemented
     }

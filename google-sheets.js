@@ -651,7 +651,6 @@ class GoogleSheetsAPI {
             };
         }
     }
-
     // Save diet request
     async saveDietRequest(dietRequestData) {
         if (!this.isInitialized) {
@@ -685,24 +684,40 @@ class GoogleSheetsAPI {
 
     // Get all diet requests
     async getDietRequests() {
+        console.log('🔍 getDietRequests called');
+        console.log('🔧 API initialized:', this.isInitialized);
+        console.log('🌐 Base URL:', this.baseURL);
+
         if (!this.isInitialized) {
+            console.error('❌ Google Sheets API not initialized');
             throw new Error('Google Sheets API not initialized');
         }
 
         try {
-            const response = await fetch(`${this.baseURL}/diet-requests`);
+            const url = `${this.baseURL}/diet-requests`;
+            console.log('📡 Fetching from URL:', url);
+
+            const response = await fetch(url);
+            console.log('📊 Response status:', response.status);
+            console.log('📊 Response ok:', response.ok);
+
             const data = await response.json();
+            console.log('📄 Response data:', data);
 
             if (response.ok) {
+                console.log('✅ API call successful');
+                console.log('📝 Diet requests count:', data.dietRequests ? data.dietRequests.length : 0);
                 return data;
             } else {
+                console.error('❌ API call failed with status:', response.status);
                 throw new Error(data.message || 'Failed to get diet requests');
             }
         } catch (error) {
-            console.error('Error getting diet requests:', error);
+            console.error('💥 Exception in getDietRequests:', error);
             return {
                 success: false,
-                message: 'Failed to get diet requests: ' + error.message
+                message: 'Failed to get diet requests: ' + error.message,
+                dietRequests: []
             };
         }
     }
@@ -737,7 +752,67 @@ class GoogleSheetsAPI {
             };
         }
     }
+    // Send diet request email
+    async sendDietRequestEmail(dietRequestId) {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
 
+        try {
+            const response = await fetch(`${this.baseURL}/diet-request/send-email`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ dietRequestId })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                return data;
+            } else {
+                throw new Error(data.message || 'Failed to send diet request email');
+            }
+        } catch (error) {
+            console.error('Error sending diet request email:', error);
+            return {
+                success: false,
+                message: 'Failed to send diet request email: ' + error.message
+            };
+        }
+    }
+
+
+
+
+
+
+
+    // Get all patients for name search
+    async getAllPatients() {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            const response = await fetch(`${this.baseURL}/patients`);
+            const data = await response.json();
+
+            if (response.ok) {
+                return data;
+            } else {
+                throw new Error(data.message || 'Failed to get patients');
+            }
+        } catch (error) {
+            console.error('Error getting patients:', error);
+            return {
+                success: false,
+                message: 'Failed to get patients: ' + error.message,
+                patients: []
+            };
+        }
+    }
     // Get system configuration
     async getSystemConfig() {
         if (!this.isInitialized) {
@@ -758,6 +833,52 @@ class GoogleSheetsAPI {
             return {
                 success: false,
                 message: 'Failed to get system config: ' + error.message
+            };
+        }
+    }
+
+    // Update patient details in patient_database sheet
+    async updatePatientDetails(patientData) {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            console.log('Sending patient update request:', patientData);
+            console.log('Request URL:', `${this.baseURL}/update-patient`);
+
+            const response = await fetch(`${this.baseURL}/update-patient`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(patientData)
+            });
+
+            console.log('Response status:', response.status);
+            console.log('Response headers:', response.headers);
+
+            // Check if response is JSON
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                const textResponse = await response.text();
+                console.error('Non-JSON response received:', textResponse);
+                throw new Error('Server returned non-JSON response. Please check if the server is running properly.');
+            }
+
+            const data = await response.json();
+            console.log('Response data:', data);
+
+            if (response.ok) {
+                return data;
+            } else {
+                throw new Error(data.message || 'Failed to update patient details');
+            }
+        } catch (error) {
+            console.error('Error updating patient details:', error);
+            return {
+                success: false,
+                message: 'Failed to update patient details: ' + error.message
             };
         }
     }
