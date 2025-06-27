@@ -282,10 +282,16 @@
                                         </div>
                                     </div>
                                 </div>
-                                <button id="refreshUpcomingBtn" class="refresh-btn">
-                                    <i class="fas fa-sync-alt"></i>
-                                    Refresh
-                                </button>
+                                <div class="section-actions">
+                                    <button id="sendMessageUpcomingBtn" class="send-message-btn" onclick="bloodTestManager.sendMessage('upcoming-test')">
+                                        <i class="fas fa-comment"></i>
+                                        Send Message
+                                    </button>
+                                    <button id="refreshUpcomingBtn" class="refresh-btn">
+                                        <i class="fas fa-sync-alt"></i>
+                                        Refresh
+                                    </button>
+                                </div>
                             </div>
                             <div class="table-container">
                                 <table id="upcomingTestsTable" class="data-table">
@@ -337,10 +343,16 @@
                                         </div>
                                     </div>
                                 </div>
-                                <button id="refreshReviewBtn" class="refresh-btn">
-                                    <i class="fas fa-sync-alt"></i>
-                                    Refresh
-                                </button>
+                                <div class="section-actions">
+                                    <button id="sendMessageReviewBtn" class="send-message-btn" onclick="bloodTestManager.sendMessage('pending-review')">
+                                        <i class="fas fa-comment"></i>
+                                        Send Message
+                                    </button>
+                                    <button id="refreshReviewBtn" class="refresh-btn">
+                                        <i class="fas fa-sync-alt"></i>
+                                        Refresh
+                                    </button>
+                                </div>
                             </div>
                             <div class="table-container">
                                 <table id="reviewTestsTable" class="data-table">
@@ -692,10 +704,16 @@
                                         </div>
                                     </div>
                                 </div>
-                                <button id="refreshUpcomingUltrasoundBtn" class="refresh-btn">
-                                    <i class="fas fa-sync-alt"></i>
-                                    Refresh
-                                </button>
+                                <div class="section-actions">
+                                    <button id="sendMessageUpcomingUltrasoundBtn" class="send-message-btn" onclick="ultrasoundManager.sendMessage('upcoming-ultrasound')">
+                                        <i class="fas fa-comment"></i>
+                                        Send Message
+                                    </button>
+                                    <button id="refreshUpcomingUltrasoundBtn" class="refresh-btn">
+                                        <i class="fas fa-sync-alt"></i>
+                                        Refresh
+                                    </button>
+                                </div>
                             </div>
                             <div class="table-container">
                                 <table id="upcomingUltrasoundsTable" class="data-table">
@@ -748,10 +766,16 @@
                                         </div>
                                     </div>
                                 </div>
-                                <button id="refreshReviewUltrasoundBtn" class="refresh-btn">
-                                    <i class="fas fa-sync-alt"></i>
-                                    Refresh
-                                </button>
+                                <div class="section-actions">
+                                    <button id="sendMessageReviewUltrasoundBtn" class="send-message-btn" onclick="ultrasoundManager.sendMessage('pending-review-ultrasound')">
+                                        <i class="fas fa-comment"></i>
+                                        Send Message
+                                    </button>
+                                    <button id="refreshReviewUltrasoundBtn" class="refresh-btn">
+                                        <i class="fas fa-sync-alt"></i>
+                                        Refresh
+                                    </button>
+                                </div>
                             </div>
                             <div class="table-container">
                                 <table id="reviewUltrasoundsTable" class="data-table">

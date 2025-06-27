@@ -617,6 +617,31 @@ body {
     transform: translateY(-1px);
 }
 
+.send-message-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: #17a2b8;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+}
+
+.send-message-btn:hover {
+    background: #138496;
+    transform: translateY(-1px);
+}
+
+.section-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
 .table-container {
     overflow-x: auto;
     border: 1px solid #e9ecef;
@@ -837,9 +862,15 @@ body {
     }
 
     .action-btn,
-    .refresh-btn {
+    .refresh-btn,
+    .send-message-btn {
         font-size: 0.8rem;
         padding: 0.4rem 0.8rem;
+    }
+
+    .section-actions {
+        flex-direction: column;
+        gap: 0.3rem;
     }
 
     .checkbox-options {

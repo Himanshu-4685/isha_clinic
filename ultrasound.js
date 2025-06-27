@@ -1165,6 +1165,83 @@ class UltrasoundManager {
             }
         }
     }
+
+    // Send Message functionality (placeholder for WhatsApp API integration)
+    async sendMessage(sectionName) {
+        console.log(`Ultrasound - Send Message clicked for section: ${sectionName}`);
+
+        try {
+            // Get selected ultrasounds from the current section
+            const selectedUltrasoundIds = Array.from(this.selectedUltrasounds[sectionName]);
+            const sectionData = this.sectionData[sectionName];
+
+            if (selectedUltrasoundIds.length === 0) {
+                this.showSectionMessage(sectionName, 'Please select at least one ultrasound to send messages', 'warning');
+                return;
+            }
+
+            // Collect patient data for selected ultrasounds
+            const selectedUltrasounds = selectedUltrasoundIds.map(ultrasoundId => {
+                return sectionData.find(ultrasound => ultrasound.id.toString() === ultrasoundId.toString());
+            }).filter(ultrasound => ultrasound !== undefined);
+
+            console.log('Ultrasound - Selected ultrasounds for messaging:', selectedUltrasounds);
+
+            // Prepare message data structure for future WhatsApp API integration
+            const messageData = {
+                module: 'ultrasound',
+                section: sectionName,
+                recipients: selectedUltrasounds.map(ultrasound => ({
+                    name: ultrasound.name,
+                    phone: ultrasound.phone,
+                    iycNumber: ultrasound.iycNumber,
+                    testName: ultrasound.testName,
+                    date: ultrasound.date,
+                    referredBy: ultrasound.referredBy
+                })),
+                messageTemplate: this.getMessageTemplate(sectionName),
+                timestamp: new Date().toISOString()
+            };
+
+            console.log('Ultrasound - Message data prepared:', messageData);
+
+            // TODO: Replace this placeholder with actual WhatsApp API call
+            // Example: await whatsappAPI.sendBulkMessages(messageData);
+
+            // Placeholder success message
+            this.showSectionMessage(
+                sectionName,
+                `Message sending prepared for ${selectedUltrasounds.length} patient(s). WhatsApp API integration pending.`,
+                'info'
+            );
+
+            // Log for future development
+            console.log('Ultrasound - WhatsApp API integration point - messageData ready:', messageData);
+
+        } catch (error) {
+            console.error('Ultrasound - Error in sendMessage:', error);
+            this.showSectionMessage(sectionName, 'Error preparing message data: ' + error.message, 'error');
+        }
+    }
+
+    // Get message template based on section (placeholder for future customization)
+    getMessageTemplate(sectionName) {
+        const templates = {
+            'upcoming-ultrasound': {
+                subject: 'Ultrasound Appointment Reminder',
+                body: 'Dear {name}, this is a reminder for your upcoming ultrasound ({testName}) scheduled for {date}. Please arrive 15 minutes early. Referred by: {referredBy}. IYC: {iycNumber}'
+            },
+            'pending-review-ultrasound': {
+                subject: 'Ultrasound Results Ready',
+                body: 'Dear {name}, your ultrasound results ({testName}) are ready for review. Please contact us to schedule a consultation. Referred by: {referredBy}. IYC: {iycNumber}'
+            }
+        };
+
+        return templates[sectionName] || {
+            subject: 'Ultrasound Update',
+            body: 'Dear {name}, we have an update regarding your ultrasound ({testName}). Please contact us for more information. IYC: {iycNumber}'
+        };
+    }
 }
 
 // Create global ultrasound manager instance

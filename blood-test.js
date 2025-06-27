@@ -1168,6 +1168,83 @@ class BloodTestManager {
             }
         }
     }
+
+    // Send Message functionality (placeholder for WhatsApp API integration)
+    async sendMessage(sectionName) {
+        console.log(`Blood Test - Send Message clicked for section: ${sectionName}`);
+
+        try {
+            // Get selected tests from the current section
+            const selectedTestIds = Array.from(this.selectedTests[sectionName]);
+            const sectionData = this.sectionData[sectionName];
+
+            if (selectedTestIds.length === 0) {
+                this.showSectionMessage(sectionName, 'Please select at least one test to send messages', 'warning');
+                return;
+            }
+
+            // Collect patient data for selected tests
+            const selectedTests = selectedTestIds.map(testId => {
+                return sectionData.find(test => test.id.toString() === testId.toString());
+            }).filter(test => test !== undefined);
+
+            console.log('Blood Test - Selected tests for messaging:', selectedTests);
+
+            // Prepare message data structure for future WhatsApp API integration
+            const messageData = {
+                module: 'blood-test',
+                section: sectionName,
+                recipients: selectedTests.map(test => ({
+                    name: test.name,
+                    phone: test.phone,
+                    iycNumber: test.iycNumber,
+                    testName: test.testName,
+                    date: test.date,
+                    referredBy: test.referredBy
+                })),
+                messageTemplate: this.getMessageTemplate(sectionName),
+                timestamp: new Date().toISOString()
+            };
+
+            console.log('Blood Test - Message data prepared:', messageData);
+
+            // TODO: Replace this placeholder with actual WhatsApp API call
+            // Example: await whatsappAPI.sendBulkMessages(messageData);
+
+            // Placeholder success message
+            this.showSectionMessage(
+                sectionName,
+                `Message sending prepared for ${selectedTests.length} patient(s). WhatsApp API integration pending.`,
+                'info'
+            );
+
+            // Log for future development
+            console.log('Blood Test - WhatsApp API integration point - messageData ready:', messageData);
+
+        } catch (error) {
+            console.error('Blood Test - Error in sendMessage:', error);
+            this.showSectionMessage(sectionName, 'Error preparing message data: ' + error.message, 'error');
+        }
+    }
+
+    // Get message template based on section (placeholder for future customization)
+    getMessageTemplate(sectionName) {
+        const templates = {
+            'upcoming-test': {
+                subject: 'Blood Test Reminder',
+                body: 'Dear {name}, this is a reminder for your upcoming blood test ({testName}) scheduled for {date}. Please arrive 15 minutes early. Referred by: {referredBy}. IYC: {iycNumber}'
+            },
+            'pending-review': {
+                subject: 'Blood Test Results Ready',
+                body: 'Dear {name}, your blood test results ({testName}) are ready for review. Please contact us to schedule a consultation. Referred by: {referredBy}. IYC: {iycNumber}'
+            }
+        };
+
+        return templates[sectionName] || {
+            subject: 'Blood Test Update',
+            body: 'Dear {name}, we have an update regarding your blood test ({testName}). Please contact us for more information. IYC: {iycNumber}'
+        };
+    }
 }
 
 // Create global blood test manager instance
