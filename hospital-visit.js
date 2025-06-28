@@ -1742,6 +1742,9 @@ class HospitalVisitManager {
                 return;
             }
 
+            // Show loading overlay
+            loadingOverlay.show('Updating patient details...', 'Please wait while we save your changes to the database');
+
             // Prepare patient data for update
             const patientData = {
                 iycNumber: iycNumber,
@@ -1754,6 +1757,9 @@ class HospitalVisitManager {
             const result = await googleSheetsAPI.updatePatientDetails(patientData);
 
             if (result && result.success) {
+                // Show success overlay
+                loadingOverlay.showSuccess('Patient details updated successfully!', 'Your changes have been saved to the database');
+
                 // Update the form fields with the new values
                 const nameInput = document.getElementById('visitPatientName');
                 const emailInput = document.getElementById('visitEmail');
@@ -1772,6 +1778,7 @@ class HospitalVisitManager {
                 }
             } else {
                 const errorMessage = result ? (result.message || 'Failed to update patient details') : 'No response from server';
+                loadingOverlay.showError('Update failed', errorMessage);
                 this.showMessage('visitFormMessage', errorMessage, 'error');
             }
         } catch (error) {
@@ -1785,6 +1792,7 @@ class HospitalVisitManager {
                 errorMessage = `Error: ${error.message}`;
             }
 
+            loadingOverlay.showError('Update failed', errorMessage);
             this.showMessage('visitFormMessage', errorMessage, 'error');
         }
     }

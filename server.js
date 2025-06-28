@@ -490,8 +490,8 @@ app.post('/api/ultrasound', async (req, res) => {
         const ultrasoundId = `US${Date.now()}`;
         const currentTimestamp = new Date().toISOString();
 
-        // Prepare row data with all columns including ID, Created, and Updated timestamps
-        const values = [[ultrasoundId, finalDate, iycNumber, patientName, category, phoneNumber, testName, referredBy, schedule, '', currentTimestamp, currentTimestamp]];
+        // Prepare row data with all columns including ID, Timing, Created, and Updated timestamps
+        const values = [[ultrasoundId, finalDate, iycNumber, patientName, category, phoneNumber, testName, referredBy, schedule, '', '', currentTimestamp, currentTimestamp]];
 
         // First, insert a new row at the specified position
         await sheets.spreadsheets.batchUpdate({
@@ -512,7 +512,7 @@ app.post('/api/ultrasound', async (req, res) => {
         });
 
         // Then update the values in the new row
-        const range = `${worksheetName}!A${insertAfterRow}:L${insertAfterRow}`;
+        const range = `${worksheetName}!A${insertAfterRow}:M${insertAfterRow}`;
         await sheets.spreadsheets.values.update({
             spreadsheetId: SPREADSHEET_ID,
             range: range,
@@ -585,10 +585,10 @@ async function ensureUltrasoundHeaders() {
         // Now check and update headers
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: 'Ultrasound_Data!A1:L1',
+            range: 'Ultrasound_Data!A1:M1',
         });
 
-        const expectedHeaders = ['ID', 'Date', 'IYC Number', 'Name', 'Category', 'Phone', 'Ultrasound Type', 'Referred By', 'Status', 'Remarks', 'Created', 'Updated'];
+        const expectedHeaders = ['ID', 'Date', 'IYC Number', 'Name', 'Category', 'Phone', 'Ultrasound Type', 'Referred By', 'Status', 'Remarks', 'Timing', 'Created', 'Updated'];
         const currentHeaders = response.data.values ? response.data.values[0] : [];
 
         // Check if headers match
@@ -600,7 +600,7 @@ async function ensureUltrasoundHeaders() {
             // Update the header row
             await sheets.spreadsheets.values.update({
                 spreadsheetId: SPREADSHEET_ID,
-                range: 'Ultrasound_Data!A1:L1',
+                range: 'Ultrasound_Data!A1:M1',
                 valueInputOption: 'RAW',
                 resource: {
                     values: [expectedHeaders]
@@ -624,7 +624,7 @@ app.get('/api/ultrasounds/all', async (req, res) => {
 
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: `Ultrasound_Data!A:L`,
+            range: `Ultrasound_Data!A:M`,
         });
 
         const rows = response.data.values || [];
@@ -642,8 +642,9 @@ app.get('/api/ultrasounds/all', async (req, res) => {
             referredBy: row[7] || '',
             status: row[8] || '',
             remarks: row[9] || '',
-            created: row[10] || '',
-            updated: row[11] || ''
+            timing: row[10] || '',
+            created: row[11] || '',
+            updated: row[12] || ''
         })).filter(ultrasound => {
             // Only include rows with IYC numbers
             return ultrasound.iycNumber;
@@ -674,7 +675,7 @@ app.get('/api/ultrasounds/:status', async (req, res) => {
 
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: `Ultrasound_Data!A:L`,
+            range: `Ultrasound_Data!A:M`,
         });
 
         const rows = response.data.values || [];
@@ -692,8 +693,9 @@ app.get('/api/ultrasounds/:status', async (req, res) => {
             referredBy: row[7] || '', // H=Referred By
             status: row[8] || '', // I=Status
             remarks: row[9] || '', // J=Remarks
-            created: row[10] || '', // K=Created
-            updated: row[11] || '' // L=Updated
+            timing: row[10] || '', // K=Timing
+            created: row[11] || '', // L=Created
+            updated: row[12] || '' // M=Updated
         })).filter(ultrasound => {
             // Filter by status and ensure we have required data
             return ultrasound.iycNumber && ultrasound.status === status;
@@ -774,16 +776,16 @@ app.post('/api/ultrasound-status', async (req, res) => {
 app.put('/api/ultrasound/:rowIndex', async (req, res) => {
     try {
         const { rowIndex } = req.params;
-        const { date, iycNumber, name, category, phone, testName, referredBy, status, remarks } = req.body;
+        const { date, iycNumber, name, category, phone, testName, referredBy, status, remarks, timing } = req.body;
 
         console.log(`Updating ultrasound at row ${rowIndex}`);
 
         const currentTimestamp = new Date().toISOString();
 
-        // Update only the editable fields (B to L for updated timestamp)
-        // Keep ID (A), Created (K) unchanged
-        const range = `Ultrasound_Data!B${rowIndex}:L${rowIndex}`;
-        const values = [[date, iycNumber, name, category, phone, testName, referredBy, status, remarks, '', currentTimestamp]];
+        // Update only the editable fields (B to M for updated timestamp)
+        // Keep ID (A), Created (L) unchanged
+        const range = `Ultrasound_Data!B${rowIndex}:M${rowIndex}`;
+        const values = [[date, iycNumber, name, category, phone, testName, referredBy, status, remarks, timing || '', '', currentTimestamp]];
 
         await sheets.spreadsheets.values.update({
             spreadsheetId: SPREADSHEET_ID,
@@ -1209,7 +1211,7 @@ async function getSystemConfig() {
 
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: 'System Config!C1:C10', // Read from C1 to C10 to get all config data
+            range: 'System Config!C1:C15', // Read from C1 to C15 to get all config data
         });
 
         const values = response.data.values || [];
@@ -1220,7 +1222,8 @@ async function getSystemConfig() {
             password: values[2] && values[2][0] ? values[2][0].toString().trim() : '', // C3 - password
             anchors: values[4] && values[4][0] ? values[4][0].toString().trim() : '', // C5 - anchors JSON
             referredBy: values[5] && values[5][0] ? values[5][0].toString().trim() : '', // C6 - referred by names
-            others: values[6] && values[6][0] ? values[6][0].toString().trim() : '' // C7 - others names
+            others: values[6] && values[6][0] ? values[6][0].toString().trim() : '', // C7 - others names
+            ultrasound_doctor: values[11] && values[11][0] ? values[11][0].toString().trim() : '' // C12 - ultrasound doctors
         };
 
         console.log('System Config processed:', {
@@ -1228,7 +1231,8 @@ async function getSystemConfig() {
             password: config.password ? '***' : 'not set',
             anchors: config.anchors ? `"${config.anchors.substring(0, 50)}..."` : 'not set',
             referredBy: config.referredBy ? `"${config.referredBy}"` : 'not set',
-            others: config.others ? `"${config.others}"` : 'not set'
+            others: config.others ? `"${config.others}"` : 'not set',
+            ultrasound_doctor: config.ultrasound_doctor ? `"${config.ultrasound_doctor}"` : 'not set'
         });
 
         return config;
@@ -1242,7 +1246,8 @@ async function getSystemConfig() {
             password: '',
             anchors: '',
             referredBy: '',
-            others: ''
+            others: '',
+            ultrasound_doctor: ''
         };
     }
 }
@@ -2258,7 +2263,8 @@ app.get('/api/system-config', async (req, res) => {
             data: {
                 anchors: anchors,
                 referredBy: referredByList,
-                others: othersList
+                others: othersList,
+                ultrasound_doctor: config.ultrasound_doctor || ''
             }
         });
     } catch (error) {
@@ -2797,10 +2803,10 @@ app.post('/api/update-patient', async (req, res) => {
     try {
         const { iycNumber, name, email, phone } = req.body;
 
-        if (!name || !email || !phone) {
+        if (!name || !phone) {
             return res.status(400).json({
                 success: false,
-                message: 'Name, email, and phone are required'
+                message: 'Name and phone are required'
             });
         }
 
@@ -2861,15 +2867,17 @@ app.post('/api/update-patient', async (req, res) => {
                 });
             }
 
-            // Update Email (Column C)
-            await sheets.spreadsheets.values.update({
-                spreadsheetId: SPREADSHEET_ID,
-                range: `Patient Database!C${patientRowIndex}`,
-                valueInputOption: 'RAW',
-                resource: {
-                    values: [[email]]
-                }
-            });
+            // Update Email (Column C) - only if provided in request
+            if (email !== undefined) {
+                await sheets.spreadsheets.values.update({
+                    spreadsheetId: SPREADSHEET_ID,
+                    range: `Patient Database!C${patientRowIndex}`,
+                    valueInputOption: 'RAW',
+                    resource: {
+                        values: [[email || '']]
+                    }
+                });
+            }
 
             // Update Phone (Column E)
             await sheets.spreadsheets.values.update({

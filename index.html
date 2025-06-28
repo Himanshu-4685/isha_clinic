@@ -142,6 +142,7 @@
                                     <div class="form-group">
                                         <label for="patientName">Name <span class="required">*</span></label>
                                         <input type="text" id="patientName" name="patientName" placeholder="Patient name will be auto-filled" required>
+                                        <div class="search-dropdown" id="bloodTestNameSearchDropdown" style="display: none;"></div>
                                     </div>
                                 </div>
 
@@ -196,11 +197,6 @@
                             <h2>Pending Tests</h2>
                             <div class="section-controls">
                                 <div class="bulk-actions">
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="selectAllPending">
-                                        <span class="checkmark"></span>
-                                        Select All
-                                    </label>
                                     <div class="action-dropdown">
                                         <button id="pendingActionBtn" class="action-btn" disabled>
                                             <i class="fas fa-cog"></i>
@@ -255,11 +251,6 @@
                             <h2>Upcoming Tests</h2>
                             <div class="section-controls">
                                 <div class="bulk-actions">
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="selectAllUpcoming">
-                                        <span class="checkmark"></span>
-                                        Select All
-                                    </label>
                                     <div class="action-dropdown">
                                         <button id="upcomingActionBtn" class="action-btn" disabled>
                                             <i class="fas fa-cog"></i>
@@ -324,11 +315,6 @@
                             <h2>Pending Review</h2>
                             <div class="section-controls">
                                 <div class="bulk-actions">
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="selectAllReview">
-                                        <span class="checkmark"></span>
-                                        Select All
-                                    </label>
                                     <div class="action-dropdown">
                                         <button id="reviewActionBtn" class="action-btn" disabled>
                                             <i class="fas fa-cog"></i>
@@ -385,11 +371,6 @@
                             <h2>Completed Tests</h2>
                             <div class="section-controls">
                                 <div class="bulk-actions">
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="selectAllCompleted">
-                                        <span class="checkmark"></span>
-                                        Select All
-                                    </label>
                                     <div class="action-dropdown">
                                         <button id="completedActionBtn" class="action-btn" disabled>
                                             <i class="fas fa-cog"></i>
@@ -440,11 +421,6 @@
                             <h2>Cancelled Tests</h2>
                             <div class="section-controls">
                                 <div class="bulk-actions">
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="selectAllCancelled">
-                                        <span class="checkmark"></span>
-                                        Select All
-                                    </label>
                                     <div class="action-dropdown">
                                         <button id="cancelledActionBtn" class="action-btn" disabled>
                                             <i class="fas fa-cog"></i>
@@ -563,6 +539,7 @@
                                     <div class="form-group">
                                         <label for="ultrasoundPatientName">Name <span class="required">*</span></label>
                                         <input type="text" id="ultrasoundPatientName" name="patientName" placeholder="Patient name will be auto-filled" required>
+                                        <div class="search-dropdown" id="ultrasoundNameSearchDropdown" style="display: none;"></div>
                                     </div>
                                 </div>
 
@@ -617,11 +594,6 @@
                             <h2>Pending Ultrasounds</h2>
                             <div class="section-controls">
                                 <div class="bulk-actions">
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="selectAllPendingUltrasound">
-                                        <span class="checkmark"></span>
-                                        Select All
-                                    </label>
                                     <div class="action-dropdown">
                                         <button id="pendingUltrasoundActionBtn" class="action-btn" disabled>
                                             <i class="fas fa-cog"></i>
@@ -650,21 +622,17 @@
                                     <thead>
                                         <tr>
                                             <th class="checkbox-col">
-                                                <input type="checkbox" class="select-all-checkbox">
+                                                <input type="checkbox" class="select-all-checkbox" id="selectAllPendingUltrasound">
                                             </th>
-                                            <th>Date</th>
-                                            <th>IYC Number</th>
+                                            <th>Timing</th>
                                             <th>Name</th>
-                                            <th>Category</th>
-                                            <th>Phone</th>
                                             <th>Ultrasound Type</th>
-                                            <th>Referred By</th>
-                                            <th>Remarks</th>
+                                            <th>Details</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <tr class="no-data">
-                                            <td colspan="9">No pending ultrasounds found</td>
+                                            <td colspan="5">No pending ultrasounds found</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -677,11 +645,6 @@
                             <h2>Upcoming Ultrasounds</h2>
                             <div class="section-controls">
                                 <div class="bulk-actions">
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="selectAllUpcomingUltrasound">
-                                        <span class="checkmark"></span>
-                                        Select All
-                                    </label>
                                     <div class="action-dropdown">
                                         <button id="upcomingUltrasoundActionBtn" class="action-btn" disabled>
                                             <i class="fas fa-cog"></i>
@@ -720,21 +683,17 @@
                                     <thead>
                                         <tr>
                                             <th class="checkbox-col">
-                                                <input type="checkbox" class="select-all-checkbox">
+                                                <input type="checkbox" class="select-all-checkbox" id="selectAllUpcomingUltrasound">
                                             </th>
-                                            <th>Date</th>
-                                            <th>IYC Number</th>
+                                            <th>Timing</th>
                                             <th>Name</th>
-                                            <th>Category</th>
-                                            <th>Phone</th>
                                             <th>Ultrasound Type</th>
-                                            <th>Referred By</th>
-                                            <th>Remarks</th>
+                                            <th>Details</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <tr class="no-data">
-                                            <td colspan="9">No upcoming ultrasounds found</td>
+                                            <td colspan="5">No upcoming ultrasounds found</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -747,11 +706,6 @@
                             <h2>Pending Review</h2>
                             <div class="section-controls">
                                 <div class="bulk-actions">
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="selectAllReviewUltrasound">
-                                        <span class="checkmark"></span>
-                                        Select All
-                                    </label>
                                     <div class="action-dropdown">
                                         <button id="reviewUltrasoundActionBtn" class="action-btn" disabled>
                                             <i class="fas fa-cog"></i>
@@ -782,21 +736,17 @@
                                     <thead>
                                         <tr>
                                             <th class="checkbox-col">
-                                                <input type="checkbox" class="select-all-checkbox">
+                                                <input type="checkbox" class="select-all-checkbox" id="selectAllReviewUltrasound">
                                             </th>
-                                            <th>Date</th>
-                                            <th>IYC Number</th>
+                                            <th>Timing</th>
                                             <th>Name</th>
-                                            <th>Category</th>
-                                            <th>Phone</th>
                                             <th>Ultrasound Type</th>
-                                            <th>Referred By</th>
-                                            <th>Remarks</th>
+                                            <th>Details</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <tr class="no-data">
-                                            <td colspan="9">No ultrasounds pending review</td>
+                                            <td colspan="5">No ultrasounds pending review</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -809,11 +759,6 @@
                             <h2>Completed Ultrasounds</h2>
                             <div class="section-controls">
                                 <div class="bulk-actions">
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="selectAllCompletedUltrasound">
-                                        <span class="checkmark"></span>
-                                        Select All
-                                    </label>
                                     <div class="action-dropdown">
                                         <button id="completedUltrasoundActionBtn" class="action-btn" disabled>
                                             <i class="fas fa-cog"></i>
@@ -838,21 +783,17 @@
                                     <thead>
                                         <tr>
                                             <th class="checkbox-col">
-                                                <input type="checkbox" class="select-all-checkbox">
+                                                <input type="checkbox" class="select-all-checkbox" id="selectAllCompletedUltrasound">
                                             </th>
-                                            <th>Date</th>
-                                            <th>IYC Number</th>
+                                            <th>Timing</th>
                                             <th>Name</th>
-                                            <th>Category</th>
-                                            <th>Phone</th>
                                             <th>Ultrasound Type</th>
-                                            <th>Referred By</th>
-                                            <th>Remarks</th>
+                                            <th>Details</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <tr class="no-data">
-                                            <td colspan="9">No completed ultrasounds found</td>
+                                            <td colspan="5">No completed ultrasounds found</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -865,11 +806,6 @@
                             <h2>Cancelled Ultrasounds</h2>
                             <div class="section-controls">
                                 <div class="bulk-actions">
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="selectAllCancelledUltrasound">
-                                        <span class="checkmark"></span>
-                                        Select All
-                                    </label>
                                     <div class="action-dropdown">
                                         <button id="cancelledUltrasoundActionBtn" class="action-btn" disabled>
                                             <i class="fas fa-cog"></i>
@@ -894,21 +830,17 @@
                                     <thead>
                                         <tr>
                                             <th class="checkbox-col">
-                                                <input type="checkbox" class="select-all-checkbox">
+                                                <input type="checkbox" class="select-all-checkbox" id="selectAllCancelledUltrasound">
                                             </th>
-                                            <th>Date</th>
-                                            <th>IYC Number</th>
+                                            <th>Timing</th>
                                             <th>Name</th>
-                                            <th>Category</th>
-                                            <th>Phone</th>
                                             <th>Ultrasound Type</th>
-                                            <th>Referred By</th>
-                                            <th>Remarks</th>
+                                            <th>Details</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <tr class="no-data">
-                                            <td colspan="9">No cancelled ultrasounds found</td>
+                                            <td colspan="5">No cancelled ultrasounds found</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -1812,6 +1744,17 @@
                 <h2>Appointments Module</h2>
                 <p>This module will be implemented based on your requirements.</p>
             </div>
+        </div>
+    </div>
+
+    <!-- Global Loading Overlay -->
+    <div id="globalLoadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="loading-content">
+            <div class="loading-spinner">
+                <i class="fas fa-spinner fa-spin"></i>
+            </div>
+            <div class="loading-message" id="loadingMessage">Updating database...</div>
+            <div class="loading-submessage" id="loadingSubmessage">Please wait while we save your changes</div>
         </div>
     </div>
 

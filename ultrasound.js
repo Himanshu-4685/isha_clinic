@@ -19,6 +19,8 @@ class UltrasoundManager {
             'cancelled-ultrasound': new Set()
         };
         this.editingCell = null;
+        this.patients = [];
+        this.loadingData = false;
     }
 
     // Initialize the ultrasound module
@@ -34,6 +36,7 @@ class UltrasoundManager {
         this.setupRefreshButtons();
         this.setDefaultValues();
         this.loadSystemConfig();
+        this.loadPatientData();
 
         // Load data for current section if not add-ultrasound
         if (this.currentSection !== 'add-ultrasound') {
@@ -112,6 +115,25 @@ class UltrasoundManager {
                 debounceTimer = setTimeout(() => {
                     this.handleIYCLookup(iycInput.value);
                 }, 500); // 500ms delay
+            });
+        }
+
+        // Handle name input for search
+        const nameInput = document.getElementById('ultrasoundPatientName');
+        if (nameInput) {
+            let searchTimer;
+            nameInput.addEventListener('input', () => {
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(() => {
+                    this.handleNameSearch(nameInput.value);
+                }, 300); // 300ms delay
+            });
+
+            // Hide dropdown when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!nameInput.contains(e.target)) {
+                    this.hideNameDropdown();
+                }
             });
         }
 
@@ -386,13 +408,6 @@ class UltrasoundManager {
 
     // Setup table interactions
     setupTableInteractions() {
-        // Handle cell editing
-        document.addEventListener('click', (e) => {
-            if (e.target.classList.contains('editable-cell') && e.target.closest('#ultrasound-module')) {
-                this.enterEditMode(e.target);
-            }
-        });
-
         // Handle checkbox selection
         document.addEventListener('change', (e) => {
             if (e.target.classList.contains('ultrasound-checkbox') && e.target.closest('#ultrasound-module')) {
@@ -400,12 +415,7 @@ class UltrasoundManager {
             }
         });
 
-        // Handle select all checkboxes
-        document.addEventListener('change', (e) => {
-            if (e.target.id && e.target.id.startsWith('selectAllUltrasound') && e.target.closest('#ultrasound-module')) {
-                this.handleSelectAll(e.target);
-            }
-        });
+
 
         // Close dropdowns when clicking outside
         document.addEventListener('click', (e) => {
@@ -594,7 +604,7 @@ class UltrasoundManager {
         if (ultrasounds.length === 0) {
             tbody.innerHTML = `
                 <tr class="no-data">
-                    <td colspan="9">No ${sectionName.replace('-', ' ')} found</td>
+                    <td colspan="5">No ${sectionName.replace('-', ' ')} found</td>
                 </tr>
             `;
             return;
@@ -602,7 +612,7 @@ class UltrasoundManager {
 
         // Render ultrasound rows
         ultrasounds.forEach(ultrasound => {
-            const row = this.createUltrasoundRow(ultrasound, sectionName);
+            const row = this.createUltrasoundRow(ultrasound);
             tbody.appendChild(row);
         });
 
@@ -610,23 +620,24 @@ class UltrasoundManager {
     }
 
     // Create an ultrasound row element
-    createUltrasoundRow(ultrasound, sectionName) {
+    createUltrasoundRow(ultrasound) {
         const row = document.createElement('tr');
         row.setAttribute('data-ultrasound-id', ultrasound.id);
         row.setAttribute('data-row-index', ultrasound.rowIndex);
 
+        // Render only required columns: Timing, Name, Ultrasound Type, Details
         row.innerHTML = `
             <td class="checkbox-col">
                 <input type="checkbox" class="ultrasound-checkbox" data-ultrasound-id="${ultrasound.id}">
             </td>
-            <td class="editable-cell" data-field="date">${ultrasound.date}</td>
-            <td class="editable-cell" data-field="iycNumber">${ultrasound.iycNumber}</td>
-            <td class="editable-cell" data-field="name">${ultrasound.name}</td>
-            <td class="editable-cell" data-field="category">${ultrasound.category}</td>
-            <td class="editable-cell" data-field="phone">${ultrasound.phone}</td>
-            <td class="editable-cell" data-field="testName">${ultrasound.testName}</td>
-            <td class="editable-cell" data-field="referredBy">${ultrasound.referredBy}</td>
-            <td class="editable-cell" data-field="remarks">${ultrasound.remarks}</td>
+            <td>${ultrasound.timing || ''}</td>
+            <td>${ultrasound.name}</td>
+            <td>${ultrasound.testName}</td>
+            <td>
+                <button class="btn-icon" onclick="ultrasoundManager.viewUltrasoundDetails('${ultrasound.id}')" title="View Details">
+                    <i class="fas fa-eye"></i>
+                </button>
+            </td>
         `;
 
         return row;
@@ -652,152 +663,10 @@ class UltrasoundManager {
                 `Actions (${selectedCount})` : 'Actions';
         }
 
-        // Update select all checkbox
-        const selectAllMapping = {
-            'upcoming-ultrasound': 'selectAllUpcomingUltrasound',
-            'pending-ultrasound': 'selectAllPendingUltrasound',
-            'pending-review-ultrasound': 'selectAllReviewUltrasound',
-            'completed-ultrasound': 'selectAllCompletedUltrasound',
-            'cancelled-ultrasound': 'selectAllCancelledUltrasound'
-        };
 
-        const selectAllCheckbox = document.getElementById(selectAllMapping[sectionName]);
-        if (selectAllCheckbox) {
-            const totalUltrasounds = this.sectionData[sectionName].length;
-            selectAllCheckbox.checked = selectedCount > 0 && selectedCount === totalUltrasounds;
-            selectAllCheckbox.indeterminate = selectedCount > 0 && selectedCount < totalUltrasounds;
-        }
     }
 
-    // Enter edit mode for a cell
-    enterEditMode(cell) {
-        if (this.editingCell) {
-            this.exitEditMode();
-        }
 
-        this.editingCell = cell;
-        const currentValue = cell.textContent;
-        const field = cell.getAttribute('data-field');
-
-        // Create input element based on field type
-        let input;
-        if (field === 'date') {
-            input = document.createElement('input');
-            input.type = 'date';
-            input.value = currentValue;
-        } else if (field === 'referredBy') {
-            input = document.createElement('select');
-            // Use system config if available, otherwise fallback to CONFIG.DOCTORS
-            const doctorsList = this.systemConfig && this.systemConfig.referredBy ?
-                              this.systemConfig.referredBy : CONFIG.DOCTORS;
-            doctorsList.forEach(doctor => {
-                const option = document.createElement('option');
-                option.value = doctor;
-                option.textContent = doctor;
-                option.selected = doctor === currentValue;
-                input.appendChild(option);
-            });
-        } else {
-            input = document.createElement('input');
-            input.type = 'text';
-            input.value = currentValue;
-        }
-
-        input.className = 'cell-editor';
-        input.addEventListener('blur', () => this.saveEdit());
-        input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                this.saveEdit();
-            } else if (e.key === 'Escape') {
-                this.cancelEdit();
-            }
-        });
-
-        cell.innerHTML = '';
-        cell.appendChild(input);
-        input.focus();
-    }
-
-    // Exit edit mode
-    exitEditMode() {
-        if (this.editingCell) {
-            const input = this.editingCell.querySelector('.cell-editor');
-            if (input) {
-                this.editingCell.textContent = input.value;
-            }
-            this.editingCell = null;
-        }
-    }
-
-    // Save edit
-    async saveEdit() {
-        if (!this.editingCell) return;
-
-        const input = this.editingCell.querySelector('.cell-editor');
-        if (!input) return;
-
-        const newValue = input.value;
-        const field = this.editingCell.getAttribute('data-field');
-        const row = this.editingCell.closest('tr');
-        const ultrasoundId = row.getAttribute('data-ultrasound-id');
-        const rowIndex = row.getAttribute('data-row-index');
-
-        try {
-            // Get current ultrasound data
-            const ultrasound = this.findUltrasoundById(ultrasoundId);
-            if (!ultrasound) return;
-
-            // Update ultrasound data
-            ultrasound[field] = newValue;
-
-            // Prepare data for API
-            const ultrasoundData = {
-                date: ultrasound.date,
-                iycNumber: ultrasound.iycNumber,
-                name: ultrasound.name,
-                category: ultrasound.category,
-                phone: ultrasound.phone,
-                testName: ultrasound.testName,
-                referredBy: ultrasound.referredBy,
-                status: ultrasound.status,
-                remarks: ultrasound.remarks
-            };
-
-            // Update in Google Sheets
-            const result = await googleSheetsAPI.updateUltrasound(rowIndex, ultrasoundData);
-
-            if (result.success) {
-                this.editingCell.textContent = newValue;
-                this.showSectionMessage(this.currentSection, 'Ultrasound updated successfully', 'success');
-            } else {
-                throw new Error(result.message || 'Failed to update ultrasound');
-            }
-        } catch (error) {
-            console.error('Error saving edit:', error);
-            this.showSectionMessage(this.currentSection, 'Failed to save changes: ' + error.message, 'error');
-            // Revert to original value
-            const ultrasound = this.findUltrasoundById(ultrasoundId);
-            if (ultrasound) {
-                this.editingCell.textContent = ultrasound[field];
-            }
-        } finally {
-            this.editingCell = null;
-        }
-    }
-
-    // Cancel edit
-    cancelEdit() {
-        if (this.editingCell) {
-            const ultrasoundId = this.editingCell.closest('tr').getAttribute('data-ultrasound-id');
-            const field = this.editingCell.getAttribute('data-field');
-            const ultrasound = this.findUltrasoundById(ultrasoundId);
-
-            if (ultrasound) {
-                this.editingCell.textContent = ultrasound[field];
-            }
-            this.editingCell = null;
-        }
-    }
 
     // Find ultrasound by ID
     findUltrasoundById(ultrasoundId) {
@@ -819,24 +688,7 @@ class UltrasoundManager {
         this.updateSectionControls(section);
     }
 
-    // Handle select all
-    handleSelectAll(checkbox) {
-        const section = this.currentSection;
-        const ultrasoundCheckboxes = document.querySelectorAll(`#${section}-section .ultrasound-checkbox`);
 
-        ultrasoundCheckboxes.forEach(cb => {
-            cb.checked = checkbox.checked;
-            const ultrasoundId = cb.getAttribute('data-ultrasound-id');
-
-            if (checkbox.checked) {
-                this.selectedUltrasounds[section].add(ultrasoundId);
-            } else {
-                this.selectedUltrasounds[section].delete(ultrasoundId);
-            }
-        });
-
-        this.updateSectionControls(section);
-    }
 
     // Toggle action dropdown
     toggleActionDropdown(button) {
@@ -873,7 +725,13 @@ class UltrasoundManager {
         // Close dropdown
         this.closeAllDropdowns();
 
-        // Confirm action
+        // Special handling for moving pending ultrasounds to upcoming - show scheduling dialog
+        if (action === 'upcoming' && this.currentSection === 'pending-ultrasound') {
+            this.showSchedulingDialog(selectedUltrasoundIds);
+            return;
+        }
+
+        // Confirm action for other actions
         const actionText = actionItem.textContent.trim();
         if (!confirm(`Are you sure you want to ${actionText.toLowerCase()} ${selectedUltrasoundIds.length} ultrasound(s)?`)) {
             return;
@@ -954,25 +812,200 @@ class UltrasoundManager {
         }
     }
 
+    // Show scheduling dialog for moving pending ultrasounds to upcoming
+    showSchedulingDialog(selectedUltrasoundIds) {
+        const selectedUltrasounds = selectedUltrasoundIds.map(id => this.findUltrasoundById(id)).filter(u => u);
+
+        if (selectedUltrasounds.length === 0) {
+            this.showSectionMessage(this.currentSection, 'No valid ultrasounds selected', 'error');
+            return;
+        }
+
+        // Create modal HTML
+        const modalHtml = `
+            <style>
+                .time-input-group {
+                    display: flex;
+                    align-items: center;
+                    gap: 5px;
+                }
+                .time-input-group select {
+                    padding: 8px;
+                    border: 1px solid #ddd;
+                    border-radius: 4px;
+                    font-size: 14px;
+                }
+                .time-input-group span {
+                    font-weight: bold;
+                    font-size: 16px;
+                }
+            </style>
+            <div id="ultrasoundSchedulingModal" class="modal" style="display: flex;">
+                <div class="modal-content" style="max-width: 800px; width: 90%;">
+                    <div class="modal-header">
+                        <h3>Schedule Ultrasound Appointments</h3>
+                        <span class="modal-close">&times;</span>
+                    </div>
+                    <div class="modal-body">
+                        <div class="scheduling-info">
+                            <h4>Selected Ultrasounds:</h4>
+                            <div class="selected-ultrasounds-table">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>IYC</th>
+                                            <th>Test Type</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${selectedUltrasounds.map(ultrasound => `
+                                            <tr>
+                                                <td>${ultrasound.name}</td>
+                                                <td>${ultrasound.iycNumber}</td>
+                                                <td>${ultrasound.testName}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="scheduling-form">
+                            <h4>Scheduling Details:</h4>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="schedulingDate">Date <span class="required">*</span></label>
+                                    <input type="date" id="schedulingDate" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="startTiming">Start Time <span class="required">*</span></label>
+                                    <div class="time-input-group">
+                                        <select id="startHour" required>
+                                            <option value="">Hour</option>
+                                            <option value="1">1</option>
+                                            <option value="2">2</option>
+                                            <option value="3">3</option>
+                                            <option value="4">4</option>
+                                            <option value="5">5</option>
+                                            <option value="6">6</option>
+                                            <option value="7">7</option>
+                                            <option value="8">8</option>
+                                            <option value="9">9</option>
+                                            <option value="10">10</option>
+                                            <option value="11">11</option>
+                                            <option value="12">12</option>
+                                        </select>
+                                        <span>:</span>
+                                        <select id="startMinute" required>
+                                            <option value="">Min</option>
+                                            <option value="00">00</option>
+                                            <option value="15">15</option>
+                                            <option value="30">30</option>
+                                            <option value="45">45</option>
+                                        </select>
+                                        <select id="startPeriod" required>
+                                            <option value="">AM/PM</option>
+                                            <option value="AM">AM</option>
+                                            <option value="PM">PM</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="testDuration">Test Duration (minutes) <span class="required">*</span></label>
+                                    <input type="number" id="testDuration" min="1" max="300" value="30" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="ultrasoundDoctor">Doctor <span class="required">*</span></label>
+                                    <select id="ultrasoundDoctor" required>
+                                        <option value="">Select Doctor</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" onclick="ultrasoundManager.closeSchedulingModal()">Cancel</button>
+                        <button type="button" class="btn btn-primary" onclick="ultrasoundManager.confirmScheduling()">Schedule Appointments</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Add modal to page
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        // Show modal
+        const modal = document.getElementById('ultrasoundSchedulingModal');
+        modal.style.display = 'flex';
+
+        // Load doctor options from system config
+        // Add a small delay to ensure the modal is fully rendered
+        setTimeout(() => {
+            this.loadDoctorOptions();
+        }, 100);
+
+        // Set default date to today
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('schedulingDate').value = today;
+
+        // Set default time to 9:00 AM
+        document.getElementById('startHour').value = '9';
+        document.getElementById('startMinute').value = '00';
+        document.getElementById('startPeriod').value = 'AM';
+
+        // Store selected ultrasounds for later use
+        this.schedulingUltrasounds = selectedUltrasounds;
+
+        // Add event listeners
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                this.closeSchedulingModal();
+            }
+        });
+
+        const closeBtn = modal.querySelector('.modal-close');
+        closeBtn.addEventListener('click', () => {
+            this.closeSchedulingModal();
+        });
+
+        // Add keyboard event listener for ESC key
+        const handleKeyPress = (e) => {
+            if (e.key === 'Escape') {
+                this.closeSchedulingModal();
+                document.removeEventListener('keydown', handleKeyPress);
+            }
+        };
+        document.addEventListener('keydown', handleKeyPress);
+    }
+
     // Load system configuration
     async loadSystemConfig() {
         try {
-            console.log('Loading system configuration for ultrasound...');
+            console.log('🔧 Loading system configuration for ultrasound...');
             const result = await googleSheetsAPI.getSystemConfig();
 
+            console.log('🔧 System config API result:', result);
+
             if (result.success) {
-                console.log('System config loaded successfully');
+                console.log('✅ System config loaded successfully');
+                console.log('🔧 Raw result.data:', result.data);
 
                 // Update referred by dropdown
                 this.updateReferredByDropdown(result.data.referredBy);
 
                 // Store config for later use
                 this.systemConfig = result.data;
+                console.log('🔧 Stored system config in this.systemConfig:', this.systemConfig);
+                console.log('🔧 ultrasound_doctor field:', this.systemConfig.ultrasound_doctor);
+                console.log('🔧 referredBy field:', this.systemConfig.referredBy);
             } else {
-                console.error('Failed to load system config:', result.message);
+                console.error('❌ Failed to load system config:', result.message);
             }
         } catch (error) {
-            console.error('Error loading system config:', error);
+            console.error('❌ Error loading system config:', error);
         }
     }
 
@@ -1032,8 +1065,8 @@ class UltrasoundManager {
                                 <input type="text" id="updatePatientName" value="${formData.patientName || ''}" required>
                             </div>
                             <div class="detail-item">
-                                <label>Email: <span class="required">*</span></label>
-                                <input type="email" id="updatePatientEmail" value="${formData.email || ''}" required>
+                                <label>Email:</label>
+                                <input type="email" id="updatePatientEmail" value="${formData.email || ''}">
                             </div>
                             <div class="detail-item">
                                 <label>Phone: <span class="required">*</span></label>
@@ -1091,30 +1124,42 @@ class UltrasoundManager {
             const iycNumber = document.querySelector('#ultrasoundUpdateDetailsModal .readonly-field').value.trim();
 
             // Validate required fields
-            if (!name || !email || !phone) {
-                alert('Please fill in all required fields (Name, Email, Phone)');
+            if (!name || !phone) {
+                alert('Please fill in all required fields (Name, Phone)');
                 return;
             }
 
-            // Validate email format
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!emailRegex.test(email)) {
-                alert('Please enter a valid email address');
-                return;
+            // Validate email format if email is provided
+            if (email && email.trim() !== '') {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(email)) {
+                    alert('Please enter a valid email address');
+                    return;
+                }
             }
+
+            // Show loading overlay
+            loadingOverlay.show('Updating patient details...', 'Please wait while we save your changes to the database');
 
             // Prepare patient data for update
             const patientData = {
                 iycNumber: iycNumber,
                 name: name,
-                email: email,
                 phone: phone
             };
+
+            // Only include email if it's provided
+            if (email && email.trim() !== '') {
+                patientData.email = email;
+            }
 
             // Update patient in database
             const result = await googleSheetsAPI.updatePatientDetails(patientData);
 
             if (result && result.success) {
+                // Show success overlay
+                loadingOverlay.showSuccess('Patient details updated successfully!', 'Your changes have been saved to the database');
+
                 // Update the form fields with the new values
                 const nameInput = document.getElementById('ultrasoundPatientName');
                 const emailInput = document.getElementById('ultrasoundEmail');
@@ -1133,6 +1178,7 @@ class UltrasoundManager {
                 }
             } else {
                 const errorMessage = result ? (result.message || 'Failed to update patient details') : 'No response from server';
+                loadingOverlay.showError('Update failed', errorMessage);
                 this.showMessage('ultrasoundFormMessage', errorMessage, 'error');
             }
         } catch (error) {
@@ -1146,6 +1192,7 @@ class UltrasoundManager {
                 errorMessage = `Error: ${error.message}`;
             }
 
+            loadingOverlay.showError('Update failed', errorMessage);
             this.showMessage('ultrasoundFormMessage', errorMessage, 'error');
         }
     }
@@ -1242,6 +1289,435 @@ class UltrasoundManager {
             body: 'Dear {name}, we have an update regarding your ultrasound ({testName}). Please contact us for more information. IYC: {iycNumber}'
         };
     }
+
+    // View ultrasound details
+    viewUltrasoundDetails(ultrasoundId) {
+        const ultrasound = this.findUltrasoundById(ultrasoundId);
+        if (ultrasound) {
+            this.showUltrasoundDetailsModal(ultrasound);
+        }
+    }
+
+    // Show ultrasound details modal
+    showUltrasoundDetailsModal(ultrasound) {
+        // Create modal HTML
+        const modalHtml = `
+            <div id="ultrasoundDetailsModal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Ultrasound Details</h3>
+                        <span class="modal-close" onclick="ultrasoundManager.closeDetailsModal()">&times;</span>
+                    </div>
+                    <div class="modal-body">
+                        <div class="details-grid">
+                            <div class="detail-item">
+                                <label>Name:</label>
+                                <span>${ultrasound.name}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>IYC Number:</label>
+                                <span>${ultrasound.iycNumber || 'N/A'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Phone:</label>
+                                <span>${ultrasound.phone || 'N/A'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Category:</label>
+                                <span>${ultrasound.category || 'N/A'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Date:</label>
+                                <span>${ultrasound.date || 'N/A'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Timing:</label>
+                                <span>${ultrasound.timing || 'N/A'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Ultrasound Type:</label>
+                                <span>${ultrasound.testName || 'N/A'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Referred By:</label>
+                                <span>${ultrasound.referredBy || 'N/A'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Status:</label>
+                                <span>${ultrasound.status || 'N/A'}</span>
+                            </div>
+                            <div class="detail-item full-width">
+                                <label>Remarks:</label>
+                                <span>${ultrasound.remarks || 'N/A'}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-secondary" onclick="ultrasoundManager.closeDetailsModal()">Close</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Add modal to page
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        // Show modal with proper display
+        const modal = document.getElementById('ultrasoundDetailsModal');
+        modal.style.display = 'flex';
+
+        // Add event listener for clicking outside modal to close
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                this.closeDetailsModal();
+            }
+        });
+
+        // Add keyboard event listener for ESC key
+        const handleKeyPress = (e) => {
+            if (e.key === 'Escape') {
+                this.closeDetailsModal();
+                document.removeEventListener('keydown', handleKeyPress);
+            }
+        };
+        document.addEventListener('keydown', handleKeyPress);
+    }
+
+    // Close details modal
+    closeDetailsModal() {
+        const modal = document.getElementById('ultrasoundDetailsModal');
+        if (modal) {
+            modal.remove();
+        }
+    }
+
+    // Load doctor options for scheduling dialog
+    loadDoctorOptions() {
+        console.log('=== loadDoctorOptions called ===');
+        const doctorSelect = document.getElementById('ultrasoundDoctor');
+        if (!doctorSelect) {
+            console.error('Doctor select element not found - ID: ultrasoundDoctor');
+            // Let's check if the modal exists
+            const modal = document.getElementById('ultrasoundSchedulingModal');
+            console.log('Modal exists:', !!modal);
+            if (modal) {
+                console.log('Modal HTML:', modal.innerHTML.substring(0, 500));
+            }
+            return;
+        }
+
+        console.log('Doctor select element found:', doctorSelect);
+
+        // Clear existing options except the first one
+        doctorSelect.innerHTML = '<option value="">Select Doctor</option>';
+
+        console.log('=== System Config Debug ===');
+        console.log('Full systemConfig object:', this.systemConfig);
+        console.log('systemConfig keys:', this.systemConfig ? Object.keys(this.systemConfig) : 'null');
+
+        if (this.systemConfig) {
+            console.log('ultrasound_doctor value:', this.systemConfig.ultrasound_doctor);
+            console.log('ultrasound_doctor type:', typeof this.systemConfig.ultrasound_doctor);
+            console.log('referredBy value:', this.systemConfig.referredBy);
+            console.log('referredBy type:', typeof this.systemConfig.referredBy);
+        }
+
+        let doctorsList = [];
+
+        // Try multiple sources for doctor list
+        if (this.systemConfig) {
+            // First try ultrasound_doctor field
+            if (this.systemConfig.ultrasound_doctor && this.systemConfig.ultrasound_doctor.trim()) {
+                console.log('✓ Using ultrasound_doctor from system config:', this.systemConfig.ultrasound_doctor);
+                try {
+                    doctorsList = JSON.parse(this.systemConfig.ultrasound_doctor);
+                    if (!Array.isArray(doctorsList)) {
+                        doctorsList = this.systemConfig.ultrasound_doctor.split(',').map(d => d.trim()).filter(d => d);
+                    }
+                    console.log('✓ Parsed ultrasound_doctor as:', doctorsList);
+                } catch (e) {
+                    console.log('JSON parse failed, using comma split');
+                    doctorsList = this.systemConfig.ultrasound_doctor.split(',').map(d => d.trim()).filter(d => d);
+                    console.log('✓ Split ultrasound_doctor as:', doctorsList);
+                }
+            }
+            // Fallback to referredBy field
+            else if (this.systemConfig.referredBy) {
+                console.log('→ Falling back to referredBy from system config:', this.systemConfig.referredBy);
+                if (Array.isArray(this.systemConfig.referredBy)) {
+                    doctorsList = [...this.systemConfig.referredBy];
+                    console.log('✓ Used referredBy array:', doctorsList);
+                } else if (typeof this.systemConfig.referredBy === 'string') {
+                    try {
+                        const parsed = JSON.parse(this.systemConfig.referredBy);
+                        doctorsList = Array.isArray(parsed) ? parsed : this.systemConfig.referredBy.split(',').map(d => d.trim()).filter(d => d);
+                        console.log('✓ Parsed referredBy as:', doctorsList);
+                    } catch (e) {
+                        doctorsList = this.systemConfig.referredBy.split(',').map(d => d.trim()).filter(d => d);
+                        console.log('✓ Split referredBy as:', doctorsList);
+                    }
+                }
+            } else {
+                console.log('→ No ultrasound_doctor or referredBy found in system config');
+            }
+        } else {
+            console.log('→ No system config available');
+        }
+
+        // Final fallback to CONFIG.DOCTORS
+        if (!doctorsList || doctorsList.length === 0) {
+            console.log('→ Using CONFIG.DOCTORS fallback:', CONFIG.DOCTORS);
+            doctorsList = CONFIG.DOCTORS || ['Sahil', 'Ashok', 'Navneet'];
+        }
+
+        console.log('=== Final doctors list ===', doctorsList);
+
+        // Add doctor options
+        if (Array.isArray(doctorsList) && doctorsList.length > 0) {
+            doctorsList.forEach((doctor, index) => {
+                if (doctor && typeof doctor === 'string' && doctor.trim()) {
+                    const option = document.createElement('option');
+                    option.value = doctor.trim();
+                    option.textContent = doctor.trim();
+                    doctorSelect.appendChild(option);
+                    console.log(`Added option ${index + 1}: "${doctor.trim()}"`);
+                }
+            });
+            console.log(`✓ Successfully added ${doctorsList.length} doctor options to dropdown`);
+            console.log('Final dropdown HTML:', doctorSelect.innerHTML);
+        } else {
+            // Emergency fallback - add some default doctors
+            console.warn('⚠ No doctors found, adding emergency default doctors');
+            const defaultDoctors = ['Sahil', 'Ashok', 'Navneet'];
+            defaultDoctors.forEach(doctor => {
+                const option = document.createElement('option');
+                option.value = doctor;
+                option.textContent = doctor;
+                doctorSelect.appendChild(option);
+                console.log(`Added emergency option: "${doctor}"`);
+            });
+        }
+
+        console.log('=== loadDoctorOptions completed ===');
+    }
+
+    // Close scheduling modal
+    closeSchedulingModal() {
+        const modal = document.getElementById('ultrasoundSchedulingModal');
+        if (modal) {
+            modal.remove();
+        }
+        this.schedulingUltrasounds = null;
+    }
+
+    // Confirm scheduling and move ultrasounds to upcoming
+    async confirmScheduling() {
+        const date = document.getElementById('schedulingDate').value;
+        const hour = document.getElementById('startHour').value;
+        const minute = document.getElementById('startMinute').value;
+        const period = document.getElementById('startPeriod').value;
+        const duration = parseInt(document.getElementById('testDuration').value);
+        const doctor = document.getElementById('ultrasoundDoctor').value;
+
+        // Validate inputs
+        if (!date || !hour || !minute || !period || !duration || !doctor) {
+            alert('Please fill in all required fields');
+            return;
+        }
+
+        // Convert to 24-hour format for internal processing
+        let hour24 = parseInt(hour);
+        if (period === 'PM' && hour24 !== 12) {
+            hour24 += 12;
+        } else if (period === 'AM' && hour24 === 12) {
+            hour24 = 0;
+        }
+
+        // Create time string in HH:MM format for processing
+        const startTime = `${hour24.toString().padStart(2, '0')}:${minute}`;
+
+        if (duration < 1 || duration > 300) {
+            alert('Test duration must be between 1 and 300 minutes');
+            return;
+        }
+
+        try {
+            // Calculate timing for each ultrasound
+            const scheduledUltrasounds = this.calculateUltrasoundTimings(startTime, duration);
+
+            // Update ultrasounds with scheduling information
+            await this.scheduleUltrasounds(scheduledUltrasounds, date, doctor);
+
+            // Close modal
+            this.closeSchedulingModal();
+
+            // Clear selections
+            this.selectedUltrasounds[this.currentSection].clear();
+
+            // Reload data
+            await this.loadSectionData(this.currentSection);
+
+            this.showSectionMessage(this.currentSection, `Successfully scheduled ${scheduledUltrasounds.length} ultrasound(s)`, 'success');
+
+        } catch (error) {
+            console.error('Error scheduling ultrasounds:', error);
+            alert('Failed to schedule ultrasounds: ' + error.message);
+        }
+    }
+
+    // Calculate timing for each ultrasound based on start time and duration
+    calculateUltrasoundTimings(startTime, duration) {
+        const scheduledUltrasounds = [];
+        let currentTime = this.parseTime(startTime);
+
+        this.schedulingUltrasounds.forEach((ultrasound) => {
+            const timing = this.formatTime(currentTime);
+            scheduledUltrasounds.push({
+                ...ultrasound,
+                timing: timing
+            });
+
+            // Add duration for next appointment
+            currentTime = this.addMinutes(currentTime, duration);
+        });
+
+        return scheduledUltrasounds;
+    }
+
+    // Parse time string to minutes (expects HH:MM in 24-hour format)
+    parseTime(timeString) {
+        const [hours, minutes] = timeString.split(':').map(Number);
+        return hours * 60 + minutes;
+    }
+
+    // Add minutes to time
+    addMinutes(timeInMinutes, minutesToAdd) {
+        return timeInMinutes + minutesToAdd;
+    }
+
+    // Format time from minutes to HH:MM AM/PM
+    formatTime(timeInMinutes) {
+        const hours = Math.floor(timeInMinutes / 60);
+        const minutes = timeInMinutes % 60;
+        const period = hours >= 12 ? 'PM' : 'AM';
+        const displayHours = hours > 12 ? hours - 12 : (hours === 0 ? 12 : hours);
+
+        return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+    }
+
+    // Schedule ultrasounds with timing information
+    async scheduleUltrasounds(scheduledUltrasounds, date, doctor) {
+        // Update each ultrasound with new status, date, doctor, and timing
+        for (const ultrasound of scheduledUltrasounds) {
+            const ultrasoundData = {
+                date: date,
+                iycNumber: ultrasound.iycNumber,
+                name: ultrasound.name,
+                category: ultrasound.category,
+                phone: ultrasound.phone,
+                testName: ultrasound.testName,
+                referredBy: doctor, // Use selected doctor
+                status: 'Upcoming',
+                remarks: ultrasound.remarks,
+                timing: ultrasound.timing // Add timing information
+            };
+
+            const result = await googleSheetsAPI.updateUltrasound(ultrasound.rowIndex, ultrasoundData);
+            if (!result.success) {
+                throw new Error(`Failed to update ultrasound for ${ultrasound.name}: ${result.message}`);
+            }
+        }
+    }
+
+    // Load patient data for name search
+    async loadPatientData() {
+        try {
+            console.log('Ultrasound - Loading patient data...');
+            const result = await googleSheetsAPI.getAllPatients();
+
+            if (result && result.success) {
+                this.patients = result.patients || [];
+                console.log('Ultrasound - Patient data loaded successfully:', this.patients.length, 'patients');
+            } else {
+                console.error('Ultrasound - Failed to load patient data');
+                this.patients = [];
+            }
+        } catch (error) {
+            console.error('Ultrasound - Error loading patient data:', error);
+            this.patients = [];
+        }
+    }
+
+    // Handle name search
+    handleNameSearch(searchTerm) {
+        if (!searchTerm || searchTerm.trim() === '' || searchTerm.length < 2) {
+            this.hideNameDropdown();
+            return;
+        }
+
+        const filteredPatients = this.patients.filter(patient =>
+            patient.name.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+
+        if (filteredPatients.length > 0) {
+            this.showNameDropdown(filteredPatients);
+        } else {
+            this.hideNameDropdown();
+        }
+    }
+
+    // Show name search dropdown
+    showNameDropdown(patients) {
+        const dropdown = document.getElementById('ultrasoundNameSearchDropdown');
+        if (!dropdown) return;
+
+        dropdown.innerHTML = '';
+
+        patients.slice(0, 10).forEach(patient => { // Limit to 10 results
+            const item = document.createElement('div');
+            item.className = 'search-dropdown-item';
+            item.textContent = `${patient.name} (${patient.iycNumber})`;
+            item.addEventListener('click', () => {
+                this.selectPatient(patient);
+            });
+            dropdown.appendChild(item);
+        });
+
+        dropdown.style.display = 'block';
+    }
+
+    // Hide name search dropdown
+    hideNameDropdown() {
+        const dropdown = document.getElementById('ultrasoundNameSearchDropdown');
+        if (dropdown) {
+            dropdown.style.display = 'none';
+        }
+    }
+
+    // Select patient from dropdown
+    selectPatient(patient) {
+        const iycInput = document.getElementById('ultrasoundIycNumber');
+        const nameInput = document.getElementById('ultrasoundPatientName');
+        const categoryInput = document.getElementById('ultrasoundCategory');
+        const phoneInput = document.getElementById('ultrasoundPhoneNumber');
+
+        if (iycInput) iycInput.value = patient.iycNumber;
+        if (nameInput) {
+            nameInput.value = patient.name;
+            nameInput.style.backgroundColor = '#e8f5e8';
+        }
+        if (categoryInput) {
+            categoryInput.value = patient.category || '';
+            categoryInput.style.backgroundColor = '#e8f5e8';
+        }
+        if (phoneInput) {
+            phoneInput.value = patient.phone || '';
+            phoneInput.style.backgroundColor = '#e8f5e8';
+        }
+
+        this.hideNameDropdown();
+        this.validateForm();
+    }
 }
 
 // Create global ultrasound manager instance
@@ -1260,6 +1736,73 @@ window.testUltrasoundAPI = async function() {
         console.error('API test error:', error);
         return error;
     }
+};
+
+// Test function for system config
+window.testUltrasoundSystemConfig = async function() {
+    console.log('Testing Ultrasound System Config...');
+    try {
+        const result = await googleSheetsAPI.getSystemConfig();
+        console.log('System config result:', result);
+        if (ultrasoundManager.systemConfig) {
+            console.log('Current stored system config:', ultrasoundManager.systemConfig);
+        }
+        return result;
+    } catch (error) {
+        console.error('System config test error:', error);
+        return error;
+    }
+};
+
+// Test function for doctor options
+window.testDoctorOptions = function() {
+    console.log('Testing Doctor Options...');
+    console.log('Current system config:', ultrasoundManager.systemConfig);
+    ultrasoundManager.loadDoctorOptions();
+};
+
+// Test function for select-all functionality
+window.testSelectAll = function() {
+    console.log('🧪 Testing select-all functionality...');
+    console.log('Current section:', ultrasoundManager.currentSection);
+    console.log('Selected ultrasounds:', ultrasoundManager.selectedUltrasounds);
+
+    // Test each select-all checkbox
+    const checkboxes = [
+        'selectAllPendingUltrasound',
+        'selectAllUpcomingUltrasound',
+        'selectAllReviewUltrasound',
+        'selectAllCompletedUltrasound',
+        'selectAllCancelledUltrasound'
+    ];
+
+    checkboxes.forEach(id => {
+        const checkbox = document.getElementById(id);
+        console.log(`Checkbox ${id}:`, checkbox ? 'found' : 'not found');
+    });
+};
+
+// Force reload system config and test doctor options
+window.forceReloadSystemConfig = async function() {
+    console.log('🔄 Force reloading system config...');
+    await ultrasoundManager.loadSystemConfig();
+    console.log('🔄 Testing doctor options after reload...');
+    ultrasoundManager.loadDoctorOptions();
+};
+
+// Test scheduling dialog
+window.testSchedulingDialog = function() {
+    console.log('🧪 Testing scheduling dialog...');
+    // Create a fake selected ultrasound for testing
+    const fakeUltrasound = {
+        id: 'TEST001',
+        name: 'Test Patient',
+        iycNumber: 'IYC001',
+        testName: 'Test Ultrasound',
+        rowIndex: 1
+    };
+    ultrasoundManager.schedulingUltrasounds = [fakeUltrasound];
+    ultrasoundManager.showSchedulingDialog(['TEST001']);
 };
 
 // Test function for ultrasound data loading

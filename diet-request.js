@@ -1463,6 +1463,9 @@ class DietRequestManager {
                 return;
             }
 
+            // Show loading overlay
+            loadingOverlay.show('Updating patient details...', 'Please wait while we save your changes to the database');
+
             // Prepare patient data for update
             const patientData = {
                 iycNumber: iycNumber,
@@ -1475,6 +1478,9 @@ class DietRequestManager {
             const result = await googleSheetsAPI.updatePatientDetails(patientData);
 
             if (result && result.success) {
+                // Show success overlay
+                loadingOverlay.showSuccess('Patient details updated successfully!', 'Your changes have been saved to the database');
+
                 // Update the form fields with the new values
                 const dietNameInput = document.getElementById('dietPatientName');
                 const dietEmailInput = document.getElementById('dietEmail');
@@ -1493,6 +1499,7 @@ class DietRequestManager {
                 }
             } else {
                 const errorMessage = result ? (result.message || 'Failed to update patient details') : 'No response from server';
+                loadingOverlay.showError('Update failed', errorMessage);
                 this.showMessage('dietFormMessage', errorMessage, 'error');
             }
         } catch (error) {
@@ -1506,6 +1513,7 @@ class DietRequestManager {
                 errorMessage = `Error: ${error.message}`;
             }
 
+            loadingOverlay.showError('Update failed', errorMessage);
             this.showMessage('dietFormMessage', errorMessage, 'error');
         }
     }

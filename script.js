@@ -326,6 +326,104 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded, waiting for authentication...');
 });
 
+// Global Loading Overlay Manager
+class LoadingOverlay {
+    constructor() {
+        this.overlay = null;
+        this.messageElement = null;
+        this.submessageElement = null;
+        this.spinnerElement = null;
+    }
+
+    // Initialize overlay elements
+    init() {
+        this.overlay = document.getElementById('globalLoadingOverlay');
+        this.messageElement = document.getElementById('loadingMessage');
+        this.submessageElement = document.getElementById('loadingSubmessage');
+        this.spinnerElement = this.overlay?.querySelector('.loading-spinner i');
+    }
+
+    // Show loading overlay
+    show(message = 'Updating database...', submessage = 'Please wait while we save your changes') {
+        if (!this.overlay) this.init();
+
+        if (this.messageElement) this.messageElement.textContent = message;
+        if (this.submessageElement) this.submessageElement.textContent = submessage;
+
+        // Reset classes
+        this.overlay.className = 'loading-overlay';
+
+        // Show spinner
+        if (this.spinnerElement) {
+            this.spinnerElement.className = 'fas fa-spinner fa-spin';
+        }
+
+        this.overlay.style.display = 'flex';
+        document.body.style.overflow = 'hidden'; // Prevent scrolling
+    }
+
+    // Show success state
+    showSuccess(message = 'Changes saved successfully!', submessage = 'Your updates have been saved to the database', autoHide = true) {
+        if (!this.overlay) this.init();
+
+        if (this.messageElement) this.messageElement.textContent = message;
+        if (this.submessageElement) this.submessageElement.textContent = submessage;
+
+        // Add success class
+        this.overlay.className = 'loading-overlay success';
+
+        // Change to checkmark icon
+        if (this.spinnerElement) {
+            this.spinnerElement.className = 'fas fa-check-circle';
+        }
+
+        this.overlay.style.display = 'flex';
+
+        if (autoHide) {
+            setTimeout(() => this.hide(), 2000); // Auto-hide after 2 seconds
+        }
+    }
+
+    // Show error state
+    showError(message = 'Update failed', submessage = 'There was an error saving your changes. Please try again.', autoHide = true) {
+        if (!this.overlay) this.init();
+
+        if (this.messageElement) this.messageElement.textContent = message;
+        if (this.submessageElement) this.submessageElement.textContent = submessage;
+
+        // Add error class
+        this.overlay.className = 'loading-overlay error';
+
+        // Change to error icon
+        if (this.spinnerElement) {
+            this.spinnerElement.className = 'fas fa-times-circle';
+        }
+
+        this.overlay.style.display = 'flex';
+
+        if (autoHide) {
+            setTimeout(() => this.hide(), 3000); // Auto-hide after 3 seconds
+        }
+    }
+
+    // Hide overlay
+    hide() {
+        if (this.overlay) {
+            this.overlay.style.display = 'none';
+            document.body.style.overflow = ''; // Restore scrolling
+        }
+    }
+
+    // Update message while loading
+    updateMessage(message, submessage = null) {
+        if (this.messageElement) this.messageElement.textContent = message;
+        if (submessage && this.submessageElement) this.submessageElement.textContent = submessage;
+    }
+}
+
+// Create global loading overlay instance
+const loadingOverlay = new LoadingOverlay();
+
 // Export for debugging
 window.ClinicApp = {
     app: clinicApp,
@@ -335,5 +433,6 @@ window.ClinicApp = {
     hospitalVisit: hospitalVisitManager,
     sheets: googleSheetsAPI,
     utils: AppUtils,
-    config: CONFIG
+    config: CONFIG,
+    loading: loadingOverlay
 };
