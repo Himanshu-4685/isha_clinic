@@ -21,14 +21,32 @@ class DietRequestManager {
     init() {
         console.log('Diet Request - Initializing module...');
 
+        // Ensure DOM is ready before setting up event listeners
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                this.setupEventListeners();
+            });
+        } else {
+            this.setupEventListeners();
+        }
+
+        // Load data that doesn't require DOM elements
+        this.loadSystemConfig();
+        this.loadPatientData();
+
+        console.log('Diet Request - Module initialized successfully');
+    }
+
+    // Setup all event listeners and DOM-dependent functionality
+    setupEventListeners() {
+        console.log('Diet Request - Setting up event listeners...');
+
         this.setupSidebarNavigation();
         this.setupNewRequestForm();
         this.setupFormValidation();
         this.setupTableInteractions();
         this.setupBulkActions();
         this.setupRefreshButtons();
-        this.loadSystemConfig();
-        this.loadPatientData();
         this.setDefaultStartDate();
 
         // Load data for current section if not new-request
@@ -36,7 +54,7 @@ class DietRequestManager {
             this.loadSectionData(this.currentSection);
         }
 
-        console.log('Diet Request - Module initialized successfully');
+        console.log('Diet Request - Event listeners setup completed');
     }
 
     // Setup sidebar navigation
@@ -227,7 +245,10 @@ class DietRequestManager {
         const refreshBtn = document.getElementById('refreshDietRecordsBtn');
         if (refreshBtn) {
             refreshBtn.addEventListener('click', () => {
-                this.loadSectionData('records');
+                // Ensure we're refreshing the records section
+                if (this.currentSection === 'records') {
+                    this.loadSectionData('records');
+                }
             });
         }
     }
@@ -775,6 +796,24 @@ class DietRequestManager {
         }
     }
 
+    // Show section loading state
+    showSectionLoading(sectionName, isLoading) {
+        const messageMapping = {
+            'records': 'dietRecordsMessage'
+        };
+
+        const messageElement = document.getElementById(messageMapping[sectionName]);
+        if (messageElement) {
+            if (isLoading) {
+                messageElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+                messageElement.className = 'section-message loading';
+                messageElement.style.display = 'block';
+            } else {
+                messageElement.style.display = 'none';
+            }
+        }
+    }
+
     // Load section data
     async loadSectionData(sectionName) {
         if (this.loadingData) return;
@@ -784,6 +823,8 @@ class DietRequestManager {
 
         try {
             if (sectionName === 'records') {
+                this.showSectionLoading(sectionName, true);
+
                 const result = await googleSheetsAPI.getDietRequests();
 
                 if (result && result.success) {
@@ -799,6 +840,7 @@ class DietRequestManager {
             console.error(`Diet Request - Error loading ${sectionName} data:`, error);
             this.showMessage(`diet${sectionName.charAt(0).toUpperCase() + sectionName.slice(1)}Message`, 'Error loading data', 'error');
         } finally {
+            this.showSectionLoading(sectionName, false);
             this.loadingData = false;
         }
     }
@@ -1522,12 +1564,7 @@ class DietRequestManager {
 }
 
 // Global instance
-let dietRequestManager;
-
-// Initialize when DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-    dietRequestManager = new DietRequestManager();
-});
+const dietRequestManager = new DietRequestManager();
 
 // Export for debugging
 window.dietRequestManager = dietRequestManager;

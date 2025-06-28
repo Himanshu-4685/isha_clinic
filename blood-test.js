@@ -426,6 +426,8 @@ class BloodTestManager {
         document.addEventListener('change', (e) => {
             if (e.target.classList.contains('test-checkbox') && e.target.closest('#blood-test-module')) {
                 this.handleTestSelection(e.target);
+            } else if (e.target.classList.contains('select-all-checkbox') && e.target.closest('#blood-test-module')) {
+                this.handleSelectAll(e.target);
             }
         });
     }
@@ -618,6 +620,53 @@ class BloodTestManager {
         }
 
         this.updateSectionControls(section);
+        this.updateSelectAllState(section);
+    }
+
+    // Handle select all
+    handleSelectAll(selectAllCheckbox) {
+        const section = this.currentSection;
+        const isChecked = selectAllCheckbox.checked;
+        const testCheckboxes = document.querySelectorAll(`#${section}-section .test-checkbox`);
+
+        testCheckboxes.forEach(checkbox => {
+            checkbox.checked = isChecked;
+            const testId = checkbox.getAttribute('data-test-id');
+
+            if (isChecked) {
+                this.selectedTests[section].add(testId);
+            } else {
+                this.selectedTests[section].delete(testId);
+            }
+        });
+
+        this.updateSectionControls(section);
+    }
+
+    // Update select all state
+    updateSelectAllState(sectionName) {
+        const selectAllId = this.getSelectAllId(sectionName);
+        const selectAllCheckbox = document.getElementById(selectAllId);
+
+        if (selectAllCheckbox) {
+            const testCheckboxes = document.querySelectorAll(`#${sectionName}-section .test-checkbox`);
+            const checkedCount = document.querySelectorAll(`#${sectionName}-section .test-checkbox:checked`).length;
+
+            selectAllCheckbox.checked = testCheckboxes.length > 0 && checkedCount === testCheckboxes.length;
+            selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < testCheckboxes.length;
+        }
+    }
+
+    // Get select all checkbox ID
+    getSelectAllId(sectionName) {
+        const mapping = {
+            'pending-test': 'selectAllPendingTests',
+            'upcoming-test': 'selectAllUpcomingTests',
+            'pending-review': 'selectAllReviewTests',
+            'completed': 'selectAllCompletedTests',
+            'cancelled-test': 'selectAllCancelledTests'
+        };
+        return mapping[sectionName];
     }
 
 
@@ -642,7 +691,8 @@ class BloodTestManager {
                 `Actions (${selectedCount})` : 'Actions';
         }
 
-
+        // Update select all checkbox state
+        this.updateSelectAllState(sectionName);
     }
 
     // Toggle action dropdown

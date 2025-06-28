@@ -412,6 +412,8 @@ class UltrasoundManager {
         document.addEventListener('change', (e) => {
             if (e.target.classList.contains('ultrasound-checkbox') && e.target.closest('#ultrasound-module')) {
                 this.handleUltrasoundSelection(e.target);
+            } else if (e.target.classList.contains('select-all-checkbox') && e.target.closest('#ultrasound-module')) {
+                this.handleSelectAll(e.target);
             }
         });
 
@@ -663,7 +665,8 @@ class UltrasoundManager {
                 `Actions (${selectedCount})` : 'Actions';
         }
 
-
+        // Update select all checkbox state
+        this.updateSelectAllState(sectionName);
     }
 
 
@@ -686,6 +689,53 @@ class UltrasoundManager {
         }
 
         this.updateSectionControls(section);
+        this.updateSelectAllState(section);
+    }
+
+    // Handle select all
+    handleSelectAll(selectAllCheckbox) {
+        const section = this.currentSection;
+        const isChecked = selectAllCheckbox.checked;
+        const ultrasoundCheckboxes = document.querySelectorAll(`#${section}-section .ultrasound-checkbox`);
+
+        ultrasoundCheckboxes.forEach(checkbox => {
+            checkbox.checked = isChecked;
+            const ultrasoundId = checkbox.getAttribute('data-ultrasound-id');
+
+            if (isChecked) {
+                this.selectedUltrasounds[section].add(ultrasoundId);
+            } else {
+                this.selectedUltrasounds[section].delete(ultrasoundId);
+            }
+        });
+
+        this.updateSectionControls(section);
+    }
+
+    // Update select all state
+    updateSelectAllState(sectionName) {
+        const selectAllId = this.getSelectAllId(sectionName);
+        const selectAllCheckbox = document.getElementById(selectAllId);
+
+        if (selectAllCheckbox) {
+            const ultrasoundCheckboxes = document.querySelectorAll(`#${sectionName}-section .ultrasound-checkbox`);
+            const checkedCount = document.querySelectorAll(`#${sectionName}-section .ultrasound-checkbox:checked`).length;
+
+            selectAllCheckbox.checked = ultrasoundCheckboxes.length > 0 && checkedCount === ultrasoundCheckboxes.length;
+            selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < ultrasoundCheckboxes.length;
+        }
+    }
+
+    // Get select all checkbox ID
+    getSelectAllId(sectionName) {
+        const mapping = {
+            'pending-ultrasound': 'selectAllPendingUltrasound',
+            'upcoming-ultrasound': 'selectAllUpcomingUltrasound',
+            'pending-review-ultrasound': 'selectAllReviewUltrasound',
+            'completed-ultrasound': 'selectAllCompletedUltrasound',
+            'cancelled-ultrasound': 'selectAllCancelledUltrasound'
+        };
+        return mapping[sectionName];
     }
 
 
@@ -1343,6 +1393,10 @@ class UltrasoundManager {
                                 <span>${ultrasound.referredBy || 'N/A'}</span>
                             </div>
                             <div class="detail-item">
+                                <label>Scheduling Doctor:</label>
+                                <span>${ultrasound.schedulingDoctor || 'N/A'}</span>
+                            </div>
+                            <div class="detail-item">
                                 <label>Status:</label>
                                 <span>${ultrasound.status || 'N/A'}</span>
                             </div>
@@ -1616,7 +1670,8 @@ class UltrasoundManager {
                 category: ultrasound.category,
                 phone: ultrasound.phone,
                 testName: ultrasound.testName,
-                referredBy: doctor, // Use selected doctor
+                referredBy: ultrasound.referredBy, // Keep original referred by
+                schedulingDoctor: doctor, // Use selected doctor for scheduling
                 status: 'Upcoming',
                 remarks: ultrasound.remarks,
                 timing: ultrasound.timing // Add timing information

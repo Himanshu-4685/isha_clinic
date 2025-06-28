@@ -490,8 +490,8 @@ app.post('/api/ultrasound', async (req, res) => {
         const ultrasoundId = `US${Date.now()}`;
         const currentTimestamp = new Date().toISOString();
 
-        // Prepare row data with all columns including ID, Timing, Created, and Updated timestamps
-        const values = [[ultrasoundId, finalDate, iycNumber, patientName, category, phoneNumber, testName, referredBy, schedule, '', '', currentTimestamp, currentTimestamp]];
+        // Prepare row data with all columns including ID, Timing, Created, Updated, and Scheduling Doctor timestamps
+        const values = [[ultrasoundId, finalDate, iycNumber, patientName, category, phoneNumber, testName, referredBy, schedule, '', '', currentTimestamp, currentTimestamp, '']];
 
         // First, insert a new row at the specified position
         await sheets.spreadsheets.batchUpdate({
@@ -512,7 +512,7 @@ app.post('/api/ultrasound', async (req, res) => {
         });
 
         // Then update the values in the new row
-        const range = `${worksheetName}!A${insertAfterRow}:M${insertAfterRow}`;
+        const range = `${worksheetName}!A${insertAfterRow}:N${insertAfterRow}`;
         await sheets.spreadsheets.values.update({
             spreadsheetId: SPREADSHEET_ID,
             range: range,
@@ -585,10 +585,10 @@ async function ensureUltrasoundHeaders() {
         // Now check and update headers
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: 'Ultrasound_Data!A1:M1',
+            range: 'Ultrasound_Data!A1:N1',
         });
 
-        const expectedHeaders = ['ID', 'Date', 'IYC Number', 'Name', 'Category', 'Phone', 'Ultrasound Type', 'Referred By', 'Status', 'Remarks', 'Timing', 'Created', 'Updated'];
+        const expectedHeaders = ['ID', 'Date', 'IYC Number', 'Name', 'Category', 'Phone', 'Ultrasound Type', 'Referred By', 'Status', 'Remarks', 'Timing', 'Created', 'Updated', 'Scheduling Doctor'];
         const currentHeaders = response.data.values ? response.data.values[0] : [];
 
         // Check if headers match
@@ -600,7 +600,7 @@ async function ensureUltrasoundHeaders() {
             // Update the header row
             await sheets.spreadsheets.values.update({
                 spreadsheetId: SPREADSHEET_ID,
-                range: 'Ultrasound_Data!A1:M1',
+                range: 'Ultrasound_Data!A1:N1',
                 valueInputOption: 'RAW',
                 resource: {
                     values: [expectedHeaders]
@@ -624,7 +624,7 @@ app.get('/api/ultrasounds/all', async (req, res) => {
 
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: `Ultrasound_Data!A:M`,
+            range: `Ultrasound_Data!A:N`,
         });
 
         const rows = response.data.values || [];
@@ -644,7 +644,8 @@ app.get('/api/ultrasounds/all', async (req, res) => {
             remarks: row[9] || '',
             timing: row[10] || '',
             created: row[11] || '',
-            updated: row[12] || ''
+            updated: row[12] || '',
+            schedulingDoctor: row[13] || ''
         })).filter(ultrasound => {
             // Only include rows with IYC numbers
             return ultrasound.iycNumber;
@@ -675,7 +676,7 @@ app.get('/api/ultrasounds/:status', async (req, res) => {
 
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: `Ultrasound_Data!A:M`,
+            range: `Ultrasound_Data!A:N`,
         });
 
         const rows = response.data.values || [];
@@ -695,7 +696,8 @@ app.get('/api/ultrasounds/:status', async (req, res) => {
             remarks: row[9] || '', // J=Remarks
             timing: row[10] || '', // K=Timing
             created: row[11] || '', // L=Created
-            updated: row[12] || '' // M=Updated
+            updated: row[12] || '', // M=Updated
+            schedulingDoctor: row[13] || '' // N=Scheduling Doctor
         })).filter(ultrasound => {
             // Filter by status and ensure we have required data
             return ultrasound.iycNumber && ultrasound.status === status;
@@ -776,16 +778,16 @@ app.post('/api/ultrasound-status', async (req, res) => {
 app.put('/api/ultrasound/:rowIndex', async (req, res) => {
     try {
         const { rowIndex } = req.params;
-        const { date, iycNumber, name, category, phone, testName, referredBy, status, remarks, timing } = req.body;
+        const { date, iycNumber, name, category, phone, testName, referredBy, status, remarks, timing, schedulingDoctor } = req.body;
 
         console.log(`Updating ultrasound at row ${rowIndex}`);
 
         const currentTimestamp = new Date().toISOString();
 
-        // Update only the editable fields (B to M for updated timestamp)
+        // Update only the editable fields (B to N for updated timestamp)
         // Keep ID (A), Created (L) unchanged
-        const range = `Ultrasound_Data!B${rowIndex}:M${rowIndex}`;
-        const values = [[date, iycNumber, name, category, phone, testName, referredBy, status, remarks, timing || '', '', currentTimestamp]];
+        const range = `Ultrasound_Data!B${rowIndex}:N${rowIndex}`;
+        const values = [[date, iycNumber, name, category, phone, testName, referredBy, status, remarks, timing || '', '', currentTimestamp, schedulingDoctor || '']];
 
         await sheets.spreadsheets.values.update({
             spreadsheetId: SPREADSHEET_ID,
@@ -2906,6 +2908,24 @@ app.post('/api/update-patient', async (req, res) => {
     }
 });
 
+// Test endpoint to manually update ultrasound headers
+app.post('/api/test/update-ultrasound-headers', async (req, res) => {
+    try {
+        await ensureUltrasoundHeaders();
+        res.json({
+            success: true,
+            message: 'Ultrasound headers updated successfully'
+        });
+    } catch (error) {
+        console.error('Error updating ultrasound headers:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update ultrasound headers',
+            error: error.message
+        });
+    }
+});
+
 // Serve the main HTML file
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
@@ -2922,6 +2942,9 @@ app.listen(PORT, async () => {
 
     // Ensure Hospital_Visit_Data worksheet has correct headers
     await ensureHospitalVisitHeaders();
+
+    // Ensure Ultrasound_Data worksheet has correct headers
+    await ensureUltrasoundHeaders();
 
     // Ensure Diet_Request_Data worksheet has correct headers
     await ensureDietRequestHeaders();

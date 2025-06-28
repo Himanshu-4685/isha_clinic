@@ -431,6 +431,7 @@ window.ClinicApp = {
     bloodTest: bloodTestManager,
     ultrasound: ultrasoundManager,
     hospitalVisit: hospitalVisitManager,
+    dietRequest: dietRequestManager,
     sheets: googleSheetsAPI,
     utils: AppUtils,
     config: CONFIG,
