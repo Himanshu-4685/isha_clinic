@@ -5,6 +5,11 @@ const path = require('path');
 const fs = require('fs');
 const nodemailer = require('nodemailer');
 
+// Load environment variables from .env file in development
+if (process.env.NODE_ENV !== 'production') {
+    require('dotenv').config();
+}
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -14,10 +19,17 @@ app.use(express.json());
 app.use(express.static('.'));
 
 // Load Google Sheets credentials
-const credentials = JSON.parse(fs.readFileSync('./credential.json'));
+let credentials;
+if (process.env.GOOGLE_CREDENTIALS) {
+    // Production: Use environment variable
+    credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+} else {
+    // Development: Use local file
+    credentials = JSON.parse(fs.readFileSync('./credential.json'));
+}
 
 // Google Sheets configuration
-const SPREADSHEET_ID = '1UQJbelESSslpu0VsgRKFZZD_wRwgRDhPQdTEjtIT7BM';
+const SPREADSHEET_ID = process.env.SPREADSHEET_ID || '1UQJbelESSslpu0VsgRKFZZD_wRwgRDhPQdTEjtIT7BM';
 
 // Initialize Google Sheets API
 const auth = new google.auth.GoogleAuth({
@@ -1336,12 +1348,18 @@ async function ensureDietRequestHeaders() {
 async function sendCreditEmail(emailAddresses, content, visitDetails, patientEmail = '', i2Emails = []) {
     try {
         // Read email credentials
-        const credentialsPath = path.join(__dirname, 'Email_Credentials.json');
-        if (!fs.existsSync(credentialsPath)) {
-            throw new Error('Email credentials file not found');
+        let credentials;
+        if (process.env.EMAIL_CREDENTIALS) {
+            // Production: Use environment variable
+            credentials = JSON.parse(process.env.EMAIL_CREDENTIALS);
+        } else {
+            // Development: Use local file
+            const credentialsPath = path.join(__dirname, 'Email_Credentials.json');
+            if (!fs.existsSync(credentialsPath)) {
+                throw new Error('Email credentials file not found');
+            }
+            credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
         }
-
-        const credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
         console.log('Email credentials loaded successfully');
 
         // Check if OAuth2 refresh token is available
@@ -1459,14 +1477,27 @@ ${content}`;
 // Helper function to send diet request email using OAuth2
 async function sendDietRequestEmail(emailAddresses, content, dietRequestDetails, patientEmail = '', ccEmails = []) {
     try {
-        // TODO: Use diet-specific credentials from clinic_diet_request_email.json when available
-        // For now, using existing credentials but should be updated to use clinic.backoffice@ishafoundation.org
-        const credentialsPath = path.join(__dirname, 'Email_Credentials.json');
-        if (!fs.existsSync(credentialsPath)) {
-            throw new Error('Email credentials file not found');
-        }
+        // Read email credentials
+        let credentials;
+        if (process.env.DIET_EMAIL_CREDENTIALS) {
+            // Production: Use diet-specific environment variable
+            credentials = JSON.parse(process.env.DIET_EMAIL_CREDENTIALS);
+        } else if (process.env.EMAIL_CREDENTIALS) {
+            // Production: Fallback to general email credentials
+            credentials = JSON.parse(process.env.EMAIL_CREDENTIALS);
+        } else {
+            // Development: Try diet-specific file first, then fallback
+            const dietCredentialsPath = path.join(__dirname, 'dietReq2.json');
+            const generalCredentialsPath = path.join(__dirname, 'Email_Credentials.json');
 
-        const credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
+            if (fs.existsSync(dietCredentialsPath)) {
+                credentials = JSON.parse(fs.readFileSync(dietCredentialsPath, 'utf8'));
+            } else if (fs.existsSync(generalCredentialsPath)) {
+                credentials = JSON.parse(fs.readFileSync(generalCredentialsPath, 'utf8'));
+            } else {
+                throw new Error('Email credentials file not found');
+            }
+        }
 
         if (!credentials.oauth2 || !credentials.oauth2.refresh_token) {
             throw new Error('OAuth2 refresh token not found in credentials');
