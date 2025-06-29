@@ -1385,7 +1385,7 @@ async function sendCreditEmail(emailAddresses, content, visitDetails, patientEma
         const oauth2Client = new google.auth.OAuth2(
             credentials.oauth2.client_id,
             credentials.oauth2.client_secret,
-            'http://localhost'
+            'urn:ietf:wg:oauth:2.0:oob'  // Use OOB (out-of-band) for server applications
         );
 
         // Set refresh token
@@ -1510,7 +1510,7 @@ async function sendDietRequestEmail(emailAddresses, content, dietRequestDetails,
         const oauth2Client = new google.auth.OAuth2(
             credentials.oauth2.client_id,
             credentials.oauth2.client_secret,
-            'http://localhost'
+            'urn:ietf:wg:oauth:2.0:oob'  // Use OOB (out-of-band) for server applications
         );
 
         // Set refresh token
@@ -2964,7 +2964,11 @@ app.get('/', (req, res) => {
 
 // Start server
 app.listen(PORT, async () => {
-    console.log(`🚀 Clinic Management Server running on http://localhost:${PORT}`);
+    const serverUrl = process.env.NODE_ENV === 'production'
+        ? `https://your-app.onrender.com`
+        : `http://localhost:${PORT}`;
+    console.log(`🚀 Clinic Management Server running on port ${PORT}`);
+    console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`📊 Google Sheets integration active`);
     console.log(`📋 Spreadsheet ID: ${SPREADSHEET_ID}`);
 
