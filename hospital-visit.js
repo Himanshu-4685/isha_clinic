@@ -43,6 +43,7 @@ class HospitalVisitManager {
         this.setupTableInteractions();
         this.setupBulkActions();
         this.setupRefreshButtons();
+        this.setupSearchFunctionality();
         this.loadHospitals();
         this.loadPatients();
 
@@ -299,7 +300,7 @@ class HospitalVisitManager {
     setupRefreshButtons() {
         const refreshButtons = [
             'refreshPendingVisitsBtn',
-            'refreshConfirmedVisitsBtn', 
+            'refreshConfirmedVisitsBtn',
             'refreshPostVisitsBtn',
             'refreshCompletedVisitsBtn'
         ];
@@ -314,6 +315,183 @@ class HospitalVisitManager {
                 });
             }
         });
+    }
+
+    // Setup search functionality
+    setupSearchFunctionality() {
+        const searchInputs = [
+            'searchPendingVisits',
+            'searchConfirmedVisits',
+            'searchTodaysVisits',
+            'searchTomorrowsVisits',
+            'searchLaterVisits',
+            'searchPostVisits',
+            'searchCompletedVisits',
+            'searchCancelledVisits'
+        ];
+
+        const clearButtons = [
+            'clearSearchPendingVisits',
+            'clearSearchConfirmedVisits',
+            'clearSearchTodaysVisits',
+            'clearSearchTomorrowsVisits',
+            'clearSearchLaterVisits',
+            'clearSearchPostVisits',
+            'clearSearchCompletedVisits',
+            'clearSearchCancelledVisits'
+        ];
+
+        // Setup search input event listeners
+        searchInputs.forEach(inputId => {
+            const input = document.getElementById(inputId);
+            const clearBtn = document.getElementById(inputId.replace('search', 'clearSearch'));
+
+            if (input) {
+                let searchTimer;
+                input.addEventListener('input', (e) => {
+                    const query = e.target.value.trim();
+
+                    // Show/hide clear button
+                    if (clearBtn) {
+                        if (query.length > 0) {
+                            clearBtn.classList.add('visible');
+                        } else {
+                            clearBtn.classList.remove('visible');
+                        }
+                    }
+
+                    // Debounce search
+                    clearTimeout(searchTimer);
+                    searchTimer = setTimeout(() => {
+                        this.performSearch(inputId, query);
+                    }, 300);
+                });
+            }
+        });
+
+        // Setup clear button event listeners
+        clearButtons.forEach(buttonId => {
+            const button = document.getElementById(buttonId);
+            if (button) {
+                button.addEventListener('click', () => {
+                    const inputId = buttonId.replace('clearSearch', 'search');
+                    const input = document.getElementById(inputId);
+                    if (input) {
+                        input.value = '';
+                        button.classList.remove('visible');
+                        this.performSearch(inputId, '');
+                    }
+                });
+            }
+        });
+    }
+
+    // Perform search functionality
+    performSearch(inputId, query) {
+        const sectionMapping = {
+            'searchPendingVisits': 'pending-visits',
+            'searchConfirmedVisits': 'confirmed-visits',
+            'searchTodaysVisits': 'todays-visits',
+            'searchTomorrowsVisits': 'tomorrows-visits',
+            'searchLaterVisits': 'later-visits',
+            'searchPostVisits': 'post-visit',
+            'searchCompletedVisits': 'completed-visits',
+            'searchCancelledVisits': 'cancelled'
+        };
+
+        const section = sectionMapping[inputId];
+        if (!section) return;
+
+        // Get all visits for this section
+        const allVisits = this.sectionData[section] || [];
+
+        if (query === '') {
+            // Show all visits if search is empty
+            this.renderFilteredVisits(section, allVisits);
+        } else {
+            // Filter visits based on search query
+            const filteredVisits = this.filterVisits(allVisits, query);
+            this.renderFilteredVisits(section, filteredVisits);
+        }
+    }
+
+    // Filter visits based on search query
+    filterVisits(visits, query) {
+        const searchTerm = query.toLowerCase().trim();
+
+        return visits.filter(visit => {
+            // Search in name
+            const name = (visit.name || '').toLowerCase();
+            if (name.includes(searchTerm)) return true;
+
+            // Search in IYC number
+            const iycNumber = (visit.iycNumber || '').toLowerCase();
+            if (iycNumber.includes(searchTerm)) return true;
+
+            // Search in appointment date
+            const appointmentDate = (visit.appointmentDate || '').toLowerCase();
+            if (appointmentDate.includes(searchTerm)) return true;
+
+            // Search in hospital
+            const hospital = (visit.hospital || '').toLowerCase();
+            if (hospital.includes(searchTerm)) return true;
+
+            return false;
+        });
+    }
+
+    // Render filtered visits (basic implementation)
+    renderFilteredVisits(sectionName, filteredVisits) {
+        // This is a simplified implementation
+        // In a full implementation, you would update the specific table for the section
+        console.log(`Rendering ${filteredVisits.length} filtered visits for ${sectionName}`);
+
+        // For now, just update the section data and re-render
+        this.sectionData[sectionName] = filteredVisits;
+        this.renderSectionTable(sectionName);
+        this.updateSectionControls(sectionName);
+    }
+
+    // Clear search for a specific section
+    clearSearch(sectionName) {
+        const searchInputMapping = {
+            'pending-visits': 'searchPendingVisits',
+            'confirmed-visits': 'searchConfirmedVisits',
+            'todays-visits': 'searchTodaysVisits',
+            'tomorrows-visits': 'searchTomorrowsVisits',
+            'later-visits': 'searchLaterVisits',
+            'post-visit': 'searchPostVisits',
+            'completed-visits': 'searchCompletedVisits',
+            'cancelled': 'searchCancelledVisits'
+        };
+
+        const clearButtonMapping = {
+            'pending-visits': 'clearSearchPendingVisits',
+            'confirmed-visits': 'clearSearchConfirmedVisits',
+            'todays-visits': 'clearSearchTodaysVisits',
+            'tomorrows-visits': 'clearSearchTomorrowsVisits',
+            'later-visits': 'clearSearchLaterVisits',
+            'post-visit': 'clearSearchPostVisits',
+            'completed-visits': 'clearSearchCompletedVisits',
+            'cancelled': 'clearSearchCancelledVisits'
+        };
+
+        const searchInputId = searchInputMapping[sectionName];
+        const clearButtonId = clearButtonMapping[sectionName];
+
+        if (searchInputId) {
+            const searchInput = document.getElementById(searchInputId);
+            if (searchInput) {
+                searchInput.value = '';
+            }
+        }
+
+        if (clearButtonId) {
+            const clearButton = document.getElementById(clearButtonId);
+            if (clearButton) {
+                clearButton.classList.remove('visible');
+            }
+        }
     }
 
     // Load hospitals from Hospital Directory
@@ -1742,6 +1920,9 @@ class HospitalVisitManager {
                 return;
             }
 
+            // Show loading overlay
+            loadingOverlay.show('Updating patient details...', 'Please wait while we save your changes to the database');
+
             // Prepare patient data for update
             const patientData = {
                 iycNumber: iycNumber,
@@ -1754,6 +1935,9 @@ class HospitalVisitManager {
             const result = await googleSheetsAPI.updatePatientDetails(patientData);
 
             if (result && result.success) {
+                // Show success overlay
+                loadingOverlay.showSuccess('Patient details updated successfully!', 'Your changes have been saved to the database');
+
                 // Update the form fields with the new values
                 const nameInput = document.getElementById('visitPatientName');
                 const emailInput = document.getElementById('visitEmail');
@@ -1772,6 +1956,7 @@ class HospitalVisitManager {
                 }
             } else {
                 const errorMessage = result ? (result.message || 'Failed to update patient details') : 'No response from server';
+                loadingOverlay.showError('Update failed', errorMessage);
                 this.showMessage('visitFormMessage', errorMessage, 'error');
             }
         } catch (error) {
@@ -1785,6 +1970,7 @@ class HospitalVisitManager {
                 errorMessage = `Error: ${error.message}`;
             }
 
+            loadingOverlay.showError('Update failed', errorMessage);
             this.showMessage('visitFormMessage', errorMessage, 'error');
         }
     }
