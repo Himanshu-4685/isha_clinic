@@ -215,6 +215,15 @@
                                         </div>
                                     </div>
                                 </div>
+                                <div class="search-controls">
+                                    <div class="search-input-group">
+                                        <i class="fas fa-search search-icon"></i>
+                                        <input type="text" id="searchPendingTests" class="search-input" placeholder="Search by name, IYC, or test type...">
+                                        <button id="clearSearchPendingTests" class="clear-search-btn" title="Clear search">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
                                 <button id="refreshPendingBtn" class="refresh-btn">
                                     <i class="fas fa-sync-alt"></i>
                                     Refresh
@@ -273,6 +282,15 @@
                                         </div>
                                     </div>
                                 </div>
+                                <div class="search-controls">
+                                    <div class="search-input-group">
+                                        <i class="fas fa-search search-icon"></i>
+                                        <input type="text" id="searchUpcomingTests" class="search-input" placeholder="Search by name, IYC, or test type...">
+                                        <button id="clearSearchUpcomingTests" class="clear-search-btn" title="Clear search">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
                                 <div class="section-actions">
                                     <button id="sendMessageUpcomingBtn" class="send-message-btn" onclick="bloodTestManager.sendMessage('upcoming-test')">
                                         <i class="fas fa-comment"></i>
@@ -327,6 +345,15 @@
                                                 Mark as Completed
                                             </button>
                                         </div>
+                                    </div>
+                                </div>
+                                <div class="search-controls">
+                                    <div class="search-input-group">
+                                        <i class="fas fa-search search-icon"></i>
+                                        <input type="text" id="searchReviewTests" class="search-input" placeholder="Search by name, IYC, or test type...">
+                                        <button id="clearSearchReviewTests" class="clear-search-btn" title="Clear search">
+                                            <i class="fas fa-times"></i>
+                                        </button>
                                     </div>
                                 </div>
                                 <div class="section-actions">
@@ -385,6 +412,15 @@
                                         </div>
                                     </div>
                                 </div>
+                                <div class="search-controls">
+                                    <div class="search-input-group">
+                                        <i class="fas fa-search search-icon"></i>
+                                        <input type="text" id="searchCompletedTests" class="search-input" placeholder="Search by name, IYC, or test type...">
+                                        <button id="clearSearchCompletedTests" class="clear-search-btn" title="Clear search">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
                                 <button id="refreshCompletedBtn" class="refresh-btn">
                                     <i class="fas fa-sync-alt"></i>
                                     Refresh
@@ -433,6 +469,15 @@
                                                 Delete
                                             </button>
                                         </div>
+                                    </div>
+                                </div>
+                                <div class="search-controls">
+                                    <div class="search-input-group">
+                                        <i class="fas fa-search search-icon"></i>
+                                        <input type="text" id="searchCancelledTests" class="search-input" placeholder="Search by name, IYC, or test type...">
+                                        <button id="clearSearchCancelledTests" class="clear-search-btn" title="Clear search">
+                                            <i class="fas fa-times"></i>
+                                        </button>
                                     </div>
                                 </div>
                                 <button id="refreshCancelledBtn" class="refresh-btn">
@@ -612,6 +657,15 @@
                                         </div>
                                     </div>
                                 </div>
+                                <div class="search-controls">
+                                    <div class="search-input-group">
+                                        <i class="fas fa-search search-icon"></i>
+                                        <input type="text" id="searchPendingUltrasound" class="search-input" placeholder="Search by name, IYC, or test type...">
+                                        <button id="clearSearchPendingUltrasound" class="clear-search-btn" title="Clear search">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
                                 <button id="refreshPendingUltrasoundBtn" class="refresh-btn">
                                     <i class="fas fa-sync-alt"></i>
                                     Refresh
@@ -624,7 +678,7 @@
                                             <th class="checkbox-col">
                                                 <input type="checkbox" class="select-all-checkbox" id="selectAllPendingUltrasound">
                                             </th>
-                                            <th>Timing</th>
+                                            <th>Category</th>
                                             <th>Name</th>
                                             <th>Ultrasound Type</th>
                                             <th>Details</th>
@@ -665,6 +719,15 @@
                                                 Cancelled
                                             </button>
                                         </div>
+                                    </div>
+                                </div>
+                                <div class="search-controls">
+                                    <div class="search-input-group">
+                                        <i class="fas fa-search search-icon"></i>
+                                        <input type="text" id="searchUpcomingUltrasound" class="search-input" placeholder="Search by name, IYC, or test type...">
+                                        <button id="clearSearchUpcomingUltrasound" class="clear-search-btn" title="Clear search">
+                                            <i class="fas fa-times"></i>
+                                        </button>
                                     </div>
                                 </div>
                                 <div class="section-actions">
@@ -720,6 +783,15 @@
                                         </div>
                                     </div>
                                 </div>
+                                <div class="search-controls">
+                                    <div class="search-input-group">
+                                        <i class="fas fa-search search-icon"></i>
+                                        <input type="text" id="searchReviewUltrasound" class="search-input" placeholder="Search by name, IYC, or test type...">
+                                        <button id="clearSearchReviewUltrasound" class="clear-search-btn" title="Clear search">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
                                 <div class="section-actions">
                                     <button id="sendMessageReviewUltrasoundBtn" class="send-message-btn" onclick="ultrasoundManager.sendMessage('pending-review-ultrasound')">
                                         <i class="fas fa-comment"></i>
@@ -738,7 +810,7 @@
                                             <th class="checkbox-col">
                                                 <input type="checkbox" class="select-all-checkbox" id="selectAllReviewUltrasound">
                                             </th>
-                                            <th>Timing</th>
+                                            <th>Date</th>
                                             <th>Name</th>
                                             <th>Ultrasound Type</th>
                                             <th>Details</th>
@@ -773,6 +845,15 @@
                                         </div>
                                     </div>
                                 </div>
+                                <div class="search-controls">
+                                    <div class="search-input-group">
+                                        <i class="fas fa-search search-icon"></i>
+                                        <input type="text" id="searchCompletedUltrasound" class="search-input" placeholder="Search by name, IYC, or test type...">
+                                        <button id="clearSearchCompletedUltrasound" class="clear-search-btn" title="Clear search">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
                                 <button id="refreshCompletedUltrasoundBtn" class="refresh-btn">
                                     <i class="fas fa-sync-alt"></i>
                                     Refresh
@@ -785,7 +866,7 @@
                                             <th class="checkbox-col">
                                                 <input type="checkbox" class="select-all-checkbox" id="selectAllCompletedUltrasound">
                                             </th>
-                                            <th>Timing</th>
+                                            <th>Date</th>
                                             <th>Name</th>
                                             <th>Ultrasound Type</th>
                                             <th>Details</th>
@@ -820,6 +901,15 @@
                                         </div>
                                     </div>
                                 </div>
+                                <div class="search-controls">
+                                    <div class="search-input-group">
+                                        <i class="fas fa-search search-icon"></i>
+                                        <input type="text" id="searchCancelledUltrasound" class="search-input" placeholder="Search by name, IYC, or test type...">
+                                        <button id="clearSearchCancelledUltrasound" class="clear-search-btn" title="Clear search">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
                                 <button id="refreshCancelledUltrasoundBtn" class="refresh-btn">
                                     <i class="fas fa-sync-alt"></i>
                                     Refresh
@@ -832,7 +922,7 @@
                                             <th class="checkbox-col">
                                                 <input type="checkbox" class="select-all-checkbox" id="selectAllCancelledUltrasound">
                                             </th>
-                                            <th>Timing</th>
+                                            <th>Date</th>
                                             <th>Name</th>
                                             <th>Ultrasound Type</th>
                                             <th>Details</th>
@@ -1025,6 +1115,15 @@
                                         </div>
                                     </div>
                                 </div>
+                                <div class="search-controls">
+                                    <div class="search-input-group">
+                                        <i class="fas fa-search search-icon"></i>
+                                        <input type="text" id="searchPendingVisits" class="search-input" placeholder="Search by name, IYC, or appointment date...">
+                                        <button id="clearSearchPendingVisits" class="clear-search-btn" title="Clear search">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
                                 <button id="refreshPendingVisitsBtn" class="refresh-btn">
                                     <i class="fas fa-sync-alt"></i>
                                     Refresh
@@ -1084,6 +1183,15 @@
                                                 Cancel
                                             </button>
                                         </div>
+                                    </div>
+                                </div>
+                                <div class="search-controls">
+                                    <div class="search-input-group">
+                                        <i class="fas fa-search search-icon"></i>
+                                        <input type="text" id="searchConfirmedVisits" class="search-input" placeholder="Search by name, IYC, or appointment date...">
+                                        <button id="clearSearchConfirmedVisits" class="clear-search-btn" title="Clear search">
+                                            <i class="fas fa-times"></i>
+                                        </button>
                                     </div>
                                 </div>
                                 <button id="refreshConfirmedVisitsBtn" class="refresh-btn">
@@ -1148,6 +1256,15 @@
                                         </div>
                                     </div>
                                 </div>
+                                <div class="search-controls">
+                                    <div class="search-input-group">
+                                        <i class="fas fa-search search-icon"></i>
+                                        <input type="text" id="searchTodaysVisits" class="search-input" placeholder="Search by name, IYC, or appointment date...">
+                                        <button id="clearSearchTodaysVisits" class="clear-search-btn" title="Clear search">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
                                 <button id="refreshTodaysVisitsBtn" class="refresh-btn">
                                     <i class="fas fa-sync-alt"></i>
                                     Refresh
@@ -1207,6 +1324,15 @@
                                                 Cancel
                                             </button>
                                         </div>
+                                    </div>
+                                </div>
+                                <div class="search-controls">
+                                    <div class="search-input-group">
+                                        <i class="fas fa-search search-icon"></i>
+                                        <input type="text" id="searchTomorrowsVisits" class="search-input" placeholder="Search by name, IYC, or appointment date...">
+                                        <button id="clearSearchTomorrowsVisits" class="clear-search-btn" title="Clear search">
+                                            <i class="fas fa-times"></i>
+                                        </button>
                                     </div>
                                 </div>
                                 <button id="refreshTomorrowsVisitsBtn" class="refresh-btn">
@@ -1270,6 +1396,15 @@
                                         </div>
                                     </div>
                                 </div>
+                                <div class="search-controls">
+                                    <div class="search-input-group">
+                                        <i class="fas fa-search search-icon"></i>
+                                        <input type="text" id="searchLaterVisits" class="search-input" placeholder="Search by name, IYC, or appointment date...">
+                                        <button id="clearSearchLaterVisits" class="clear-search-btn" title="Clear search">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
                                 <button id="refreshLaterVisitsBtn" class="refresh-btn">
                                     <i class="fas fa-sync-alt"></i>
                                     Refresh
@@ -1331,6 +1466,15 @@
                                         </div>
                                     </div>
                                 </div>
+                                <div class="search-controls">
+                                    <div class="search-input-group">
+                                        <i class="fas fa-search search-icon"></i>
+                                        <input type="text" id="searchPostVisits" class="search-input" placeholder="Search by name, IYC, or appointment date...">
+                                        <button id="clearSearchPostVisits" class="clear-search-btn" title="Clear search">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
                                 <button id="refreshPostVisitsBtn" class="refresh-btn">
                                     <i class="fas fa-sync-alt"></i>
                                     Refresh
@@ -1386,6 +1530,15 @@
                                         </div>
                                     </div>
                                 </div>
+                                <div class="search-controls">
+                                    <div class="search-input-group">
+                                        <i class="fas fa-search search-icon"></i>
+                                        <input type="text" id="searchCompletedVisits" class="search-input" placeholder="Search by name, IYC, or appointment date...">
+                                        <button id="clearSearchCompletedVisits" class="clear-search-btn" title="Clear search">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
                                 <button id="refreshCompletedVisitsBtn" class="refresh-btn">
                                     <i class="fas fa-sync-alt"></i>
                                     Refresh
@@ -1439,6 +1592,15 @@
                                                 Delete
                                             </button>
                                         </div>
+                                    </div>
+                                </div>
+                                <div class="search-controls">
+                                    <div class="search-input-group">
+                                        <i class="fas fa-search search-icon"></i>
+                                        <input type="text" id="searchCancelledVisits" class="search-input" placeholder="Search by name, IYC, or appointment date...">
+                                        <button id="clearSearchCancelledVisits" class="clear-search-btn" title="Clear search">
+                                            <i class="fas fa-times"></i>
+                                        </button>
                                     </div>
                                 </div>
                                 <button id="refreshCancelledVisitsBtn" class="refresh-btn">
@@ -1698,6 +1860,15 @@
                                                 Delete
                                             </button>
                                         </div>
+                                    </div>
+                                </div>
+                                <div class="search-controls">
+                                    <div class="search-input-group">
+                                        <i class="fas fa-search search-icon"></i>
+                                        <input type="text" id="searchDietRecords" class="search-input" placeholder="Search by name, IYC, or status...">
+                                        <button id="clearSearchDietRecords" class="clear-search-btn" title="Clear search">
+                                            <i class="fas fa-times"></i>
+                                        </button>
                                     </div>
                                 </div>
                                 <button id="refreshDietRecordsBtn" class="refresh-btn">

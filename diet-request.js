@@ -47,6 +47,7 @@ class DietRequestManager {
         this.setupTableInteractions();
         this.setupBulkActions();
         this.setupRefreshButtons();
+        this.setupSearchFunctionality();
         this.setDefaultStartDate();
 
         // Load data for current section if not new-request
@@ -250,6 +251,134 @@ class DietRequestManager {
                     this.loadSectionData('records');
                 }
             });
+        }
+    }
+
+    // Setup search functionality
+    setupSearchFunctionality() {
+        const searchInput = document.getElementById('searchDietRecords');
+        const clearBtn = document.getElementById('clearSearchDietRecords');
+
+        if (searchInput) {
+            let searchTimer;
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value.trim();
+
+                // Show/hide clear button
+                if (clearBtn) {
+                    if (query.length > 0) {
+                        clearBtn.classList.add('visible');
+                    } else {
+                        clearBtn.classList.remove('visible');
+                    }
+                }
+
+                // Debounce search
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(() => {
+                    this.performSearch(query);
+                }, 300);
+            });
+        }
+
+        // Setup clear button event listener
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => {
+                if (searchInput) {
+                    searchInput.value = '';
+                    clearBtn.classList.remove('visible');
+                    this.performSearch('');
+                }
+            });
+        }
+    }
+
+    // Perform search functionality
+    performSearch(query) {
+        // Get all records for the records section
+        const allRecords = this.sectionData['records'] || [];
+
+        if (query === '') {
+            // Show all records if search is empty
+            this.renderFilteredRecords(allRecords);
+        } else {
+            // Filter records based on search query
+            const filteredRecords = this.filterRecords(allRecords, query);
+            this.renderFilteredRecords(filteredRecords);
+        }
+    }
+
+    // Filter records based on search query
+    filterRecords(records, query) {
+        const searchTerm = query.toLowerCase().trim();
+
+        return records.filter(record => {
+            // Search in name
+            const name = (record.name || '').toLowerCase();
+            if (name.includes(searchTerm)) return true;
+
+            // Search in IYC number
+            const iycNumber = (record.iycNumber || '').toLowerCase();
+            if (iycNumber.includes(searchTerm)) return true;
+
+            // Search in status
+            const status = (record.status || '').toLowerCase();
+            if (status.includes(searchTerm)) return true;
+
+            // Search in duration
+            const duration = (record.duration || '').toString().toLowerCase();
+            if (duration.includes(searchTerm)) return true;
+
+            return false;
+        });
+    }
+
+    // Render filtered records
+    renderFilteredRecords(filteredRecords) {
+        const table = document.getElementById('dietRecordsTable');
+
+        if (!table) {
+            console.error('Diet records table not found');
+            return;
+        }
+
+        const tbody = table.querySelector('tbody');
+
+        // Clear existing rows
+        tbody.innerHTML = '';
+
+        if (filteredRecords.length === 0) {
+            tbody.innerHTML = `
+                <tr class="no-data">
+                    <td colspan="8">No matching records found</td>
+                </tr>
+            `;
+            return;
+        }
+
+        // Render filtered record rows
+        filteredRecords.forEach(record => {
+            const row = this.createRecordRow(record);
+            tbody.appendChild(row);
+        });
+
+        // Update section controls for filtered results
+        this.updateSectionControls('records');
+
+        console.log(`Rendered ${filteredRecords.length} filtered records`);
+    }
+
+    // Clear search
+    clearSearch() {
+        const searchInput = document.getElementById('searchDietRecords');
+        const clearButton = document.getElementById('clearSearchDietRecords');
+
+        if (searchInput) {
+            searchInput.value = '';
+        }
+
+        if (clearButton) {
+            clearButton.classList.remove('visible');
         }
     }
 
@@ -831,6 +960,8 @@ class DietRequestManager {
                     this.sectionData[sectionName] = result.dietRequests || [];
                     this.renderSectionTable(sectionName);
                     this.updateSectionControls(sectionName);
+                    // Clear search when data is refreshed
+                    this.clearSearch();
                 } else {
                     console.error('Diet Request - Failed to load records');
                     this.showMessage('dietRecordsMessage', 'Failed to load records', 'error');

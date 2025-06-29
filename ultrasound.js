@@ -34,6 +34,7 @@ class UltrasoundManager {
         this.setupTableInteractions();
         this.setupBulkActions();
         this.setupRefreshButtons();
+        this.setupSearchFunctionality();
         this.setDefaultValues();
         this.loadSystemConfig();
         this.loadPatientData();
@@ -477,6 +478,69 @@ class UltrasoundManager {
         });
     }
 
+    // Setup search functionality
+    setupSearchFunctionality() {
+        const searchInputs = [
+            'searchPendingUltrasound',
+            'searchUpcomingUltrasound',
+            'searchReviewUltrasound',
+            'searchCompletedUltrasound',
+            'searchCancelledUltrasound'
+        ];
+
+        const clearButtons = [
+            'clearSearchPendingUltrasound',
+            'clearSearchUpcomingUltrasound',
+            'clearSearchReviewUltrasound',
+            'clearSearchCompletedUltrasound',
+            'clearSearchCancelledUltrasound'
+        ];
+
+        // Setup search input event listeners
+        searchInputs.forEach(inputId => {
+            const input = document.getElementById(inputId);
+            const clearBtn = document.getElementById(inputId.replace('search', 'clearSearch'));
+
+            if (input) {
+                let searchTimer;
+                input.addEventListener('input', (e) => {
+                    const query = e.target.value.trim();
+
+                    // Show/hide clear button
+                    if (clearBtn) {
+                        if (query.length > 0) {
+                            clearBtn.classList.add('visible');
+                        } else {
+                            clearBtn.classList.remove('visible');
+                        }
+                    }
+
+                    // Debounce search
+                    clearTimeout(searchTimer);
+                    searchTimer = setTimeout(() => {
+                        this.performSearch(inputId, query);
+                    }, 300);
+                });
+            }
+        });
+
+        // Setup clear button event listeners
+        clearButtons.forEach(buttonId => {
+            const button = document.getElementById(buttonId);
+            if (button) {
+                button.addEventListener('click', () => {
+                    const inputId = buttonId.replace('clearSearch', 'search');
+                    const input = document.getElementById(inputId);
+                    if (input) {
+                        input.value = '';
+                        button.classList.remove('visible');
+                        this.performSearch(inputId, '');
+                    }
+                });
+            }
+        });
+    }
+
     // Get section name from button ID
     getSectionFromButtonId(buttonId) {
         const mapping = {
@@ -487,6 +551,141 @@ class UltrasoundManager {
             'refreshCancelledUltrasoundBtn': 'cancelled-ultrasound'
         };
         return mapping[buttonId];
+    }
+
+    // Perform search functionality
+    performSearch(inputId, query) {
+        const sectionMapping = {
+            'searchPendingUltrasound': 'pending-ultrasound',
+            'searchUpcomingUltrasound': 'upcoming-ultrasound',
+            'searchReviewUltrasound': 'pending-review-ultrasound',
+            'searchCompletedUltrasound': 'completed-ultrasound',
+            'searchCancelledUltrasound': 'cancelled-ultrasound'
+        };
+
+        const section = sectionMapping[inputId];
+        if (!section) return;
+
+        // Get all ultrasounds for this section
+        const allUltrasounds = this.sectionData[section] || [];
+
+        if (query === '') {
+            // Show all ultrasounds if search is empty
+            this.renderFilteredUltrasounds(section, allUltrasounds);
+        } else {
+            // Filter ultrasounds based on search query
+            const filteredUltrasounds = this.filterUltrasounds(allUltrasounds, query);
+            this.renderFilteredUltrasounds(section, filteredUltrasounds);
+        }
+    }
+
+    // Filter ultrasounds based on search query
+    filterUltrasounds(ultrasounds, query) {
+        const searchTerm = query.toLowerCase().trim();
+
+        return ultrasounds.filter(ultrasound => {
+            // Search in name
+            const name = (ultrasound.name || '').toLowerCase();
+            if (name.includes(searchTerm)) return true;
+
+            // Search in IYC number
+            const iycNumber = (ultrasound.iycNumber || '').toLowerCase();
+            if (iycNumber.includes(searchTerm)) return true;
+
+            // Search in test name/type
+            const testName = (ultrasound.testName || '').toLowerCase();
+            if (testName.includes(searchTerm)) return true;
+
+            // Search in category
+            const category = (ultrasound.category || '').toLowerCase();
+            if (category.includes(searchTerm)) return true;
+
+            // Search in phone number
+            const phone = (ultrasound.phoneNumber || '').toLowerCase();
+            if (phone.includes(searchTerm)) return true;
+
+            return false;
+        });
+    }
+
+    // Render filtered ultrasounds
+    renderFilteredUltrasounds(sectionName, filteredUltrasounds) {
+        const tableMapping = {
+            'upcoming-ultrasound': 'upcomingUltrasoundsTable',
+            'pending-ultrasound': 'pendingUltrasoundsTable',
+            'pending-review-ultrasound': 'reviewUltrasoundsTable',
+            'completed-ultrasound': 'completedUltrasoundsTable',
+            'cancelled-ultrasound': 'cancelledUltrasoundsTable'
+        };
+
+        const tableId = tableMapping[sectionName];
+        const table = document.getElementById(tableId);
+
+        if (!table) {
+            console.error(`Table not found: ${tableId}`);
+            return;
+        }
+
+        const tbody = table.querySelector('tbody');
+
+        // Clear existing rows
+        tbody.innerHTML = '';
+
+        if (filteredUltrasounds.length === 0) {
+            tbody.innerHTML = `
+                <tr class="no-data">
+                    <td colspan="5">No matching ultrasounds found</td>
+                </tr>
+            `;
+            return;
+        }
+
+        // Render filtered ultrasound rows
+        filteredUltrasounds.forEach(ultrasound => {
+            const row = this.createUltrasoundRow(ultrasound);
+            tbody.appendChild(row);
+        });
+
+        // Update section controls for filtered results
+        this.updateSectionControls(sectionName);
+
+        console.log(`Rendered ${filteredUltrasounds.length} filtered ultrasounds for ${sectionName}`);
+    }
+
+    // Clear search for a specific section
+    clearSearch(sectionName) {
+        const searchInputMapping = {
+            'pending-ultrasound': 'searchPendingUltrasound',
+            'upcoming-ultrasound': 'searchUpcomingUltrasound',
+            'pending-review-ultrasound': 'searchReviewUltrasound',
+            'completed-ultrasound': 'searchCompletedUltrasound',
+            'cancelled-ultrasound': 'searchCancelledUltrasound'
+        };
+
+        const clearButtonMapping = {
+            'pending-ultrasound': 'clearSearchPendingUltrasound',
+            'upcoming-ultrasound': 'clearSearchUpcomingUltrasound',
+            'pending-review-ultrasound': 'clearSearchReviewUltrasound',
+            'completed-ultrasound': 'clearSearchCompletedUltrasound',
+            'cancelled-ultrasound': 'clearSearchCancelledUltrasound'
+        };
+
+        const searchInputId = searchInputMapping[sectionName];
+        const clearButtonId = clearButtonMapping[sectionName];
+
+        if (searchInputId) {
+            const searchInput = document.getElementById(searchInputId);
+            if (searchInput) {
+                searchInput.value = '';
+            }
+        }
+
+        if (clearButtonId) {
+            const clearButton = document.getElementById(clearButtonId);
+            if (clearButton) {
+                clearButton.classList.remove('visible');
+            }
+        }
     }
 
     // Load section data
@@ -518,6 +717,8 @@ class UltrasoundManager {
                     this.sectionData[sectionName] = result.ultrasounds;
                     this.renderSectionTable(sectionName);
                     this.updateSectionControls(sectionName);
+                // Clear search when data is refreshed
+                this.clearSearch(sectionName);
                 } else {
                     this.showSectionMessage(sectionName, 'Failed to load data: ' + result.message, 'error');
                 }
@@ -627,20 +828,53 @@ class UltrasoundManager {
         row.setAttribute('data-ultrasound-id', ultrasound.id);
         row.setAttribute('data-row-index', ultrasound.rowIndex);
 
-        // Render only required columns: Timing, Name, Ultrasound Type, Details
-        row.innerHTML = `
-            <td class="checkbox-col">
-                <input type="checkbox" class="ultrasound-checkbox" data-ultrasound-id="${ultrasound.id}">
-            </td>
-            <td>${ultrasound.timing || ''}</td>
-            <td>${ultrasound.name}</td>
-            <td>${ultrasound.testName}</td>
-            <td>
-                <button class="btn-icon" onclick="ultrasoundManager.viewUltrasoundDetails('${ultrasound.id}')" title="View Details">
-                    <i class="fas fa-eye"></i>
-                </button>
-            </td>
-        `;
+        // Different column structures for different sections
+        if (this.currentSection === 'pending-ultrasound') {
+            // Pending ultrasounds: Category, Name, Ultrasound Type, Details
+            row.innerHTML = `
+                <td class="checkbox-col">
+                    <input type="checkbox" class="ultrasound-checkbox" data-ultrasound-id="${ultrasound.id}">
+                </td>
+                <td>${ultrasound.category || ''}</td>
+                <td>${ultrasound.name}</td>
+                <td>${ultrasound.testName}</td>
+                <td>
+                    <button class="btn-icon" onclick="ultrasoundManager.viewUltrasoundDetails('${ultrasound.id}')" title="View Details">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </td>
+            `;
+        } else if (this.currentSection === 'pending-review-ultrasound' || this.currentSection === 'completed-ultrasound' || this.currentSection === 'cancelled-ultrasound') {
+            // Pending review, completed, and cancelled ultrasounds: Date, Name, Ultrasound Type, Details
+            row.innerHTML = `
+                <td class="checkbox-col">
+                    <input type="checkbox" class="ultrasound-checkbox" data-ultrasound-id="${ultrasound.id}">
+                </td>
+                <td>${ultrasound.date || ''}</td>
+                <td>${ultrasound.name}</td>
+                <td>${ultrasound.testName}</td>
+                <td>
+                    <button class="btn-icon" onclick="ultrasoundManager.viewUltrasoundDetails('${ultrasound.id}')" title="View Details">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </td>
+            `;
+        } else {
+            // Other sections (upcoming): Timing, Name, Ultrasound Type, Details
+            row.innerHTML = `
+                <td class="checkbox-col">
+                    <input type="checkbox" class="ultrasound-checkbox" data-ultrasound-id="${ultrasound.id}">
+                </td>
+                <td>${ultrasound.timing || ''}</td>
+                <td>${ultrasound.name}</td>
+                <td>${ultrasound.testName}</td>
+                <td>
+                    <button class="btn-icon" onclick="ultrasoundManager.viewUltrasoundDetails('${ultrasound.id}')" title="View Details">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </td>
+            `;
+        }
 
         return row;
     }

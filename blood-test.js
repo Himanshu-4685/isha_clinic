@@ -32,6 +32,7 @@ class BloodTestManager {
         this.setupBulkActions();
         this.loadPatientData();
         this.setupRefreshButtons();
+        this.setupSearchFunctionality();
         this.setDefaultValues();
         this.loadSystemConfig();
 
@@ -468,6 +469,69 @@ class BloodTestManager {
         });
     }
 
+    // Setup search functionality
+    setupSearchFunctionality() {
+        const searchInputs = [
+            'searchPendingTests',
+            'searchUpcomingTests',
+            'searchReviewTests',
+            'searchCompletedTests',
+            'searchCancelledTests'
+        ];
+
+        const clearButtons = [
+            'clearSearchPendingTests',
+            'clearSearchUpcomingTests',
+            'clearSearchReviewTests',
+            'clearSearchCompletedTests',
+            'clearSearchCancelledTests'
+        ];
+
+        // Setup search input event listeners
+        searchInputs.forEach(inputId => {
+            const input = document.getElementById(inputId);
+            const clearBtn = document.getElementById(inputId.replace('search', 'clearSearch'));
+
+            if (input) {
+                let searchTimer;
+                input.addEventListener('input', (e) => {
+                    const query = e.target.value.trim();
+
+                    // Show/hide clear button
+                    if (clearBtn) {
+                        if (query.length > 0) {
+                            clearBtn.classList.add('visible');
+                        } else {
+                            clearBtn.classList.remove('visible');
+                        }
+                    }
+
+                    // Debounce search
+                    clearTimeout(searchTimer);
+                    searchTimer = setTimeout(() => {
+                        this.performSearch(inputId, query);
+                    }, 300);
+                });
+            }
+        });
+
+        // Setup clear button event listeners
+        clearButtons.forEach(buttonId => {
+            const button = document.getElementById(buttonId);
+            if (button) {
+                button.addEventListener('click', () => {
+                    const inputId = buttonId.replace('clearSearch', 'search');
+                    const input = document.getElementById(inputId);
+                    if (input) {
+                        input.value = '';
+                        button.classList.remove('visible');
+                        this.performSearch(inputId, '');
+                    }
+                });
+            }
+        });
+    }
+
     // Get section name from button ID
     getSectionFromButtonId(buttonId) {
         const mapping = {
@@ -478,6 +542,141 @@ class BloodTestManager {
             'refreshCancelledBtn': 'cancelled-test'
         };
         return mapping[buttonId];
+    }
+
+    // Perform search functionality
+    performSearch(inputId, query) {
+        const sectionMapping = {
+            'searchPendingTests': 'pending-test',
+            'searchUpcomingTests': 'upcoming-test',
+            'searchReviewTests': 'pending-review',
+            'searchCompletedTests': 'completed',
+            'searchCancelledTests': 'cancelled-test'
+        };
+
+        const section = sectionMapping[inputId];
+        if (!section) return;
+
+        // Get all tests for this section
+        const allTests = this.sectionData[section] || [];
+
+        if (query === '') {
+            // Show all tests if search is empty
+            this.renderFilteredTests(section, allTests);
+        } else {
+            // Filter tests based on search query
+            const filteredTests = this.filterTests(allTests, query);
+            this.renderFilteredTests(section, filteredTests);
+        }
+    }
+
+    // Filter tests based on search query
+    filterTests(tests, query) {
+        const searchTerm = query.toLowerCase().trim();
+
+        return tests.filter(test => {
+            // Search in name
+            const name = (test.name || '').toLowerCase();
+            if (name.includes(searchTerm)) return true;
+
+            // Search in IYC number
+            const iycNumber = (test.iycNumber || '').toLowerCase();
+            if (iycNumber.includes(searchTerm)) return true;
+
+            // Search in test name/type
+            const testName = (test.testName || '').toLowerCase();
+            if (testName.includes(searchTerm)) return true;
+
+            // Search in category
+            const category = (test.category || '').toLowerCase();
+            if (category.includes(searchTerm)) return true;
+
+            // Search in phone number
+            const phone = (test.phoneNumber || '').toLowerCase();
+            if (phone.includes(searchTerm)) return true;
+
+            return false;
+        });
+    }
+
+    // Render filtered tests
+    renderFilteredTests(sectionName, filteredTests) {
+        const tableMapping = {
+            'upcoming-test': 'upcomingTestsTable',
+            'pending-test': 'pendingTestsTable',
+            'pending-review': 'reviewTestsTable',
+            'completed': 'completedTestsTable',
+            'cancelled-test': 'cancelledTestsTable'
+        };
+
+        const tableId = tableMapping[sectionName];
+        const table = document.getElementById(tableId);
+
+        if (!table) {
+            console.error(`Table not found: ${tableId}`);
+            return;
+        }
+
+        const tbody = table.querySelector('tbody');
+
+        // Clear existing rows
+        tbody.innerHTML = '';
+
+        if (filteredTests.length === 0) {
+            tbody.innerHTML = `
+                <tr class="no-data">
+                    <td colspan="7">No matching tests found</td>
+                </tr>
+            `;
+            return;
+        }
+
+        // Render filtered test rows
+        filteredTests.forEach(test => {
+            const row = this.createTestRow(test);
+            tbody.appendChild(row);
+        });
+
+        // Update section controls for filtered results
+        this.updateSectionControls(sectionName);
+
+        console.log(`Rendered ${filteredTests.length} filtered tests for ${sectionName}`);
+    }
+
+    // Clear search for a specific section
+    clearSearch(sectionName) {
+        const searchInputMapping = {
+            'pending-test': 'searchPendingTests',
+            'upcoming-test': 'searchUpcomingTests',
+            'pending-review': 'searchReviewTests',
+            'completed': 'searchCompletedTests',
+            'cancelled-test': 'searchCancelledTests'
+        };
+
+        const clearButtonMapping = {
+            'pending-test': 'clearSearchPendingTests',
+            'upcoming-test': 'clearSearchUpcomingTests',
+            'pending-review': 'clearSearchReviewTests',
+            'completed': 'clearSearchCompletedTests',
+            'cancelled-test': 'clearSearchCancelledTests'
+        };
+
+        const searchInputId = searchInputMapping[sectionName];
+        const clearButtonId = clearButtonMapping[sectionName];
+
+        if (searchInputId) {
+            const searchInput = document.getElementById(searchInputId);
+            if (searchInput) {
+                searchInput.value = '';
+            }
+        }
+
+        if (clearButtonId) {
+            const clearButton = document.getElementById(clearButtonId);
+            if (clearButton) {
+                clearButton.classList.remove('visible');
+            }
+        }
     }
 
     // Load data for a specific section
@@ -509,6 +708,8 @@ class BloodTestManager {
                     this.sectionData[sectionName] = filteredTests;
                     this.renderSectionTable(sectionName);
                     this.updateSectionControls(sectionName);
+                    // Clear search when data is refreshed
+                    this.clearSearch(sectionName);
                 } else {
                     this.showSectionMessage(sectionName, 'Failed to load data: ' + result.message, 'error');
                 }
@@ -519,6 +720,8 @@ class BloodTestManager {
                     this.sectionData[sectionName] = result.tests;
                     this.renderSectionTable(sectionName);
                     this.updateSectionControls(sectionName);
+                    // Clear search when data is refreshed
+                    this.clearSearch(sectionName);
                 } else {
                     this.showSectionMessage(sectionName, 'Failed to load data: ' + result.message, 'error');
                 }
