@@ -1965,7 +1965,7 @@ class HospitalVisitManager {
 
             // Provide more specific error messages
             if (error.message && error.message.includes('Doctype')) {
-                errorMessage = 'Server error: Please make sure the backend server is running on port 3001';
+                errorMessage = 'Server error: Please make sure the backend server is running and accessible';
             } else if (error.message) {
                 errorMessage = `Error: ${error.message}`;
             }

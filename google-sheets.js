@@ -1,8 +1,21 @@
 // Google Sheets API integration via backend server
 class GoogleSheetsAPI {
     constructor() {
-        this.baseURL = 'http://localhost:3001/api';
+        // Dynamically determine the base URL based on the current environment
+        this.baseURL = this.getBaseURL();
         this.isInitialized = false;
+    }
+
+    // Get the appropriate base URL for API calls
+    getBaseURL() {
+        // If we're in development (localhost), use the development server
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            return 'http://localhost:3001/api';
+        }
+
+        // For production (Render or any other deployment), use relative path
+        // This will automatically use the same domain and port as the frontend
+        return '/api';
     }
 
     // Initialize the Google Sheets API connection
@@ -21,7 +34,7 @@ class GoogleSheetsAPI {
             }
         } catch (error) {
             console.error('Failed to initialize Google Sheets API:', error);
-            console.error('Make sure the backend server is running on port 3001');
+            console.error('Make sure the backend server is running and accessible');
             return false;
         }
     }
