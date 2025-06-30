@@ -625,7 +625,7 @@ class BloodTestManager {
         if (filteredTests.length === 0) {
             tbody.innerHTML = `
                 <tr class="no-data">
-                    <td colspan="7">No matching tests found</td>
+                    <td colspan="8">No matching tests found</td>
                 </tr>
             `;
             return;
@@ -633,7 +633,7 @@ class BloodTestManager {
 
         // Render filtered test rows
         filteredTests.forEach(test => {
-            const row = this.createTestRow(test);
+            const row = this.createTestRow(test, sectionName);
             tbody.appendChild(row);
         });
 
@@ -763,7 +763,7 @@ class BloodTestManager {
         if (tests.length === 0) {
             tbody.innerHTML = `
                 <tr class="no-data">
-                    <td colspan="9">No ${sectionName.replace('-', ' ')} found</td>
+                    <td colspan="8">No ${sectionName.replace('-', ' ')} found</td>
                 </tr>
             `;
             return;
@@ -779,24 +779,46 @@ class BloodTestManager {
     }
 
     // Create a test row element
-    createTestRow(test) {
+    createTestRow(test, sectionName) {
         const row = document.createElement('tr');
         row.setAttribute('data-test-id', test.id);
         row.setAttribute('data-row-index', test.rowIndex);
 
-        row.innerHTML = `
-            <td class="checkbox-col">
-                <input type="checkbox" class="test-checkbox" data-test-id="${test.id}">
-            </td>
-            <td>${test.date}</td>
-            <td>${test.iycNumber}</td>
-            <td>${test.name}</td>
-            <td>${test.category}</td>
-            <td>${test.phone}</td>
-            <td>${test.testName}</td>
-            <td>${test.referredBy}</td>
-            <td>${test.remarks}</td>
-        `;
+        // Different column structures for different sections (following ultrasound pattern)
+        if (sectionName === 'pending-test' || sectionName === 'upcoming-test') {
+            // Pending and upcoming: Date, Name, Category, Phone, Test Name, Remarks, Details
+            row.innerHTML = `
+                <td class="checkbox-col">
+                    <input type="checkbox" class="test-checkbox" data-test-id="${test.id}">
+                </td>
+                <td>${test.date}</td>
+                <td>${test.name}</td>
+                <td>${test.category}</td>
+                <td>${test.phone}</td>
+                <td>${test.testName}</td>
+                <td>${test.remarks}</td>
+                <td>
+                    <button class="btn-icon" onclick="bloodTestManager.viewTestDetails('${test.id}')" title="View Details">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </td>
+            `;
+        } else {
+            // Pending review and completed: Date, Name, Test Name, Details (like ultrasound)
+            row.innerHTML = `
+                <td class="checkbox-col">
+                    <input type="checkbox" class="test-checkbox" data-test-id="${test.id}">
+                </td>
+                <td>${test.date}</td>
+                <td>${test.name}</td>
+                <td>${test.testName}</td>
+                <td>
+                    <button class="btn-icon" onclick="bloodTestManager.viewTestDetails('${test.id}')" title="View Details">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </td>
+            `;
+        }
 
         return row;
     }
@@ -1452,6 +1474,103 @@ class BloodTestManager {
 
         this.hideNameDropdown();
         this.validateForm();
+    }
+
+    // View test details
+    viewTestDetails(testId) {
+        const test = this.findTestById(testId);
+        if (test) {
+            this.showTestDetailsModal(test);
+        }
+    }
+
+    // Show test details modal
+    showTestDetailsModal(test) {
+        // Create modal HTML
+        const modalHtml = `
+            <div id="testDetailsModal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Blood Test Details</h3>
+                        <span class="modal-close" onclick="bloodTestManager.closeDetailsModal()">&times;</span>
+                    </div>
+                    <div class="modal-body">
+                        <div class="details-grid">
+                            <div class="detail-item">
+                                <label>Name:</label>
+                                <span>${test.name}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>IYC Number:</label>
+                                <span>${test.iycNumber || 'N/A'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Phone:</label>
+                                <span>${test.phone || 'N/A'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Category:</label>
+                                <span>${test.category || 'N/A'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Test Name:</label>
+                                <span>${test.testName || 'N/A'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Referred By:</label>
+                                <span>${test.referredBy || 'N/A'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Date:</label>
+                                <span>${test.date || 'N/A'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Status:</label>
+                                <span>${test.status || 'N/A'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Remarks:</label>
+                                <span>${test.remarks || 'N/A'}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-secondary" onclick="bloodTestManager.closeDetailsModal()">Close</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Add modal to page
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        // Show modal with proper display
+        const modal = document.getElementById('testDetailsModal');
+        modal.style.display = 'flex';
+
+        // Add event listener for clicking outside modal to close
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                this.closeDetailsModal();
+            }
+        });
+
+        // Add keyboard event listener for ESC key
+        const handleKeyPress = (e) => {
+            if (e.key === 'Escape') {
+                this.closeDetailsModal();
+                document.removeEventListener('keydown', handleKeyPress);
+            }
+        };
+        document.addEventListener('keydown', handleKeyPress);
+    }
+
+    // Close details modal
+    closeDetailsModal() {
+        const modal = document.getElementById('testDetailsModal');
+        if (modal) {
+            modal.remove();
+        }
     }
 }
 
