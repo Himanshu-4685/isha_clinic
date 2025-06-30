@@ -5,6 +5,11 @@ const path = require('path');
 const fs = require('fs');
 const nodemailer = require('nodemailer');
 
+// Load environment variables from .env file in development
+if (process.env.NODE_ENV !== 'production') {
+    require('dotenv').config();
+}
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -14,10 +19,17 @@ app.use(express.json());
 app.use(express.static('.'));
 
 // Load Google Sheets credentials
-const credentials = JSON.parse(fs.readFileSync('./credential.json'));
+let credentials;
+if (process.env.GOOGLE_CREDENTIALS) {
+    // Production: Use environment variable
+    credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+} else {
+    // Development: Use local file
+    credentials = JSON.parse(fs.readFileSync('./credential.json'));
+}
 
 // Google Sheets configuration
-const SPREADSHEET_ID = '1UQJbelESSslpu0VsgRKFZZD_wRwgRDhPQdTEjtIT7BM';
+const SPREADSHEET_ID = process.env.SPREADSHEET_ID || '1UQJbelESSslpu0VsgRKFZZD_wRwgRDhPQdTEjtIT7BM';
 
 // Initialize Google Sheets API
 const auth = new google.auth.GoogleAuth({
@@ -490,8 +502,8 @@ app.post('/api/ultrasound', async (req, res) => {
         const ultrasoundId = `US${Date.now()}`;
         const currentTimestamp = new Date().toISOString();
 
-        // Prepare row data with all columns including ID, Created, and Updated timestamps
-        const values = [[ultrasoundId, finalDate, iycNumber, patientName, category, phoneNumber, testName, referredBy, schedule, '', currentTimestamp, currentTimestamp]];
+        // Prepare row data with all columns including ID, Timing, Created, Updated, and Scheduling Doctor timestamps
+        const values = [[ultrasoundId, finalDate, iycNumber, patientName, category, phoneNumber, testName, referredBy, schedule, '', '', currentTimestamp, currentTimestamp, '']];
 
         // First, insert a new row at the specified position
         await sheets.spreadsheets.batchUpdate({
@@ -512,7 +524,7 @@ app.post('/api/ultrasound', async (req, res) => {
         });
 
         // Then update the values in the new row
-        const range = `${worksheetName}!A${insertAfterRow}:L${insertAfterRow}`;
+        const range = `${worksheetName}!A${insertAfterRow}:N${insertAfterRow}`;
         await sheets.spreadsheets.values.update({
             spreadsheetId: SPREADSHEET_ID,
             range: range,
@@ -585,10 +597,10 @@ async function ensureUltrasoundHeaders() {
         // Now check and update headers
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: 'Ultrasound_Data!A1:L1',
+            range: 'Ultrasound_Data!A1:N1',
         });
 
-        const expectedHeaders = ['ID', 'Date', 'IYC Number', 'Name', 'Category', 'Phone', 'Ultrasound Type', 'Referred By', 'Status', 'Remarks', 'Created', 'Updated'];
+        const expectedHeaders = ['ID', 'Date', 'IYC Number', 'Name', 'Category', 'Phone', 'Ultrasound Type', 'Referred By', 'Status', 'Remarks', 'Timing', 'Created', 'Updated', 'Scheduling Doctor'];
         const currentHeaders = response.data.values ? response.data.values[0] : [];
 
         // Check if headers match
@@ -600,7 +612,7 @@ async function ensureUltrasoundHeaders() {
             // Update the header row
             await sheets.spreadsheets.values.update({
                 spreadsheetId: SPREADSHEET_ID,
-                range: 'Ultrasound_Data!A1:L1',
+                range: 'Ultrasound_Data!A1:N1',
                 valueInputOption: 'RAW',
                 resource: {
                     values: [expectedHeaders]
@@ -624,7 +636,7 @@ app.get('/api/ultrasounds/all', async (req, res) => {
 
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: `Ultrasound_Data!A:L`,
+            range: `Ultrasound_Data!A:N`,
         });
 
         const rows = response.data.values || [];
@@ -642,8 +654,10 @@ app.get('/api/ultrasounds/all', async (req, res) => {
             referredBy: row[7] || '',
             status: row[8] || '',
             remarks: row[9] || '',
-            created: row[10] || '',
-            updated: row[11] || ''
+            timing: row[10] || '',
+            created: row[11] || '',
+            updated: row[12] || '',
+            schedulingDoctor: row[13] || ''
         })).filter(ultrasound => {
             // Only include rows with IYC numbers
             return ultrasound.iycNumber;
@@ -674,7 +688,7 @@ app.get('/api/ultrasounds/:status', async (req, res) => {
 
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: `Ultrasound_Data!A:L`,
+            range: `Ultrasound_Data!A:N`,
         });
 
         const rows = response.data.values || [];
@@ -692,8 +706,10 @@ app.get('/api/ultrasounds/:status', async (req, res) => {
             referredBy: row[7] || '', // H=Referred By
             status: row[8] || '', // I=Status
             remarks: row[9] || '', // J=Remarks
-            created: row[10] || '', // K=Created
-            updated: row[11] || '' // L=Updated
+            timing: row[10] || '', // K=Timing
+            created: row[11] || '', // L=Created
+            updated: row[12] || '', // M=Updated
+            schedulingDoctor: row[13] || '' // N=Scheduling Doctor
         })).filter(ultrasound => {
             // Filter by status and ensure we have required data
             return ultrasound.iycNumber && ultrasound.status === status;
@@ -774,16 +790,16 @@ app.post('/api/ultrasound-status', async (req, res) => {
 app.put('/api/ultrasound/:rowIndex', async (req, res) => {
     try {
         const { rowIndex } = req.params;
-        const { date, iycNumber, name, category, phone, testName, referredBy, status, remarks } = req.body;
+        const { date, iycNumber, name, category, phone, testName, referredBy, status, remarks, timing, schedulingDoctor } = req.body;
 
         console.log(`Updating ultrasound at row ${rowIndex}`);
 
         const currentTimestamp = new Date().toISOString();
 
-        // Update only the editable fields (B to L for updated timestamp)
-        // Keep ID (A), Created (K) unchanged
-        const range = `Ultrasound_Data!B${rowIndex}:L${rowIndex}`;
-        const values = [[date, iycNumber, name, category, phone, testName, referredBy, status, remarks, '', currentTimestamp]];
+        // Update only the editable fields (B to N for updated timestamp)
+        // Keep ID (A), Created (L) unchanged
+        const range = `Ultrasound_Data!B${rowIndex}:N${rowIndex}`;
+        const values = [[date, iycNumber, name, category, phone, testName, referredBy, status, remarks, timing || '', '', currentTimestamp, schedulingDoctor || '']];
 
         await sheets.spreadsheets.values.update({
             spreadsheetId: SPREADSHEET_ID,
@@ -1209,7 +1225,7 @@ async function getSystemConfig() {
 
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: 'System Config!C1:C10', // Read from C1 to C10 to get all config data
+            range: 'System Config!C1:C15', // Read from C1 to C15 to get all config data
         });
 
         const values = response.data.values || [];
@@ -1220,7 +1236,8 @@ async function getSystemConfig() {
             password: values[2] && values[2][0] ? values[2][0].toString().trim() : '', // C3 - password
             anchors: values[4] && values[4][0] ? values[4][0].toString().trim() : '', // C5 - anchors JSON
             referredBy: values[5] && values[5][0] ? values[5][0].toString().trim() : '', // C6 - referred by names
-            others: values[6] && values[6][0] ? values[6][0].toString().trim() : '' // C7 - others names
+            others: values[6] && values[6][0] ? values[6][0].toString().trim() : '', // C7 - others names
+            ultrasound_doctor: values[11] && values[11][0] ? values[11][0].toString().trim() : '' // C12 - ultrasound doctors
         };
 
         console.log('System Config processed:', {
@@ -1228,7 +1245,8 @@ async function getSystemConfig() {
             password: config.password ? '***' : 'not set',
             anchors: config.anchors ? `"${config.anchors.substring(0, 50)}..."` : 'not set',
             referredBy: config.referredBy ? `"${config.referredBy}"` : 'not set',
-            others: config.others ? `"${config.others}"` : 'not set'
+            others: config.others ? `"${config.others}"` : 'not set',
+            ultrasound_doctor: config.ultrasound_doctor ? `"${config.ultrasound_doctor}"` : 'not set'
         });
 
         return config;
@@ -1242,7 +1260,8 @@ async function getSystemConfig() {
             password: '',
             anchors: '',
             referredBy: '',
-            others: ''
+            others: '',
+            ultrasound_doctor: ''
         };
     }
 }
@@ -1329,12 +1348,18 @@ async function ensureDietRequestHeaders() {
 async function sendCreditEmail(emailAddresses, content, visitDetails, patientEmail = '', i2Emails = []) {
     try {
         // Read email credentials
-        const credentialsPath = path.join(__dirname, 'Email_Credentials.json');
-        if (!fs.existsSync(credentialsPath)) {
-            throw new Error('Email credentials file not found');
+        let credentials;
+        if (process.env.EMAIL_CREDENTIALS) {
+            // Production: Use environment variable
+            credentials = JSON.parse(process.env.EMAIL_CREDENTIALS);
+        } else {
+            // Development: Use local file
+            const credentialsPath = path.join(__dirname, 'Email_Credentials.json');
+            if (!fs.existsSync(credentialsPath)) {
+                throw new Error('Email credentials file not found');
+            }
+            credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
         }
-
-        const credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
         console.log('Email credentials loaded successfully');
 
         // Check if OAuth2 refresh token is available
@@ -1360,7 +1385,7 @@ async function sendCreditEmail(emailAddresses, content, visitDetails, patientEma
         const oauth2Client = new google.auth.OAuth2(
             credentials.oauth2.client_id,
             credentials.oauth2.client_secret,
-            'http://localhost'
+            'urn:ietf:wg:oauth:2.0:oob'  // Use OOB (out-of-band) for server applications
         );
 
         // Set refresh token
@@ -1452,14 +1477,27 @@ ${content}`;
 // Helper function to send diet request email using OAuth2
 async function sendDietRequestEmail(emailAddresses, content, dietRequestDetails, patientEmail = '', ccEmails = []) {
     try {
-        // TODO: Use diet-specific credentials from clinic_diet_request_email.json when available
-        // For now, using existing credentials but should be updated to use clinic.backoffice@ishafoundation.org
-        const credentialsPath = path.join(__dirname, 'Email_Credentials.json');
-        if (!fs.existsSync(credentialsPath)) {
-            throw new Error('Email credentials file not found');
-        }
+        // Read email credentials
+        let credentials;
+        if (process.env.DIET_EMAIL_CREDENTIALS) {
+            // Production: Use diet-specific environment variable
+            credentials = JSON.parse(process.env.DIET_EMAIL_CREDENTIALS);
+        } else if (process.env.EMAIL_CREDENTIALS) {
+            // Production: Fallback to general email credentials
+            credentials = JSON.parse(process.env.EMAIL_CREDENTIALS);
+        } else {
+            // Development: Try diet-specific file first, then fallback
+            const dietCredentialsPath = path.join(__dirname, 'dietReq2.json');
+            const generalCredentialsPath = path.join(__dirname, 'Email_Credentials.json');
 
-        const credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
+            if (fs.existsSync(dietCredentialsPath)) {
+                credentials = JSON.parse(fs.readFileSync(dietCredentialsPath, 'utf8'));
+            } else if (fs.existsSync(generalCredentialsPath)) {
+                credentials = JSON.parse(fs.readFileSync(generalCredentialsPath, 'utf8'));
+            } else {
+                throw new Error('Email credentials file not found');
+            }
+        }
 
         if (!credentials.oauth2 || !credentials.oauth2.refresh_token) {
             throw new Error('OAuth2 refresh token not found in credentials');
@@ -1472,7 +1510,7 @@ async function sendDietRequestEmail(emailAddresses, content, dietRequestDetails,
         const oauth2Client = new google.auth.OAuth2(
             credentials.oauth2.client_id,
             credentials.oauth2.client_secret,
-            'http://localhost'
+            'urn:ietf:wg:oauth:2.0:oob'  // Use OOB (out-of-band) for server applications
         );
 
         // Set refresh token
@@ -2258,7 +2296,8 @@ app.get('/api/system-config', async (req, res) => {
             data: {
                 anchors: anchors,
                 referredBy: referredByList,
-                others: othersList
+                others: othersList,
+                ultrasound_doctor: config.ultrasound_doctor || ''
             }
         });
     } catch (error) {
@@ -2797,10 +2836,10 @@ app.post('/api/update-patient', async (req, res) => {
     try {
         const { iycNumber, name, email, phone } = req.body;
 
-        if (!name || !email || !phone) {
+        if (!name || !phone) {
             return res.status(400).json({
                 success: false,
-                message: 'Name, email, and phone are required'
+                message: 'Name and phone are required'
             });
         }
 
@@ -2861,15 +2900,17 @@ app.post('/api/update-patient', async (req, res) => {
                 });
             }
 
-            // Update Email (Column C)
-            await sheets.spreadsheets.values.update({
-                spreadsheetId: SPREADSHEET_ID,
-                range: `Patient Database!C${patientRowIndex}`,
-                valueInputOption: 'RAW',
-                resource: {
-                    values: [[email]]
-                }
-            });
+            // Update Email (Column C) - only if provided in request
+            if (email !== undefined) {
+                await sheets.spreadsheets.values.update({
+                    spreadsheetId: SPREADSHEET_ID,
+                    range: `Patient Database!C${patientRowIndex}`,
+                    valueInputOption: 'RAW',
+                    resource: {
+                        values: [[email || '']]
+                    }
+                });
+            }
 
             // Update Phone (Column E)
             await sheets.spreadsheets.values.update({
@@ -2898,6 +2939,24 @@ app.post('/api/update-patient', async (req, res) => {
     }
 });
 
+// Test endpoint to manually update ultrasound headers
+app.post('/api/test/update-ultrasound-headers', async (req, res) => {
+    try {
+        await ensureUltrasoundHeaders();
+        res.json({
+            success: true,
+            message: 'Ultrasound headers updated successfully'
+        });
+    } catch (error) {
+        console.error('Error updating ultrasound headers:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update ultrasound headers',
+            error: error.message
+        });
+    }
+});
+
 // Serve the main HTML file
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
@@ -2905,7 +2964,11 @@ app.get('/', (req, res) => {
 
 // Start server
 app.listen(PORT, async () => {
-    console.log(`🚀 Clinic Management Server running on http://localhost:${PORT}`);
+    const serverUrl = process.env.NODE_ENV === 'production'
+        ? `https://your-app.onrender.com`
+        : `http://localhost:${PORT}`;
+    console.log(`🚀 Clinic Management Server running on port ${PORT}`);
+    console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`📊 Google Sheets integration active`);
     console.log(`📋 Spreadsheet ID: ${SPREADSHEET_ID}`);
 
@@ -2914,6 +2977,9 @@ app.listen(PORT, async () => {
 
     // Ensure Hospital_Visit_Data worksheet has correct headers
     await ensureHospitalVisitHeaders();
+
+    // Ensure Ultrasound_Data worksheet has correct headers
+    await ensureUltrasoundHeaders();
 
     // Ensure Diet_Request_Data worksheet has correct headers
     await ensureDietRequestHeaders();

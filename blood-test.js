@@ -19,6 +19,8 @@ class BloodTestManager {
             'cancelled-test': new Set()
         };
         this.editingCell = null;
+        this.patients = [];
+        this.loadingData = false;
     }
 
     // Initialize the blood test module
@@ -28,7 +30,9 @@ class BloodTestManager {
         this.setupFormValidation();
         this.setupTableInteractions();
         this.setupBulkActions();
+        this.loadPatientData();
         this.setupRefreshButtons();
+        this.setupSearchFunctionality();
         this.setDefaultValues();
         this.loadSystemConfig();
 
@@ -71,15 +75,14 @@ class BloodTestManager {
             this.loadSectionData(sectionName);
         }
 
-        // Clear any editing state
-        this.exitEditMode();
+
     }
 
     // Setup add test form
     setupAddTestForm() {
         const form = document.getElementById('addTestForm');
         const scheduleSelect = document.getElementById('schedule');
-        const dateInput = document.getElementById('testDate');
+
         const iycInput = document.getElementById('iycNumber');
         const resetBtn = document.getElementById('resetFormBtn');
 
@@ -98,6 +101,25 @@ class BloodTestManager {
                 debounceTimer = setTimeout(() => {
                     this.handleIYCLookup(iycInput.value);
                 }, 500); // 500ms delay
+            });
+        }
+
+        // Handle name input for search
+        const nameInput = document.getElementById('patientName');
+        if (nameInput) {
+            let searchTimer;
+            nameInput.addEventListener('input', () => {
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(() => {
+                    this.handleNameSearch(nameInput.value);
+                }, 300); // 300ms delay
+            });
+
+            // Hide dropdown when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!nameInput.contains(e.target)) {
+                    this.hideNameDropdown();
+                }
             });
         }
 
@@ -401,20 +423,11 @@ class BloodTestManager {
 
     // Setup table interactions
     setupTableInteractions() {
-        // Setup click-to-edit for table cells
-        document.addEventListener('click', (e) => {
-            if (e.target.classList.contains('editable-cell')) {
-                this.enterEditMode(e.target);
-            } else if (this.editingCell && !this.editingCell.contains(e.target)) {
-                this.exitEditMode();
-            }
-        });
-
         // Setup checkbox interactions
         document.addEventListener('change', (e) => {
-            if (e.target.classList.contains('test-checkbox')) {
+            if (e.target.classList.contains('test-checkbox') && e.target.closest('#blood-test-module')) {
                 this.handleTestSelection(e.target);
-            } else if (e.target.classList.contains('select-all-checkbox')) {
+            } else if (e.target.classList.contains('select-all-checkbox') && e.target.closest('#blood-test-module')) {
                 this.handleSelectAll(e.target);
             }
         });
@@ -456,6 +469,69 @@ class BloodTestManager {
         });
     }
 
+    // Setup search functionality
+    setupSearchFunctionality() {
+        const searchInputs = [
+            'searchPendingTests',
+            'searchUpcomingTests',
+            'searchReviewTests',
+            'searchCompletedTests',
+            'searchCancelledTests'
+        ];
+
+        const clearButtons = [
+            'clearSearchPendingTests',
+            'clearSearchUpcomingTests',
+            'clearSearchReviewTests',
+            'clearSearchCompletedTests',
+            'clearSearchCancelledTests'
+        ];
+
+        // Setup search input event listeners
+        searchInputs.forEach(inputId => {
+            const input = document.getElementById(inputId);
+            const clearBtn = document.getElementById(inputId.replace('search', 'clearSearch'));
+
+            if (input) {
+                let searchTimer;
+                input.addEventListener('input', (e) => {
+                    const query = e.target.value.trim();
+
+                    // Show/hide clear button
+                    if (clearBtn) {
+                        if (query.length > 0) {
+                            clearBtn.classList.add('visible');
+                        } else {
+                            clearBtn.classList.remove('visible');
+                        }
+                    }
+
+                    // Debounce search
+                    clearTimeout(searchTimer);
+                    searchTimer = setTimeout(() => {
+                        this.performSearch(inputId, query);
+                    }, 300);
+                });
+            }
+        });
+
+        // Setup clear button event listeners
+        clearButtons.forEach(buttonId => {
+            const button = document.getElementById(buttonId);
+            if (button) {
+                button.addEventListener('click', () => {
+                    const inputId = buttonId.replace('clearSearch', 'search');
+                    const input = document.getElementById(inputId);
+                    if (input) {
+                        input.value = '';
+                        button.classList.remove('visible');
+                        this.performSearch(inputId, '');
+                    }
+                });
+            }
+        });
+    }
+
     // Get section name from button ID
     getSectionFromButtonId(buttonId) {
         const mapping = {
@@ -466,6 +542,141 @@ class BloodTestManager {
             'refreshCancelledBtn': 'cancelled-test'
         };
         return mapping[buttonId];
+    }
+
+    // Perform search functionality
+    performSearch(inputId, query) {
+        const sectionMapping = {
+            'searchPendingTests': 'pending-test',
+            'searchUpcomingTests': 'upcoming-test',
+            'searchReviewTests': 'pending-review',
+            'searchCompletedTests': 'completed',
+            'searchCancelledTests': 'cancelled-test'
+        };
+
+        const section = sectionMapping[inputId];
+        if (!section) return;
+
+        // Get all tests for this section
+        const allTests = this.sectionData[section] || [];
+
+        if (query === '') {
+            // Show all tests if search is empty
+            this.renderFilteredTests(section, allTests);
+        } else {
+            // Filter tests based on search query
+            const filteredTests = this.filterTests(allTests, query);
+            this.renderFilteredTests(section, filteredTests);
+        }
+    }
+
+    // Filter tests based on search query
+    filterTests(tests, query) {
+        const searchTerm = query.toLowerCase().trim();
+
+        return tests.filter(test => {
+            // Search in name
+            const name = (test.name || '').toLowerCase();
+            if (name.includes(searchTerm)) return true;
+
+            // Search in IYC number
+            const iycNumber = (test.iycNumber || '').toLowerCase();
+            if (iycNumber.includes(searchTerm)) return true;
+
+            // Search in test name/type
+            const testName = (test.testName || '').toLowerCase();
+            if (testName.includes(searchTerm)) return true;
+
+            // Search in category
+            const category = (test.category || '').toLowerCase();
+            if (category.includes(searchTerm)) return true;
+
+            // Search in phone number
+            const phone = (test.phoneNumber || '').toLowerCase();
+            if (phone.includes(searchTerm)) return true;
+
+            return false;
+        });
+    }
+
+    // Render filtered tests
+    renderFilteredTests(sectionName, filteredTests) {
+        const tableMapping = {
+            'upcoming-test': 'upcomingTestsTable',
+            'pending-test': 'pendingTestsTable',
+            'pending-review': 'reviewTestsTable',
+            'completed': 'completedTestsTable',
+            'cancelled-test': 'cancelledTestsTable'
+        };
+
+        const tableId = tableMapping[sectionName];
+        const table = document.getElementById(tableId);
+
+        if (!table) {
+            console.error(`Table not found: ${tableId}`);
+            return;
+        }
+
+        const tbody = table.querySelector('tbody');
+
+        // Clear existing rows
+        tbody.innerHTML = '';
+
+        if (filteredTests.length === 0) {
+            tbody.innerHTML = `
+                <tr class="no-data">
+                    <td colspan="7">No matching tests found</td>
+                </tr>
+            `;
+            return;
+        }
+
+        // Render filtered test rows
+        filteredTests.forEach(test => {
+            const row = this.createTestRow(test);
+            tbody.appendChild(row);
+        });
+
+        // Update section controls for filtered results
+        this.updateSectionControls(sectionName);
+
+        console.log(`Rendered ${filteredTests.length} filtered tests for ${sectionName}`);
+    }
+
+    // Clear search for a specific section
+    clearSearch(sectionName) {
+        const searchInputMapping = {
+            'pending-test': 'searchPendingTests',
+            'upcoming-test': 'searchUpcomingTests',
+            'pending-review': 'searchReviewTests',
+            'completed': 'searchCompletedTests',
+            'cancelled-test': 'searchCancelledTests'
+        };
+
+        const clearButtonMapping = {
+            'pending-test': 'clearSearchPendingTests',
+            'upcoming-test': 'clearSearchUpcomingTests',
+            'pending-review': 'clearSearchReviewTests',
+            'completed': 'clearSearchCompletedTests',
+            'cancelled-test': 'clearSearchCancelledTests'
+        };
+
+        const searchInputId = searchInputMapping[sectionName];
+        const clearButtonId = clearButtonMapping[sectionName];
+
+        if (searchInputId) {
+            const searchInput = document.getElementById(searchInputId);
+            if (searchInput) {
+                searchInput.value = '';
+            }
+        }
+
+        if (clearButtonId) {
+            const clearButton = document.getElementById(clearButtonId);
+            if (clearButton) {
+                clearButton.classList.remove('visible');
+            }
+        }
     }
 
     // Load data for a specific section
@@ -497,6 +708,8 @@ class BloodTestManager {
                     this.sectionData[sectionName] = filteredTests;
                     this.renderSectionTable(sectionName);
                     this.updateSectionControls(sectionName);
+                    // Clear search when data is refreshed
+                    this.clearSearch(sectionName);
                 } else {
                     this.showSectionMessage(sectionName, 'Failed to load data: ' + result.message, 'error');
                 }
@@ -507,6 +720,8 @@ class BloodTestManager {
                     this.sectionData[sectionName] = result.tests;
                     this.renderSectionTable(sectionName);
                     this.updateSectionControls(sectionName);
+                    // Clear search when data is refreshed
+                    this.clearSearch(sectionName);
                 } else {
                     this.showSectionMessage(sectionName, 'Failed to load data: ' + result.message, 'error');
                 }
@@ -564,7 +779,7 @@ class BloodTestManager {
     }
 
     // Create a test row element
-    createTestRow(test, sectionName) {
+    createTestRow(test) {
         const row = document.createElement('tr');
         row.setAttribute('data-test-id', test.id);
         row.setAttribute('data-row-index', test.rowIndex);
@@ -573,148 +788,20 @@ class BloodTestManager {
             <td class="checkbox-col">
                 <input type="checkbox" class="test-checkbox" data-test-id="${test.id}">
             </td>
-            <td class="editable-cell" data-field="date">${test.date}</td>
-            <td class="editable-cell" data-field="iycNumber">${test.iycNumber}</td>
-            <td class="editable-cell" data-field="name">${test.name}</td>
-            <td class="editable-cell" data-field="category">${test.category}</td>
-            <td class="editable-cell" data-field="phone">${test.phone}</td>
-            <td class="editable-cell" data-field="testName">${test.testName}</td>
-            <td class="editable-cell" data-field="referredBy">${test.referredBy}</td>
-            <td class="editable-cell" data-field="remarks">${test.remarks}</td>
+            <td>${test.date}</td>
+            <td>${test.iycNumber}</td>
+            <td>${test.name}</td>
+            <td>${test.category}</td>
+            <td>${test.phone}</td>
+            <td>${test.testName}</td>
+            <td>${test.referredBy}</td>
+            <td>${test.remarks}</td>
         `;
 
         return row;
     }
 
-    // Enter edit mode for a cell
-    enterEditMode(cell) {
-        if (this.editingCell) {
-            this.exitEditMode();
-        }
 
-        this.editingCell = cell;
-        const currentValue = cell.textContent;
-        const field = cell.getAttribute('data-field');
-
-        // Create input element based on field type
-        let input;
-        if (field === 'date') {
-            input = document.createElement('input');
-            input.type = 'date';
-            input.value = currentValue;
-        } else if (field === 'referredBy') {
-            input = document.createElement('select');
-            // Use system config if available, otherwise fallback to CONFIG.DOCTORS
-            const doctorsList = this.systemConfig && this.systemConfig.referredBy ?
-                              this.systemConfig.referredBy : CONFIG.DOCTORS;
-            doctorsList.forEach(doctor => {
-                const option = document.createElement('option');
-                option.value = doctor;
-                option.textContent = doctor;
-                option.selected = doctor === currentValue;
-                input.appendChild(option);
-            });
-        } else {
-            input = document.createElement('input');
-            input.type = 'text';
-            input.value = currentValue;
-        }
-
-        input.className = 'cell-editor';
-        input.addEventListener('blur', () => this.saveEdit());
-        input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                this.saveEdit();
-            } else if (e.key === 'Escape') {
-                this.cancelEdit();
-            }
-        });
-
-        cell.innerHTML = '';
-        cell.appendChild(input);
-        input.focus();
-    }
-
-    // Exit edit mode
-    exitEditMode() {
-        if (this.editingCell) {
-            const input = this.editingCell.querySelector('.cell-editor');
-            if (input) {
-                this.editingCell.textContent = input.value;
-            }
-            this.editingCell = null;
-        }
-    }
-
-    // Save edit
-    async saveEdit() {
-        if (!this.editingCell) return;
-
-        const input = this.editingCell.querySelector('.cell-editor');
-        if (!input) return;
-
-        const newValue = input.value;
-        const field = this.editingCell.getAttribute('data-field');
-        const row = this.editingCell.closest('tr');
-        const testId = row.getAttribute('data-test-id');
-        const rowIndex = row.getAttribute('data-row-index');
-
-        try {
-            // Get current test data
-            const test = this.findTestById(testId);
-            if (!test) return;
-
-            // Update test data
-            test[field] = newValue;
-
-            // Prepare data for API
-            const testData = {
-                date: test.date,
-                iycNumber: test.iycNumber,
-                name: test.name,
-                category: test.category,
-                phone: test.phone,
-                testName: test.testName,
-                referredBy: test.referredBy,
-                status: test.status,
-                remarks: test.remarks
-            };
-
-            // Update in Google Sheets
-            const result = await googleSheetsAPI.updateTest(rowIndex, testData);
-
-            if (result.success) {
-                this.editingCell.textContent = newValue;
-                this.showSectionMessage(this.currentSection, 'Test updated successfully', 'success');
-            } else {
-                throw new Error(result.message || 'Failed to update test');
-            }
-        } catch (error) {
-            console.error('Error saving edit:', error);
-            this.showSectionMessage(this.currentSection, 'Failed to save changes: ' + error.message, 'error');
-            // Revert to original value
-            const test = this.findTestById(testId);
-            if (test) {
-                this.editingCell.textContent = test[field];
-            }
-        } finally {
-            this.editingCell = null;
-        }
-    }
-
-    // Cancel edit
-    cancelEdit() {
-        if (this.editingCell) {
-            const testId = this.editingCell.closest('tr').getAttribute('data-test-id');
-            const field = this.editingCell.getAttribute('data-field');
-            const test = this.findTestById(testId);
-
-            if (test) {
-                this.editingCell.textContent = test[field];
-            }
-            this.editingCell = null;
-        }
-    }
 
     // Find test by ID
     findTestById(testId) {
@@ -736,18 +823,20 @@ class BloodTestManager {
         }
 
         this.updateSectionControls(section);
+        this.updateSelectAllState(section);
     }
 
     // Handle select all
-    handleSelectAll(checkbox) {
+    handleSelectAll(selectAllCheckbox) {
         const section = this.currentSection;
+        const isChecked = selectAllCheckbox.checked;
         const testCheckboxes = document.querySelectorAll(`#${section}-section .test-checkbox`);
 
-        testCheckboxes.forEach(cb => {
-            cb.checked = checkbox.checked;
-            const testId = cb.getAttribute('data-test-id');
+        testCheckboxes.forEach(checkbox => {
+            checkbox.checked = isChecked;
+            const testId = checkbox.getAttribute('data-test-id');
 
-            if (checkbox.checked) {
+            if (isChecked) {
                 this.selectedTests[section].add(testId);
             } else {
                 this.selectedTests[section].delete(testId);
@@ -756,6 +845,34 @@ class BloodTestManager {
 
         this.updateSectionControls(section);
     }
+
+    // Update select all state
+    updateSelectAllState(sectionName) {
+        const selectAllId = this.getSelectAllId(sectionName);
+        const selectAllCheckbox = document.getElementById(selectAllId);
+
+        if (selectAllCheckbox) {
+            const testCheckboxes = document.querySelectorAll(`#${sectionName}-section .test-checkbox`);
+            const checkedCount = document.querySelectorAll(`#${sectionName}-section .test-checkbox:checked`).length;
+
+            selectAllCheckbox.checked = testCheckboxes.length > 0 && checkedCount === testCheckboxes.length;
+            selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < testCheckboxes.length;
+        }
+    }
+
+    // Get select all checkbox ID
+    getSelectAllId(sectionName) {
+        const mapping = {
+            'pending-test': 'selectAllPendingTests',
+            'upcoming-test': 'selectAllUpcomingTests',
+            'pending-review': 'selectAllReviewTests',
+            'completed': 'selectAllCompletedTests',
+            'cancelled-test': 'selectAllCancelledTests'
+        };
+        return mapping[sectionName];
+    }
+
+
 
     // Update section controls
     updateSectionControls(sectionName) {
@@ -777,21 +894,8 @@ class BloodTestManager {
                 `Actions (${selectedCount})` : 'Actions';
         }
 
-        // Update select all checkbox
-        const selectAllMapping = {
-            'upcoming-test': 'selectAllUpcoming',
-            'pending-test': 'selectAllPending',
-            'pending-review': 'selectAllReview',
-            'completed': 'selectAllCompleted',
-            'cancelled-test': 'selectAllCancelled'
-        };
-
-        const selectAllCheckbox = document.getElementById(selectAllMapping[sectionName]);
-        if (selectAllCheckbox) {
-            const totalTests = this.sectionData[sectionName].length;
-            selectAllCheckbox.checked = selectedCount > 0 && selectedCount === totalTests;
-            selectAllCheckbox.indeterminate = selectedCount > 0 && selectedCount < totalTests;
-        }
+        // Update select all checkbox state
+        this.updateSelectAllState(sectionName);
     }
 
     // Toggle action dropdown
@@ -1035,8 +1139,8 @@ class BloodTestManager {
                                 <input type="text" id="updatePatientName" value="${formData.patientName || ''}" required>
                             </div>
                             <div class="detail-item">
-                                <label>Email: <span class="required">*</span></label>
-                                <input type="email" id="updatePatientEmail" value="${formData.email || ''}" required>
+                                <label>Email:</label>
+                                <input type="email" id="updatePatientEmail" value="${formData.email || ''}">
                             </div>
                             <div class="detail-item">
                                 <label>Phone: <span class="required">*</span></label>
@@ -1094,30 +1198,42 @@ class BloodTestManager {
             const iycNumber = document.querySelector('#bloodTestUpdateDetailsModal .readonly-field').value.trim();
 
             // Validate required fields
-            if (!name || !email || !phone) {
-                alert('Please fill in all required fields (Name, Email, Phone)');
+            if (!name || !phone) {
+                alert('Please fill in all required fields (Name, Phone)');
                 return;
             }
 
-            // Validate email format
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!emailRegex.test(email)) {
-                alert('Please enter a valid email address');
-                return;
+            // Validate email format if email is provided
+            if (email && email.trim() !== '') {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(email)) {
+                    alert('Please enter a valid email address');
+                    return;
+                }
             }
+
+            // Show loading overlay
+            loadingOverlay.show('Updating patient details...', 'Please wait while we save your changes to the database');
 
             // Prepare patient data for update
             const patientData = {
                 iycNumber: iycNumber,
                 name: name,
-                email: email,
                 phone: phone
             };
+
+            // Only include email if it's provided
+            if (email && email.trim() !== '') {
+                patientData.email = email;
+            }
 
             // Update patient in database
             const result = await googleSheetsAPI.updatePatientDetails(patientData);
 
             if (result && result.success) {
+                // Show success overlay
+                loadingOverlay.showSuccess('Patient details updated successfully!', 'Your changes have been saved to the database');
+
                 // Update the form fields with the new values
                 const nameInput = document.getElementById('patientName');
                 const emailInput = document.getElementById('email');
@@ -1136,6 +1252,7 @@ class BloodTestManager {
                 }
             } else {
                 const errorMessage = result ? (result.message || 'Failed to update patient details') : 'No response from server';
+                loadingOverlay.showError('Update failed', errorMessage);
                 this.showMessage('formMessage', errorMessage, 'error');
             }
         } catch (error) {
@@ -1144,11 +1261,12 @@ class BloodTestManager {
 
             // Provide more specific error messages
             if (error.message && error.message.includes('Doctype')) {
-                errorMessage = 'Server error: Please make sure the backend server is running on port 3001';
+                errorMessage = 'Server error: Please make sure the backend server is running and accessible';
             } else if (error.message) {
                 errorMessage = `Error: ${error.message}`;
             }
 
+            loadingOverlay.showError('Update failed', errorMessage);
             this.showMessage('formMessage', errorMessage, 'error');
         }
     }
@@ -1244,6 +1362,96 @@ class BloodTestManager {
             subject: 'Blood Test Update',
             body: 'Dear {name}, we have an update regarding your blood test ({testName}). Please contact us for more information. IYC: {iycNumber}'
         };
+    }
+
+    // Load patient data for name search
+    async loadPatientData() {
+        try {
+            console.log('Blood Test - Loading patient data...');
+            const result = await googleSheetsAPI.getAllPatients();
+
+            if (result && result.success) {
+                this.patients = result.patients || [];
+                console.log('Blood Test - Patient data loaded successfully:', this.patients.length, 'patients');
+            } else {
+                console.error('Blood Test - Failed to load patient data');
+                this.patients = [];
+            }
+        } catch (error) {
+            console.error('Blood Test - Error loading patient data:', error);
+            this.patients = [];
+        }
+    }
+
+    // Handle name search
+    handleNameSearch(searchTerm) {
+        if (!searchTerm || searchTerm.trim() === '' || searchTerm.length < 2) {
+            this.hideNameDropdown();
+            return;
+        }
+
+        const filteredPatients = this.patients.filter(patient =>
+            patient.name.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+
+        if (filteredPatients.length > 0) {
+            this.showNameDropdown(filteredPatients);
+        } else {
+            this.hideNameDropdown();
+        }
+    }
+
+    // Show name search dropdown
+    showNameDropdown(patients) {
+        const dropdown = document.getElementById('bloodTestNameSearchDropdown');
+        if (!dropdown) return;
+
+        dropdown.innerHTML = '';
+
+        patients.slice(0, 10).forEach(patient => { // Limit to 10 results
+            const item = document.createElement('div');
+            item.className = 'search-dropdown-item';
+            item.textContent = `${patient.name} (${patient.iycNumber})`;
+            item.addEventListener('click', () => {
+                this.selectPatient(patient);
+            });
+            dropdown.appendChild(item);
+        });
+
+        dropdown.style.display = 'block';
+    }
+
+    // Hide name search dropdown
+    hideNameDropdown() {
+        const dropdown = document.getElementById('bloodTestNameSearchDropdown');
+        if (dropdown) {
+            dropdown.style.display = 'none';
+        }
+    }
+
+    // Select patient from dropdown
+    selectPatient(patient) {
+        const iycInput = document.getElementById('iycNumber');
+        const nameInput = document.getElementById('patientName');
+        const categoryInput = document.getElementById('category');
+        const phoneInput = document.getElementById('phoneNumber');
+
+        if (iycInput) iycInput.value = patient.iycNumber;
+        if (nameInput) {
+            nameInput.value = patient.name;
+            nameInput.style.backgroundColor = '#e8f5e8';
+        }
+        if (categoryInput) {
+            categoryInput.value = patient.category || '';
+            categoryInput.style.backgroundColor = '#e8f5e8';
+        }
+        if (phoneInput) {
+            phoneInput.value = patient.phone || '';
+            phoneInput.style.backgroundColor = '#e8f5e8';
+        }
+
+        this.hideNameDropdown();
+        this.validateForm();
     }
 }
 

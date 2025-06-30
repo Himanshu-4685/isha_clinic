@@ -21,14 +21,33 @@ class DietRequestManager {
     init() {
         console.log('Diet Request - Initializing module...');
 
+        // Ensure DOM is ready before setting up event listeners
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                this.setupEventListeners();
+            });
+        } else {
+            this.setupEventListeners();
+        }
+
+        // Load data that doesn't require DOM elements
+        this.loadSystemConfig();
+        this.loadPatientData();
+
+        console.log('Diet Request - Module initialized successfully');
+    }
+
+    // Setup all event listeners and DOM-dependent functionality
+    setupEventListeners() {
+        console.log('Diet Request - Setting up event listeners...');
+
         this.setupSidebarNavigation();
         this.setupNewRequestForm();
         this.setupFormValidation();
         this.setupTableInteractions();
         this.setupBulkActions();
         this.setupRefreshButtons();
-        this.loadSystemConfig();
-        this.loadPatientData();
+        this.setupSearchFunctionality();
         this.setDefaultStartDate();
 
         // Load data for current section if not new-request
@@ -36,7 +55,7 @@ class DietRequestManager {
             this.loadSectionData(this.currentSection);
         }
 
-        console.log('Diet Request - Module initialized successfully');
+        console.log('Diet Request - Event listeners setup completed');
     }
 
     // Setup sidebar navigation
@@ -227,8 +246,139 @@ class DietRequestManager {
         const refreshBtn = document.getElementById('refreshDietRecordsBtn');
         if (refreshBtn) {
             refreshBtn.addEventListener('click', () => {
-                this.loadSectionData('records');
+                // Ensure we're refreshing the records section
+                if (this.currentSection === 'records') {
+                    this.loadSectionData('records');
+                }
             });
+        }
+    }
+
+    // Setup search functionality
+    setupSearchFunctionality() {
+        const searchInput = document.getElementById('searchDietRecords');
+        const clearBtn = document.getElementById('clearSearchDietRecords');
+
+        if (searchInput) {
+            let searchTimer;
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value.trim();
+
+                // Show/hide clear button
+                if (clearBtn) {
+                    if (query.length > 0) {
+                        clearBtn.classList.add('visible');
+                    } else {
+                        clearBtn.classList.remove('visible');
+                    }
+                }
+
+                // Debounce search
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(() => {
+                    this.performSearch(query);
+                }, 300);
+            });
+        }
+
+        // Setup clear button event listener
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => {
+                if (searchInput) {
+                    searchInput.value = '';
+                    clearBtn.classList.remove('visible');
+                    this.performSearch('');
+                }
+            });
+        }
+    }
+
+    // Perform search functionality
+    performSearch(query) {
+        // Get all records for the records section
+        const allRecords = this.sectionData['records'] || [];
+
+        if (query === '') {
+            // Show all records if search is empty
+            this.renderFilteredRecords(allRecords);
+        } else {
+            // Filter records based on search query
+            const filteredRecords = this.filterRecords(allRecords, query);
+            this.renderFilteredRecords(filteredRecords);
+        }
+    }
+
+    // Filter records based on search query
+    filterRecords(records, query) {
+        const searchTerm = query.toLowerCase().trim();
+
+        return records.filter(record => {
+            // Search in name
+            const name = (record.name || '').toLowerCase();
+            if (name.includes(searchTerm)) return true;
+
+            // Search in IYC number
+            const iycNumber = (record.iycNumber || '').toLowerCase();
+            if (iycNumber.includes(searchTerm)) return true;
+
+            // Search in status
+            const status = (record.status || '').toLowerCase();
+            if (status.includes(searchTerm)) return true;
+
+            // Search in duration
+            const duration = (record.duration || '').toString().toLowerCase();
+            if (duration.includes(searchTerm)) return true;
+
+            return false;
+        });
+    }
+
+    // Render filtered records
+    renderFilteredRecords(filteredRecords) {
+        const table = document.getElementById('dietRecordsTable');
+
+        if (!table) {
+            console.error('Diet records table not found');
+            return;
+        }
+
+        const tbody = table.querySelector('tbody');
+
+        // Clear existing rows
+        tbody.innerHTML = '';
+
+        if (filteredRecords.length === 0) {
+            tbody.innerHTML = `
+                <tr class="no-data">
+                    <td colspan="8">No matching records found</td>
+                </tr>
+            `;
+            return;
+        }
+
+        // Render filtered record rows
+        filteredRecords.forEach(record => {
+            const row = this.createRecordRow(record);
+            tbody.appendChild(row);
+        });
+
+        // Update section controls for filtered results
+        this.updateSectionControls('records');
+
+        console.log(`Rendered ${filteredRecords.length} filtered records`);
+    }
+
+    // Clear search
+    clearSearch() {
+        const searchInput = document.getElementById('searchDietRecords');
+        const clearButton = document.getElementById('clearSearchDietRecords');
+
+        if (searchInput) {
+            searchInput.value = '';
+        }
+
+        if (clearButton) {
+            clearButton.classList.remove('visible');
         }
     }
 
@@ -775,6 +925,24 @@ class DietRequestManager {
         }
     }
 
+    // Show section loading state
+    showSectionLoading(sectionName, isLoading) {
+        const messageMapping = {
+            'records': 'dietRecordsMessage'
+        };
+
+        const messageElement = document.getElementById(messageMapping[sectionName]);
+        if (messageElement) {
+            if (isLoading) {
+                messageElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+                messageElement.className = 'section-message loading';
+                messageElement.style.display = 'block';
+            } else {
+                messageElement.style.display = 'none';
+            }
+        }
+    }
+
     // Load section data
     async loadSectionData(sectionName) {
         if (this.loadingData) return;
@@ -784,12 +952,16 @@ class DietRequestManager {
 
         try {
             if (sectionName === 'records') {
+                this.showSectionLoading(sectionName, true);
+
                 const result = await googleSheetsAPI.getDietRequests();
 
                 if (result && result.success) {
                     this.sectionData[sectionName] = result.dietRequests || [];
                     this.renderSectionTable(sectionName);
                     this.updateSectionControls(sectionName);
+                    // Clear search when data is refreshed
+                    this.clearSearch();
                 } else {
                     console.error('Diet Request - Failed to load records');
                     this.showMessage('dietRecordsMessage', 'Failed to load records', 'error');
@@ -799,6 +971,7 @@ class DietRequestManager {
             console.error(`Diet Request - Error loading ${sectionName} data:`, error);
             this.showMessage(`diet${sectionName.charAt(0).toUpperCase() + sectionName.slice(1)}Message`, 'Error loading data', 'error');
         } finally {
+            this.showSectionLoading(sectionName, false);
             this.loadingData = false;
         }
     }
@@ -1463,6 +1636,9 @@ class DietRequestManager {
                 return;
             }
 
+            // Show loading overlay
+            loadingOverlay.show('Updating patient details...', 'Please wait while we save your changes to the database');
+
             // Prepare patient data for update
             const patientData = {
                 iycNumber: iycNumber,
@@ -1475,6 +1651,9 @@ class DietRequestManager {
             const result = await googleSheetsAPI.updatePatientDetails(patientData);
 
             if (result && result.success) {
+                // Show success overlay
+                loadingOverlay.showSuccess('Patient details updated successfully!', 'Your changes have been saved to the database');
+
                 // Update the form fields with the new values
                 const dietNameInput = document.getElementById('dietPatientName');
                 const dietEmailInput = document.getElementById('dietEmail');
@@ -1493,6 +1672,7 @@ class DietRequestManager {
                 }
             } else {
                 const errorMessage = result ? (result.message || 'Failed to update patient details') : 'No response from server';
+                loadingOverlay.showError('Update failed', errorMessage);
                 this.showMessage('dietFormMessage', errorMessage, 'error');
             }
         } catch (error) {
@@ -1501,11 +1681,12 @@ class DietRequestManager {
 
             // Provide more specific error messages
             if (error.message && error.message.includes('Doctype')) {
-                errorMessage = 'Server error: Please make sure the backend server is running on port 3001';
+                errorMessage = 'Server error: Please make sure the backend server is running and accessible';
             } else if (error.message) {
                 errorMessage = `Error: ${error.message}`;
             }
 
+            loadingOverlay.showError('Update failed', errorMessage);
             this.showMessage('dietFormMessage', errorMessage, 'error');
         }
     }
@@ -1514,12 +1695,7 @@ class DietRequestManager {
 }
 
 // Global instance
-let dietRequestManager;
-
-// Initialize when DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-    dietRequestManager = new DietRequestManager();
-});
+const dietRequestManager = new DietRequestManager();
 
 // Export for debugging
 window.dietRequestManager = dietRequestManager;
