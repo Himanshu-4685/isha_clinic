@@ -52,6 +52,10 @@
                         <i class="fas fa-utensils"></i>
                         <span>Diet Request</span>
                     </div>
+                    <div class="nav-item" data-module="register-patient">
+                        <i class="fas fa-user-plus"></i>
+                        <span>Register Patient</span>
+                    </div>
 
                     <div class="nav-item" data-module="isolation">
                         <i class="fas fa-shield-alt"></i>
@@ -73,6 +77,153 @@
 
         <!-- Main Content Area -->
         <div class="main-content">
+            <!-- Register Patient Module -->
+            <div id="register-patient-module" class="module" style="display: none;">
+                <div class="module-container">
+                    <!-- Sidebar Navigation -->
+                    <div class="sidebar">
+                        <h3>Register Patient</h3>
+                        <ul class="sidebar-nav">
+                            <li class="sidebar-item active" data-section="new-patient">
+                                <i class="fas fa-user-plus"></i>
+                                New Patient
+                            </li>
+                            <li class="sidebar-item" data-section="patient-list">
+                                <i class="fas fa-users"></i>
+                                Patient List
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- Content Area -->
+                    <div class="content">
+                        <!-- New Patient Section -->
+                        <div id="register-new-patient-section" class="section active">
+                            <div class="section-header">
+                                <h2>Register New Patient</h2>
+                                <p>Add a new patient to the system</p>
+                            </div>
+
+                            <!-- Patient Registration Form -->
+                            <div class="form-container">
+                                <form id="registerPatientForm" class="patient-form">
+                                    <div class="form-row">
+                                        <div class="form-group full-width">
+                                            <label>Patient Type *</label>
+                                            <div class="checkbox-group">
+                                                <label class="checkbox-option">
+                                                    <input type="radio" name="patientType" value="poornanga" required>
+                                                    <span class="checkmark"></span>
+                                                    Poornanga
+                                                </label>
+                                                <label class="checkbox-option">
+                                                    <input type="radio" name="patientType" value="non-poornanga" required>
+                                                    <span class="checkmark"></span>
+                                                    Non Poornanga
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="patientName">Full Name *</label>
+                                            <input type="text" id="patientName" name="name" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="patientEmail">Email Address *</label>
+                                            <input type="email" id="patientEmail" name="email" required>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="patientPhone">Phone Number *</label>
+                                            <input type="tel" id="patientPhone" name="phone" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="patientIYC">IYC Number</label>
+                                            <input type="text" id="patientIYC" name="iyc">
+                                        </div>
+                                    </div>
+
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="patientCategory">Category *</label>
+                                            <select id="patientCategory" name="category" required>
+                                                <option value="">Select Category</option>
+                                                <!-- Options will be populated dynamically based on patient type -->
+                                            </select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="emergencyContact">Emergency Contact</label>
+                                            <input type="tel" id="emergencyContact" name="emergencyContact">
+                                        </div>
+                                    </div>
+
+                                    <div class="form-actions">
+                                        <button type="button" class="btn btn-secondary" onclick="registerPatientManager.clearForm()">
+                                            <i class="fas fa-times"></i>
+                                            Clear Form
+                                        </button>
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="fas fa-user-plus"></i>
+                                            Register Patient
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Patient List Section -->
+                        <div id="register-patient-list-section" class="section">
+                            <div class="section-header">
+                                <h2>Patient List</h2>
+                                <p>View all registered patients</p>
+                            </div>
+
+                            <!-- Section Controls -->
+                            <div class="section-controls">
+                                <div class="search-controls">
+                                    <div class="search-input-group">
+                                        <i class="fas fa-search search-icon"></i>
+                                        <input type="text" id="searchPatientList" class="search-input" placeholder="Search by name, IYC, phone, or category...">
+                                        <button id="clearSearchPatientList" class="clear-search-btn" title="Clear search">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <button id="refreshPatientListBtn" class="refresh-btn">
+                                    <i class="fas fa-sync-alt"></i>
+                                    Refresh
+                                </button>
+                            </div>
+
+                            <!-- Patient List Table -->
+                            <div class="table-container">
+                                <table id="patientListTable" class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>IYC Number</th>
+                                            <th>Name</th>
+                                            <th>Phone Number</th>
+                                            <th>Category</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr class="no-data">
+                                            <td colspan="4">No patients found</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+
+                    </div>
+                </div>
+            </div>
+
             <!-- Blood Test Module -->
             <div id="blood-test-module" class="module" style="display: none;">
                 <div class="module-container">
@@ -1937,6 +2088,7 @@
     <script src="ultrasound.js"></script>
     <script src="hospital-visit.js"></script>
     <script src="diet-request.js"></script>
+    <script src="register-patient.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

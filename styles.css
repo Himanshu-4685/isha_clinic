@@ -1573,6 +1573,202 @@ input[style*="background-color: rgb(232, 245, 232)"] {
     color: #dc3545;
 }
 
+/* Notification Styles */
+.notification {
+    position: fixed;
+    top: 100px;
+    right: 20px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    padding: 1rem 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    z-index: 10001;
+    transform: translateX(400px);
+    opacity: 0;
+    transition: all 0.3s ease;
+    min-width: 300px;
+    max-width: 400px;
+    border-left: 4px solid #667eea;
+}
+
+.notification.show {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+.notification i {
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+.notification span {
+    font-weight: 500;
+    line-height: 1.4;
+}
+
+.notification-success {
+    border-left-color: #28a745;
+    background: #f8fff9;
+}
+
+.notification-success i {
+    color: #28a745;
+}
+
+.notification-success span {
+    color: #155724;
+}
+
+.notification-error {
+    border-left-color: #dc3545;
+    background: #fff8f8;
+}
+
+.notification-error i {
+    color: #dc3545;
+}
+
+.notification-error span {
+    color: #721c24;
+}
+
+.notification-info {
+    border-left-color: #17a2b8;
+    background: #f8fcff;
+}
+
+.notification-info i {
+    color: #17a2b8;
+}
+
+.notification-info span {
+    color: #0c5460;
+}
+
+/* Form validation error styles */
+.form-group input.error,
+.form-group select.error,
+.form-group textarea.error {
+    border-color: #dc3545;
+    background-color: #fff5f5;
+}
+
+.form-group input.error:focus,
+.form-group select.error:focus,
+.form-group textarea.error:focus {
+    border-color: #dc3545;
+    box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.2);
+}
+
+/* Full width form group for register patient */
+.form-group.full-width {
+    grid-column: 1 / -1;
+}
+
+.form-group textarea {
+    padding: 0.75rem;
+    border: 2px solid #e1e5e9;
+    border-radius: 5px;
+    font-size: 1rem;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 80px;
+    transition: border-color 0.3s ease;
+}
+
+.form-group textarea:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+/* Checkbox group styles for patient type */
+.checkbox-group {
+    display: flex;
+    gap: 2rem;
+    margin-top: 0.5rem;
+}
+
+.checkbox-option {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    font-weight: 500;
+    color: #333;
+    position: relative;
+    padding-left: 2rem;
+}
+
+.checkbox-option input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    cursor: pointer;
+    height: 0;
+    width: 0;
+}
+
+.checkmark {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 20px;
+    width: 20px;
+    background-color: #fff;
+    border: 2px solid #e1e5e9;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+.checkbox-option:hover input ~ .checkmark {
+    border-color: #667eea;
+}
+
+.checkbox-option input:checked ~ .checkmark {
+    background-color: #667eea;
+    border-color: #667eea;
+}
+
+.checkmark:after {
+    content: "";
+    position: absolute;
+    display: none;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: white;
+}
+
+.checkbox-option input:checked ~ .checkmark:after {
+    display: block;
+}
+
+/* Disabled/readonly field styles */
+.form-group input:disabled,
+.form-group select:disabled,
+.form-group input:read-only {
+    background-color: #f8f9fa;
+    color: #6c757d;
+    cursor: not-allowed;
+    border-color: #e9ecef;
+}
+
+.form-group input:read-only {
+    cursor: default;
+}
+
+/* Required field indicator */
+.form-group label:has(+ input[required])::after,
+.form-group label:has(+ select[required])::after {
+    content: " *";
+    color: #dc3545;
+}
+
 /* Hide spinner for success/error states */
 .loading-overlay.success .loading-spinner i,
 .loading-overlay.error .loading-spinner i {

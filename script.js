@@ -110,6 +110,14 @@ class ClinicApp {
                     console.error('dietRequestManager not found');
                 }
                 break;
+            case 'register-patient':
+                if (typeof registerPatientManager !== 'undefined') {
+                    console.log('Register patient module already initialized');
+                    // Any module-specific switching logic can go here
+                } else {
+                    console.error('registerPatientManager not found');
+                }
+                break;
 
             case 'isolation':
                 // Initialize isolation module when implemented
@@ -150,7 +158,11 @@ class ClinicApp {
             dietRequestManager.init();
         }
 
-
+        // Initialize register patient module
+        if (typeof registerPatientManager !== 'undefined') {
+            console.log('Initializing register patient module on startup');
+            registerPatientManager.init();
+        }
 
         // Add other module initializations here as they are implemented
     }
@@ -432,6 +444,7 @@ window.ClinicApp = {
     ultrasound: ultrasoundManager,
     hospitalVisit: hospitalVisitManager,
     dietRequest: dietRequestManager,
+    registerPatient: registerPatientManager,
     sheets: googleSheetsAPI,
     utils: AppUtils,
     config: CONFIG,
