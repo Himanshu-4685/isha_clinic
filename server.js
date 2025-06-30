@@ -81,10 +81,10 @@ app.get('/api/patient/:iycNumber', async (req, res) => {
 
         console.log(`Looking up patient with IYC: ${iycNumber}`);
 
-        // Read from Patient Database worksheet (including email and category columns)
+        // Read from Patient Database worksheet - main patient area (A-G)
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: 'Patient Database!A:H',
+            range: 'Patient Database!A:G',
         });
 
         const rows = response.data.values || [];
@@ -95,11 +95,11 @@ app.get('/api/patient/:iycNumber', async (req, res) => {
             if (row[1] && row[1].toString().toLowerCase() === iycNumber.toLowerCase()) {
                 return res.json({
                     found: true,
-                    name: row[0] || '',
-                    iycNumber: row[1] || '',
-                    email: row[2] || '', // Column C for email (assuming)
-                    phone: row[4] || '',
-                    category: row[6] || '' // Column G for category
+                    name: row[0] || '',        // A: Name
+                    iycNumber: row[1] || '',   // B: IYC Number
+                    email: row[2] || '',       // C: Email
+                    phone: row[4] || '',       // E: Phone Numbers
+                    category: row[6] || ''     // G: Category
                 });
             }
         }
@@ -907,10 +907,10 @@ app.get('/api/patients', async (req, res) => {
     try {
         console.log('Getting all patients for search...');
 
-        // Read from Patient Database worksheet
+        // Read from Patient Database worksheet - main patient area (A-G)
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: 'Patient Database!A:H',
+            range: 'Patient Database!A:G',
         });
 
         const rows = response.data.values || [];
@@ -919,11 +919,13 @@ app.get('/api/patients', async (req, res) => {
         const patients = rows.slice(1)
             .filter(row => row[0] && row[1]) // Must have name and IYC
             .map(row => ({
-                name: row[0] || '',
-                iycNumber: row[1] || '',
-                email: row[2] || '',
-                phone: row[4] || '',
-                category: row[6] || ''
+                name: row[0] || '',              // A: Name
+                iycNumber: row[1] || '',         // B: IYC Number
+                email: row[2] || '',             // C: Email
+                personalEmail: row[3] || '',     // D: Personal Email
+                phone: row[4] || '',             // E: Phone Numbers
+                department: row[5] || '',        // F: Current Department
+                category: row[6] || ''           // G: Category
             }));
 
         res.json({
@@ -2066,10 +2068,10 @@ app.get('/api/patients', async (req, res) => {
     try {
         console.log('Getting all patients for name search');
 
-        // Read from Patient Database worksheet
+        // Read from Patient Database worksheet - main patient area (A-G)
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: 'Patient Database!A:H',
+            range: 'Patient Database!A:G',
         });
 
         const rows = response.data.values || [];
@@ -2083,14 +2085,13 @@ app.get('/api/patients', async (req, res) => {
 
         // Skip header row and format data
         const patients = rows.slice(1).map(row => ({
-            iycNumber: row[1] || '',
-            name: row[0] || '',
-            email: row[2] || '',
-            phone: row[3] || '',
-            address: row[4] || '',
-            emergencyContact: row[5] || '',
-            medicalHistory: row[6] || '',
-            notes: row[7] || ''
+            name: row[0] || '',              // A: Name
+            iycNumber: row[1] || '',         // B: IYC Number
+            email: row[2] || '',             // C: Email
+            personalEmail: row[3] || '',     // D: Personal Email
+            phone: row[4] || '',             // E: Phone Numbers
+            department: row[5] || '',        // F: Current Department
+            category: row[6] || ''           // G: Category
         })).filter(patient => {
             // Only include rows with both name and IYC number
             return patient.name && patient.iycNumber;
@@ -2768,7 +2769,7 @@ async function ensurePatientDatabaseHeaders() {
         // Check if the worksheet exists and has correct headers for key columns
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: 'Patient Database!A1:E1'
+            range: 'Patient Database!A1:I1'
         });
 
         const expectedHeaders = ['Name', 'IYC Number', 'Email', 'Personal Email', 'Phone Numbers'];
@@ -2812,10 +2813,10 @@ async function ensurePatientDatabaseHeaders() {
                 // Add headers
                 await sheets.spreadsheets.values.update({
                     spreadsheetId: SPREADSHEET_ID,
-                    range: 'Patient Database!A1:E1',
+                    range: 'Patient Database!A1:I1',
                     valueInputOption: 'RAW',
                     resource: {
-                        values: [['Name', 'IYC Number', 'Email', 'Personal Email', 'Phone Numbers']]
+                        values: [['Name', 'IYC Number', 'Email', 'Personal Email', 'Phone Numbers', 'Address', 'Category', 'Emergency Contact', 'Patient Type']]
                     }
                 });
 
@@ -2830,6 +2831,169 @@ async function ensurePatientDatabaseHeaders() {
         }
     }
 }
+
+// Get next available patient ID for non-poornanga patients
+app.get('/api/next-patient-id', async (req, res) => {
+    try {
+        console.log('Generating next patient ID...');
+
+        // Read from Patient Database worksheet to find the highest ID number
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'Patient Database!B:B', // IYC column
+        });
+
+        const rows = response.data.values || [];
+        let maxIdNumber = 0;
+
+        console.log(`Found ${rows.length} rows in Patient Database`);
+
+        // Find the highest ID number from existing auto-generated IDs
+        for (let i = 1; i < rows.length; i++) {
+            const iycValue = rows[i][0];
+            if (iycValue && iycValue.startsWith('ID')) {
+                const idNumber = parseInt(iycValue.substring(2));
+                console.log(`Found existing ID: ${iycValue}, number: ${idNumber}`);
+                if (!isNaN(idNumber) && idNumber > maxIdNumber) {
+                    maxIdNumber = idNumber;
+                }
+            }
+        }
+
+        // Generate next ID - if no existing IDs found, start from 1 (which becomes ID001)
+        const nextIdNumber = maxIdNumber + 1;
+        const nextId = `ID${nextIdNumber.toString().padStart(3, '0')}`;
+
+        console.log(`Max existing ID number: ${maxIdNumber}, Next ID: ${nextId}`);
+
+        console.log(`Generated next patient ID: ${nextId}`);
+
+        res.json({
+            success: true,
+            nextId: nextId
+        });
+
+    } catch (error) {
+        console.error('Error generating next patient ID:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to generate patient ID',
+            error: error.message
+        });
+    }
+});
+
+// Register new patient in Patient Database sheet
+app.post('/api/register-patient', async (req, res) => {
+    try {
+        const { name, email, phone, iyc, category, emergencyContact, patientType } = req.body;
+
+        if (!name || !email || !phone || !patientType || !category) {
+            return res.status(400).json({
+                success: false,
+                message: 'Name, email, phone, patient type, and category are required'
+            });
+        }
+
+        // Additional validation for Poornanga patients
+        if (patientType === 'poornanga' && !iyc) {
+            return res.status(400).json({
+                success: false,
+                message: 'IYC number is required for Poornanga patients'
+            });
+        }
+
+        console.log(`Registering new patient: ${name}, Type: ${patientType}, Email: ${email}, Phone: ${phone}`);
+
+        // Ensure Patient Database worksheet exists and has correct headers
+        await ensurePatientDatabaseHeaders();
+
+        // Check if patient already exists (by email or IYC if provided)
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'Patient Database!A:G'
+        });
+
+        const rows = response.data.values || [];
+
+        // Check for duplicate email or IYC
+        for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            if (row[2] && row[2].toLowerCase() === email.toLowerCase()) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Patient with this email already exists'
+                });
+            }
+            if (iyc && row[1] && row[1].toLowerCase() === iyc.toLowerCase()) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Patient with this IYC number already exists'
+                });
+            }
+        }
+
+        // Handle patient ID and category based on patient type
+        let patientId = iyc;
+        let finalCategory = category;
+
+        if (patientType === 'poornanga') {
+            // For Poornanga: use provided IYC, set category to FTV
+            patientId = iyc;
+            finalCategory = 'FTV';
+        } else if (patientType === 'non-poornanga') {
+            // For Non-Poornanga: use provided auto-generated ID, keep user-selected category
+            patientId = iyc; // This should be the auto-generated ID from frontend
+            finalCategory = category || '';
+        }
+
+        const timestamp = new Date().toISOString();
+
+        // Prepare row data: [Name, IYC, Email, Personal Email, Phone, Current Department, Category]
+        // Match the existing sheet structure: A=Name, B=IYC, C=Email, D=Personal Email, E=Phone, F=Current Department, G=Category
+        // Email placement logic: All emails go to Email column (C)
+        const rowData = [
+            name,                    // A: Name
+            patientId,              // B: IYC Number
+            email,                  // C: Email (for all patient types)
+            '',                     // D: Personal Email (empty for all)
+            phone,                  // E: Phone Numbers
+            'Medical - General',     // F: Current Department (default value)
+            finalCategory           // G: Category
+        ];
+
+        // Add new patient to the sheet - save in main patient area (columns A-G)
+        await sheets.spreadsheets.values.append({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'Patient Database!A:G', // Save in main patient columns
+            valueInputOption: 'RAW',
+            resource: {
+                values: [rowData]
+            }
+        });
+
+        console.log(`Patient registered successfully: ${name} (${patientId})`);
+
+        res.json({
+            success: true,
+            message: 'Patient registered successfully',
+            data: {
+                id: patientId,
+                name: name,
+                email: email,
+                phone: phone
+            }
+        });
+
+    } catch (error) {
+        console.error('Error registering patient:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to register patient',
+            error: error.message
+        });
+    }
+});
 
 // Update patient details in Patient Database sheet
 app.post('/api/update-patient', async (req, res) => {
