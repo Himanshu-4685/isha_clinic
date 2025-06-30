@@ -8,6 +8,7 @@ class RegisterPatientManager {
         this.isFormValid = false;
         this.patients = [];
         this.filteredPatients = [];
+        this.formTouched = false; // Track if user has interacted with the form
     }
 
     // Initialize the register patient module
@@ -108,9 +109,11 @@ class RegisterPatientManager {
             const field = document.getElementById(fieldId);
             if (field) {
                 field.addEventListener('input', () => {
+                    this.formTouched = true;
                     this.validateForm();
                 });
                 field.addEventListener('blur', () => {
+                    this.formTouched = true;
                     this.validateField(field);
                 });
             }
@@ -120,6 +123,7 @@ class RegisterPatientManager {
         const patientTypeRadios = document.querySelectorAll('input[name="patientType"]');
         patientTypeRadios.forEach(radio => {
             radio.addEventListener('change', () => {
+                this.formTouched = true;
                 this.handlePatientTypeChange(radio.value);
                 this.validateForm();
             });
@@ -129,9 +133,11 @@ class RegisterPatientManager {
         const iycField = document.getElementById('patientIYC');
         if (iycField) {
             iycField.addEventListener('input', () => {
+                this.formTouched = true;
                 this.validateForm();
             });
             iycField.addEventListener('blur', () => {
+                this.formTouched = true;
                 this.validateField(iycField);
             });
         }
@@ -161,7 +167,8 @@ class RegisterPatientManager {
             isValid = false;
         }
 
-        if (!isValid) {
+        // Only show error styling if form has been touched
+        if (!isValid && this.formTouched) {
             field.classList.add('error');
         }
 
@@ -427,6 +434,7 @@ class RegisterPatientManager {
             });
 
             this.isFormValid = false;
+            this.formTouched = false; // Reset touched state
             this.validateForm();
         }
     }
@@ -615,10 +623,12 @@ class RegisterPatientManager {
             }
         }
 
-        // Revalidate form after restoration
-        setTimeout(() => {
-            this.validateForm();
-        }, 100);
+        // Only revalidate form after restoration if it was previously touched
+        if (this.formTouched) {
+            setTimeout(() => {
+                this.validateForm();
+            }, 100);
+        }
     }
 
 
