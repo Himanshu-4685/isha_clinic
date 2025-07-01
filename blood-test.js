@@ -21,6 +21,7 @@ class BloodTestManager {
         this.editingCell = null;
         this.patients = [];
         this.loadingData = false;
+        this.isAutoFilling = false; // Flag to prevent name search during auto-fill
     }
 
     // Initialize the blood test module
@@ -105,10 +106,15 @@ class BloodTestManager {
         }
 
         // Handle name input for search
-        const nameInput = document.getElementById('patientName');
+        const nameInput = document.getElementById('bloodTestPatientName');
         if (nameInput) {
             let searchTimer;
             nameInput.addEventListener('input', () => {
+                // Skip name search if we're currently auto-filling from IYC lookup
+                if (this.isAutoFilling) {
+                    return;
+                }
+
                 clearTimeout(searchTimer);
                 searchTimer = setTimeout(() => {
                     this.handleNameSearch(nameInput.value);
@@ -122,6 +128,8 @@ class BloodTestManager {
                 }
             });
         }
+
+
 
         // Handle form submission
         if (form) {
@@ -217,7 +225,7 @@ class BloodTestManager {
         console.log('Blood Test - googleSheetsAPI.isInitialized:', googleSheetsAPI.isInitialized);
 
         const loadingIndicator = document.getElementById('iycLoading');
-        const nameInput = document.getElementById('patientName');
+        const nameInput = document.getElementById('bloodTestPatientName');
         const categoryInput = document.getElementById('category');
         const phoneInput = document.getElementById('phoneNumber');
 
@@ -242,18 +250,32 @@ class BloodTestManager {
             // Show loading indicator
             if (loadingIndicator) loadingIndicator.style.display = 'block';
 
+            // Set auto-filling flag to prevent name search interference
+            this.isAutoFilling = true;
+
             console.log('Blood Test - About to call googleSheetsAPI.lookupPatientByIYC');
             // Lookup patient data
             const result = await googleSheetsAPI.lookupPatientByIYC(iycNumber.trim());
             console.log('Blood Test - API result:', result);
 
             if (result.found) {
+                console.log('Blood Test - Patient found, result data:', {
+                    name: result.name,
+                    category: result.category,
+                    phone: result.phone
+                });
+
                 // Populate fields with found data but allow manual editing
                 if (nameInput) {
+                    console.log('Blood Test - Setting name field value to:', result.name);
+                    console.log('Blood Test - Name input element:', nameInput);
                     nameInput.value = result.name;
                     nameInput.readOnly = false;
                     nameInput.style.backgroundColor = '#e8f5e8'; // Light green to indicate auto-filled
                     nameInput.placeholder = 'Auto-filled from database (editable)';
+                    console.log('Blood Test - Name field value after setting:', nameInput.value);
+                } else {
+                    console.error('Blood Test - Name input element not found!');
                 }
                 if (categoryInput) {
                     categoryInput.value = result.category;
@@ -268,12 +290,16 @@ class BloodTestManager {
                     phoneInput.placeholder = 'Auto-filled from database (editable)';
                 }
             } else {
+                console.log('Blood Test - Patient not found, clearing fields');
                 // Clear fields and allow manual entry
                 if (nameInput) {
+                    console.log('Blood Test - Clearing name field');
                     nameInput.value = '';
                     nameInput.readOnly = false;
                     nameInput.style.backgroundColor = '';
                     nameInput.placeholder = 'Patient not found - enter manually';
+                } else {
+                    console.error('Blood Test - Name input element not found when clearing!');
                 }
                 if (categoryInput) {
                     categoryInput.value = '';
@@ -290,7 +316,7 @@ class BloodTestManager {
             }
         } catch (error) {
             console.error('Error looking up patient:', error);
-            
+
             // Allow manual entry on error
             if (nameInput) {
                 nameInput.readOnly = false;
@@ -310,6 +336,10 @@ class BloodTestManager {
         } finally {
             // Hide loading indicator
             if (loadingIndicator) loadingIndicator.style.display = 'none';
+
+            // Clear auto-filling flag
+            this.isAutoFilling = false;
+
             this.validateForm();
         }
     }
@@ -394,7 +424,7 @@ class BloodTestManager {
     // Reset form
     resetForm() {
         const form = document.getElementById('addTestForm');
-        const nameInput = document.getElementById('patientName');
+        const nameInput = document.getElementById('bloodTestPatientName');
         const categoryInput = document.getElementById('category');
         const phoneInput = document.getElementById('phoneNumber');
 
@@ -1131,7 +1161,7 @@ class BloodTestManager {
         // Get current form data
         const formData = {
             iycNumber: document.getElementById('iycNumber')?.value || '',
-            patientName: document.getElementById('patientName')?.value || '',
+            patientName: document.getElementById('bloodTestPatientName')?.value || '',
             email: document.getElementById('email')?.value || '',
             phoneNumber: document.getElementById('phoneNumber')?.value || ''
         };
@@ -1257,7 +1287,7 @@ class BloodTestManager {
                 loadingOverlay.showSuccess('Patient details updated successfully!', 'Your changes have been saved to the database');
 
                 // Update the form fields with the new values
-                const nameInput = document.getElementById('patientName');
+                const nameInput = document.getElementById('bloodTestPatientName');
                 const emailInput = document.getElementById('email');
                 const phoneInput = document.getElementById('phoneNumber');
 
@@ -1454,7 +1484,7 @@ class BloodTestManager {
     // Select patient from dropdown
     selectPatient(patient) {
         const iycInput = document.getElementById('iycNumber');
-        const nameInput = document.getElementById('patientName');
+        const nameInput = document.getElementById('bloodTestPatientName');
         const categoryInput = document.getElementById('category');
         const phoneInput = document.getElementById('phoneNumber');
 
@@ -1475,6 +1505,8 @@ class BloodTestManager {
         this.hideNameDropdown();
         this.validateForm();
     }
+
+
 
     // View test details
     viewTestDetails(testId) {
@@ -1589,5 +1621,38 @@ window.testBloodTestAPI = async function() {
     } catch (error) {
         console.error('API test error:', error);
         return error;
+    }
+};
+
+// Debug function to test name field directly
+window.debugBloodTestNameField = function() {
+    const nameInput = document.getElementById('bloodTestPatientName');
+    console.log('Name input element:', nameInput);
+    console.log('Current value:', nameInput ? nameInput.value : 'Element not found');
+
+    if (nameInput) {
+        console.log('Setting test value...');
+        nameInput.value = 'Test Name';
+        console.log('Value after setting:', nameInput.value);
+        nameInput.style.backgroundColor = '#e8f5e8';
+
+        setTimeout(() => {
+            console.log('Value after 1 second:', nameInput.value);
+        }, 1000);
+    }
+};
+
+// Debug function to test IYC lookup
+window.debugBloodTestIYCLookup = async function(iycNumber = 'TEST001') {
+    console.log('=== DEBUG: Testing Blood Test IYC lookup ===');
+    console.log('IYC Number:', iycNumber);
+    console.log('bloodTestManager:', bloodTestManager);
+    console.log('googleSheetsAPI.isInitialized:', googleSheetsAPI.isInitialized);
+
+    try {
+        await bloodTestManager.handleIYCLookup(iycNumber);
+        console.log('=== DEBUG: IYC lookup completed ===');
+    } catch (error) {
+        console.error('=== DEBUG: IYC lookup failed ===', error);
     }
 };
