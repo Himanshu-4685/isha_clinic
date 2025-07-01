@@ -1762,12 +1762,7 @@ input[style*="background-color: rgb(232, 245, 232)"] {
     cursor: default;
 }
 
-/* Required field indicator */
-.form-group label:has(+ input[required])::after,
-.form-group label:has(+ select[required])::after {
-    content: " *";
-    color: #dc3545;
-}
+/* Required field indicator - removed automatic asterisk generation since manual asterisks are used in HTML */
 
 /* Hide spinner for success/error states */
 .loading-overlay.success .loading-spinner i,
