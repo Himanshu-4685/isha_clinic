@@ -488,7 +488,7 @@ app.delete('/api/tests', async (req, res) => {
 // Save ultrasound
 app.post('/api/ultrasound', async (req, res) => {
     try {
-        const { schedule, testDate, iycNumber, patientName, category, phoneNumber, testName, referredBy } = req.body;
+        const { schedule, testDate, iycNumber, patientName, category, phoneNumber, testName, referredBy, payment } = req.body;
 
         console.log('Saving ultrasound:', req.body);
 
@@ -506,8 +506,8 @@ app.post('/api/ultrasound', async (req, res) => {
         const ultrasoundId = `US${Date.now()}`;
         const currentTimestamp = new Date().toISOString();
 
-        // Prepare row data with all columns including ID, Timing, Created, Updated, and Scheduling Doctor timestamps
-        const values = [[ultrasoundId, finalDate, iycNumber, patientName, category, phoneNumber, testName, referredBy, schedule, '', '', currentTimestamp, currentTimestamp, '']];
+        // Prepare row data with all columns including ID, Timing, Created, Updated, Scheduling Doctor, and Payment timestamps
+        const values = [[ultrasoundId, finalDate, iycNumber, patientName, category, phoneNumber, testName, referredBy, schedule, '', '', currentTimestamp, currentTimestamp, '', payment || '']];
 
         // First, insert a new row at the specified position
         await sheets.spreadsheets.batchUpdate({
@@ -528,7 +528,7 @@ app.post('/api/ultrasound', async (req, res) => {
         });
 
         // Then update the values in the new row
-        const range = `${worksheetName}!A${insertAfterRow}:N${insertAfterRow}`;
+        const range = `${worksheetName}!A${insertAfterRow}:O${insertAfterRow}`;
         await sheets.spreadsheets.values.update({
             spreadsheetId: SPREADSHEET_ID,
             range: range,
@@ -601,10 +601,10 @@ async function ensureUltrasoundHeaders() {
         // Now check and update headers
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: 'Ultrasound_Data!A1:N1',
+            range: 'Ultrasound_Data!A1:O1',
         });
 
-        const expectedHeaders = ['ID', 'Date', 'IYC Number', 'Name', 'Category', 'Phone', 'Ultrasound Type', 'Referred By', 'Status', 'Remarks', 'Timing', 'Created', 'Updated', 'Scheduling Doctor'];
+        const expectedHeaders = ['ID', 'Date', 'IYC Number', 'Name', 'Category', 'Phone', 'Ultrasound Type', 'Referred By', 'Status', 'Remarks', 'Timing', 'Created', 'Updated', 'Scheduling Doctor', 'Payment'];
         const currentHeaders = response.data.values ? response.data.values[0] : [];
 
         // Check if headers match
@@ -616,7 +616,7 @@ async function ensureUltrasoundHeaders() {
             // Update the header row
             await sheets.spreadsheets.values.update({
                 spreadsheetId: SPREADSHEET_ID,
-                range: 'Ultrasound_Data!A1:N1',
+                range: 'Ultrasound_Data!A1:O1',
                 valueInputOption: 'RAW',
                 resource: {
                     values: [expectedHeaders]
@@ -713,7 +713,8 @@ app.get('/api/ultrasounds/:status', async (req, res) => {
             timing: row[10] || '', // K=Timing
             created: row[11] || '', // L=Created
             updated: row[12] || '', // M=Updated
-            schedulingDoctor: row[13] || '' // N=Scheduling Doctor
+            schedulingDoctor: row[13] || '', // N=Scheduling Doctor
+            payment: row[14] || '' // O=Payment
         })).filter(ultrasound => {
             // Filter by status and ensure we have required data
             return ultrasound.iycNumber && ultrasound.status === status;
@@ -922,14 +923,15 @@ app.get('/api/patients', async (req, res) => {
         // Extract patient data (skip header row)
         const patients = rows.slice(1)
             .filter(row => row[0] && row[1]) // Must have name and IYC
-            .map(row => ({
+            .map((row, index) => ({
                 name: row[0] || '',              // A: Name
                 iycNumber: row[1] || '',         // B: IYC Number
                 email: row[2] || '',             // C: Email
                 personalEmail: row[3] || '',     // D: Personal Email
                 phone: row[4] || '',             // E: Phone Numbers
                 department: row[5] || '',        // F: Current Department
-                category: row[6] || ''           // G: Category
+                category: row[6] || '',          // G: Category
+                rowIndex: index + 2              // Row index in sheet (starting from 2, since row 1 is header)
             }));
 
         res.json({
@@ -2088,7 +2090,7 @@ app.get('/api/patients', async (req, res) => {
         }
 
         // Skip header row and format data
-        const patients = rows.slice(1).map(row => ({
+        const patients = rows.slice(1).map((row, index) => ({
             name: row[0] || '',              // A: Name
             iycNumber: row[1] || '',         // B: IYC Number
             email: row[2] || '',             // C: Email
@@ -2096,7 +2098,8 @@ app.get('/api/patients', async (req, res) => {
             phone: row[4] || '',             // E: Phone Numbers
             department: row[5] || '',        // F: Current Department
             category: row[6] || '',          // G: Category
-            age: row[7] || ''                // H: Age
+            age: row[7] || '',               // H: Age
+            rowIndex: index + 2              // Row index in sheet (starting from 2, since row 1 is header)
         })).filter(patient => {
             // Only include rows with both name and IYC number
             return patient.name && patient.iycNumber;

@@ -664,11 +664,17 @@ class BloodTestManager {
             if (category.includes(searchTerm)) return true;
 
             // Search in phone number
-            const phone = (test.phoneNumber || '').toLowerCase();
+            const phone = (test.phone || '').toLowerCase();
             if (phone.includes(searchTerm)) return true;
 
             return false;
         });
+    }
+
+    // Get column count for a section
+    getColumnCount(sectionName) {
+        // upcoming-test has an extra Phone column
+        return sectionName === 'upcoming-test' ? 6 : 5;
     }
 
     // Render filtered tests
@@ -695,9 +701,10 @@ class BloodTestManager {
         tbody.innerHTML = '';
 
         if (filteredTests.length === 0) {
+            const colspan = this.getColumnCount(sectionName);
             tbody.innerHTML = `
                 <tr class="no-data">
-                    <td colspan="5">No matching tests found</td>
+                    <td colspan="${colspan}">No matching tests found</td>
                 </tr>
             `;
             return;
@@ -833,9 +840,10 @@ class BloodTestManager {
         tbody.innerHTML = '';
 
         if (tests.length === 0) {
+            const colspan = this.getColumnCount(sectionName);
             tbody.innerHTML = `
                 <tr class="no-data">
-                    <td colspan="5">No ${sectionName.replace('-', ' ')} found</td>
+                    <td colspan="${colspan}">No ${sectionName.replace('-', ' ')} found</td>
                 </tr>
             `;
             return;
@@ -862,14 +870,33 @@ class BloodTestManager {
         console.log('Truncated test name:', truncatedTestName);
 
         // Different column structures for different sections (following ultrasound pattern)
-        if (sectionName === 'pending-test' || sectionName === 'upcoming-test') {
-            // Pending and upcoming: Date, Name, Test Name, Actions
+        if (sectionName === 'pending-test') {
+            // Pending: Date, Name, Test Name, Actions
             row.innerHTML = `
                 <td class="checkbox-col">
                     <input type="checkbox" class="test-checkbox" data-test-id="${test.id}">
                 </td>
                 <td>${test.date}</td>
                 <td>${test.name}</td>
+                <td class="test-name-cell" data-full-text="${test.testName}">${truncatedTestName}</td>
+                <td>
+                    <button class="btn-icon" onclick="bloodTestManager.viewTestDetails('${test.id}')" title="View Details">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn-icon" onclick="bloodTestManager.editTestDetails('${test.id}')" title="Edit Test">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                </td>
+            `;
+        } else if (sectionName === 'upcoming-test') {
+            // Upcoming: Date, Name, Phone, Test Name, Actions
+            row.innerHTML = `
+                <td class="checkbox-col">
+                    <input type="checkbox" class="test-checkbox" data-test-id="${test.id}">
+                </td>
+                <td>${test.date}</td>
+                <td>${test.name}</td>
+                <td>${test.phone || ''}</td>
                 <td class="test-name-cell" data-full-text="${test.testName}">${truncatedTestName}</td>
                 <td>
                     <button class="btn-icon" onclick="bloodTestManager.viewTestDetails('${test.id}')" title="View Details">
@@ -1562,22 +1589,22 @@ class BloodTestManager {
         }
     }
 
-    // Generate PDF with test data
+    // Generate PDF with test data in landscape orientation with minimal borders
     generateTestsPDF(testData, title) {
-        // Initialize jsPDF
+        // Initialize jsPDF in landscape orientation
         const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
+        const doc = new jsPDF('landscape'); // Set to landscape orientation
 
         // Set title
         doc.setFontSize(16);
         doc.setFont(undefined, 'bold');
-        doc.text(title, 14, 20);
+        doc.text(title, 10, 15); // Reduced top margin
 
         // Add date
         doc.setFontSize(10);
         doc.setFont(undefined, 'normal');
         const currentDate = new Date().toLocaleDateString('en-IN');
-        doc.text(`Generated on: ${currentDate}`, 14, 30);
+        doc.text(`Generated on: ${currentDate}`, 10, 25); // Reduced margin
 
         // Define table columns
         const columns = [
@@ -1589,35 +1616,40 @@ class BloodTestManager {
             { header: 'Phone', dataKey: 'phone' }
         ];
 
-        // Generate table using autoTable plugin
+        // Generate table using autoTable plugin with no borders and full width
         doc.autoTable({
             columns: columns,
             body: testData,
-            startY: 40,
+            startY: 35,
             styles: {
                 fontSize: 9,
-                cellPadding: 3,
+                cellPadding: 2,
                 overflow: 'linebreak',
-                halign: 'left'
+                halign: 'left',
+                lineColor: [255, 255, 255], // White lines (invisible borders)
+                lineWidth: 0 // No border lines
             },
             headStyles: {
                 fillColor: [102, 126, 234], // Blue header
                 textColor: 255,
-                fontStyle: 'bold'
+                fontStyle: 'bold',
+                lineColor: [255, 255, 255], // White lines for header
+                lineWidth: 0 // No border lines for header
             },
             alternateRowStyles: {
                 fillColor: [245, 245, 245] // Light gray for alternate rows
             },
             columnStyles: {
-                name: { cellWidth: 35 },
-                testName: { cellWidth: 45 },
-                ageGender: { cellWidth: 25 },
-                payment: { cellWidth: 20 },
-                email: { cellWidth: 35 },
-                phone: { cellWidth: 25 }
+                name: { cellWidth: 'auto' },
+                testName: { cellWidth: 'auto' },
+                ageGender: { cellWidth: 'auto' },
+                payment: { cellWidth: 'auto' },
+                email: { cellWidth: 'auto' },
+                phone: { cellWidth: 'auto' }
             },
-            margin: { top: 40, left: 14, right: 14 },
-            tableWidth: 'auto'
+            margin: { top: 35, left: 10, right: 10, bottom: 5 }, // Match left spacing on both sides
+            tableWidth: 'auto',
+            theme: 'plain' // Remove all default styling and borders
         });
 
         // Save the PDF

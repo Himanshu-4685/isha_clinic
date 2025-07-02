@@ -729,6 +729,7 @@ body {
     width: 100%;
     border-collapse: collapse;
     font-size: 0.9rem;
+    table-layout: fixed; /* Ensures consistent column widths */
 }
 
 .data-table th {
@@ -804,6 +805,36 @@ body {
 
 .data-table tbody tr:hover {
     background: #f8f9fa;
+}
+
+/* Patient List Table specific styling */
+#patientListTable {
+    table-layout: fixed;
+}
+
+#patientListTable th:nth-child(1),
+#patientListTable td:nth-child(1) {
+    width: 20%; /* IYC Number */
+}
+
+#patientListTable th:nth-child(2),
+#patientListTable td:nth-child(2) {
+    width: 30%; /* Name */
+}
+
+#patientListTable th:nth-child(3),
+#patientListTable td:nth-child(3) {
+    width: 25%; /* Phone Number */
+}
+
+#patientListTable th:nth-child(4),
+#patientListTable td:nth-child(4) {
+    width: 25%; /* Category */
+}
+
+#patientListTable td {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 
 .checkbox-col {

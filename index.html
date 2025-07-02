@@ -489,13 +489,14 @@
                                             </th>
                                             <th>Date</th>
                                             <th>Name</th>
+                                            <th>Phone</th>
                                             <th>Test Name</th>
                                             <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <tr class="no-data">
-                                            <td colspan="5">No upcoming tests found</td>
+                                            <td colspan="6">No upcoming tests found</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -777,6 +778,20 @@
                                     </div>
                                 </div>
 
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="ultrasoundPayment">Payment <span class="required">*</span></label>
+                                        <select id="ultrasoundPayment" name="payment" required>
+                                            <option value="">Select Payment Type</option>
+                                            <option value="Credit">Credit</option>
+                                            <option value="Cash">Cash</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <!-- Empty group for layout balance -->
+                                    </div>
+                                </div>
+
                                 <div class="form-actions">
                                     <button type="submit" id="saveUltrasoundBtn" disabled>
                                         <i class="fas fa-save"></i>
@@ -893,6 +908,10 @@
                                     </div>
                                 </div>
                                 <div class="section-actions">
+                                    <button id="downloadUpcomingUltrasoundBtn" class="btn-primary download-btn" onclick="ultrasoundManager.downloadUpcomingUltrasoundsPDF()">
+                                        <i class="fas fa-download"></i>
+                                        Download PDF
+                                    </button>
                                     <button id="sendMessageUpcomingUltrasoundBtn" class="send-message-btn" onclick="ultrasoundManager.sendMessage('upcoming-ultrasound')">
                                         <i class="fas fa-comment"></i>
                                         Send Message

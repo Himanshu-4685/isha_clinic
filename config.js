@@ -66,7 +66,9 @@ const CONFIG = {
                 REMARKS: 'J',
                 TIMING: 'K',
                 CREATED: 'L',
-                UPDATED: 'M'
+                UPDATED: 'M',
+                SCHEDULING_DOCTOR: 'N',
+                PAYMENT: 'O'
             },
             STATUSES: {
                 UPCOMING: 'Upcoming',

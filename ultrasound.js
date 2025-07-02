@@ -138,6 +138,14 @@ class UltrasoundManager {
             });
         }
 
+        // Handle category change for payment auto-population
+        const categoryInput = document.getElementById('ultrasoundCategory');
+        if (categoryInput) {
+            categoryInput.addEventListener('change', () => {
+                this.handleCategoryChange(categoryInput.value);
+            });
+        }
+
         // Handle form submission
         if (form) {
             form.addEventListener('submit', (e) => {
@@ -233,6 +241,9 @@ class UltrasoundManager {
                     categoryInput.readOnly = false;
                     categoryInput.style.backgroundColor = '#e8f5e8'; // Light green to indicate auto-filled
                     categoryInput.placeholder = 'Auto-filled from database (editable)';
+
+                    // Auto-populate payment based on category
+                    this.handleCategoryChange(result.category);
                 }
                 if (phoneInput) {
                     phoneInput.value = result.phone;
@@ -292,7 +303,7 @@ class UltrasoundManager {
     validateForm() {
         const form = document.getElementById('addUltrasoundForm');
         const saveBtn = document.getElementById('saveUltrasoundBtn');
-        
+
         if (!form || !saveBtn) return;
 
         const schedule = document.getElementById('ultrasoundSchedule').value;
@@ -302,9 +313,10 @@ class UltrasoundManager {
         const phoneNumber = document.getElementById('ultrasoundPhoneNumber').value.trim();
         const testName = document.getElementById('ultrasoundTestName').value.trim();
         const referredBy = document.getElementById('ultrasoundReferredBy').value;
+        const payment = document.getElementById('ultrasoundPayment').value;
 
         // Date is optional for ultrasound - this is the key difference
-        const isValid = schedule && iycNumber && patientName && category && phoneNumber && testName && referredBy;
+        const isValid = schedule && iycNumber && patientName && category && phoneNumber && testName && referredBy && payment;
 
         this.isFormValid = isValid;
         saveBtn.disabled = !isValid;
@@ -315,6 +327,30 @@ class UltrasoundManager {
         } else {
             saveBtn.classList.add('disabled');
         }
+    }
+
+    // Handle category change for payment auto-population
+    handleCategoryChange(category) {
+        const paymentSelect = document.getElementById('ultrasoundPayment');
+
+        if (!paymentSelect) return;
+
+        // Categories that should use Credit: FTV, BR, Samaskriti (case-insensitive)
+        const creditCategories = ['FTV', 'BR', 'SAMSKRITI'];
+        const categoryUpper = category ? category.toUpperCase() : '';
+
+        if (creditCategories.includes(categoryUpper)) {
+            paymentSelect.value = 'Credit';
+        } else if (category && category.trim() !== '') {
+            // For all other non-empty categories, set to Cash
+            paymentSelect.value = 'Cash';
+        } else {
+            // If category is empty, clear payment selection
+            paymentSelect.value = '';
+        }
+
+        // Trigger validation after payment change
+        this.validateForm();
     }
 
     // Handle form submission
@@ -341,7 +377,8 @@ class UltrasoundManager {
                 category: document.getElementById('ultrasoundCategory').value.trim(),
                 phoneNumber: document.getElementById('ultrasoundPhoneNumber').value.trim(),
                 testName: document.getElementById('ultrasoundTestName').value.trim(),
-                referredBy: document.getElementById('ultrasoundReferredBy').value
+                referredBy: document.getElementById('ultrasoundReferredBy').value,
+                payment: document.getElementById('ultrasoundPayment').value
             };
 
             console.log('Submitting ultrasound data:', ultrasoundData);
@@ -1574,6 +1611,120 @@ class UltrasoundManager {
         };
     }
 
+    // Download upcoming ultrasounds as PDF
+    async downloadUpcomingUltrasoundsPDF() {
+        try {
+            const downloadBtn = document.getElementById('downloadUpcomingUltrasoundBtn');
+
+            // Show loading state
+            downloadBtn.disabled = true;
+            downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating PDF...';
+
+            // Get upcoming ultrasounds data
+            const upcomingUltrasounds = this.sectionData['upcoming-ultrasound'] || [];
+
+            if (upcomingUltrasounds.length === 0) {
+                alert('No upcoming ultrasounds found to download.');
+                return;
+            }
+
+            // Filter and prepare data for PDF
+            const pdfData = upcomingUltrasounds.map(ultrasound => ({
+                name: ultrasound.name || '',
+                testName: ultrasound.testName || '',
+                timing: ultrasound.timing || '',
+                payment: ultrasound.payment || '',
+                ageGender: '', // Empty as requested
+                email: '', // Empty as requested
+                phone: '' // Empty as requested
+            }));
+
+            // Generate PDF
+            this.generateUltrasoundsPDF(pdfData, 'Upcoming Ultrasounds');
+
+        } catch (error) {
+            console.error('Error generating PDF:', error);
+            alert('Failed to generate PDF. Please try again.');
+        } finally {
+            // Restore button state
+            const downloadBtn = document.getElementById('downloadUpcomingUltrasoundBtn');
+            if (downloadBtn) {
+                downloadBtn.disabled = false;
+                downloadBtn.innerHTML = '<i class="fas fa-download"></i> Download PDF';
+            }
+        }
+    }
+
+    // Generate PDF with ultrasound data in landscape orientation with minimal borders
+    generateUltrasoundsPDF(ultrasoundData, title) {
+        // Initialize jsPDF in landscape orientation
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('landscape'); // Set to landscape orientation
+
+        // Set title
+        doc.setFontSize(16);
+        doc.setFont(undefined, 'bold');
+        doc.text(title, 10, 15); // Reduced top margin
+
+        // Add date
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'normal');
+        const currentDate = new Date().toLocaleDateString('en-IN');
+        doc.text(`Generated on: ${currentDate}`, 10, 25); // Reduced margin
+
+        // Define table columns for ultrasounds
+        const columns = [
+            { header: 'Name', dataKey: 'name' },
+            { header: 'Ultrasound Type', dataKey: 'testName' },
+            { header: 'Timing', dataKey: 'timing' },
+            { header: 'Age/Gender', dataKey: 'ageGender' },
+            { header: 'Payment', dataKey: 'payment' },
+            { header: 'Email', dataKey: 'email' },
+            { header: 'Phone', dataKey: 'phone' }
+        ];
+
+        // Generate table using autoTable plugin with no borders and full width
+        doc.autoTable({
+            columns: columns,
+            body: ultrasoundData,
+            startY: 35,
+            styles: {
+                fontSize: 9,
+                cellPadding: 2,
+                overflow: 'linebreak',
+                halign: 'left',
+                lineColor: [255, 255, 255], // White lines (invisible borders)
+                lineWidth: 0 // No border lines
+            },
+            headStyles: {
+                fillColor: [102, 126, 234], // Blue header
+                textColor: 255,
+                fontStyle: 'bold',
+                lineColor: [255, 255, 255], // White lines for header
+                lineWidth: 0 // No border lines for header
+            },
+            alternateRowStyles: {
+                fillColor: [245, 245, 245] // Light gray for alternate rows
+            },
+            columnStyles: {
+                name: { cellWidth: 'auto' },
+                testName: { cellWidth: 'auto' },
+                timing: { cellWidth: 'auto' },
+                ageGender: { cellWidth: 'auto' },
+                payment: { cellWidth: 'auto' },
+                email: { cellWidth: 'auto' },
+                phone: { cellWidth: 'auto' }
+            },
+            margin: { top: 35, left: 10, right: 10, bottom: 5 }, // Match left spacing on both sides
+            tableWidth: 'auto',
+            theme: 'plain' // Remove all default styling and borders
+        });
+
+        // Save the PDF
+        const fileName = `${title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+        doc.save(fileName);
+    }
+
     // View ultrasound details
     viewUltrasoundDetails(ultrasoundId) {
         const ultrasound = this.findUltrasoundById(ultrasoundId);
@@ -1625,6 +1776,10 @@ class UltrasoundManager {
                             <div class="detail-item">
                                 <label>Referred By:</label>
                                 <span>${ultrasound.referredBy || 'N/A'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Payment:</label>
+                                <span>${ultrasound.payment || 'N/A'}</span>
                             </div>
                             <div class="detail-item">
                                 <label>Scheduling Doctor:</label>
@@ -1998,6 +2153,9 @@ class UltrasoundManager {
         if (categoryInput) {
             categoryInput.value = patient.category || '';
             categoryInput.style.backgroundColor = '#e8f5e8';
+
+            // Auto-populate payment based on category
+            this.handleCategoryChange(patient.category || '');
         }
         if (phoneInput) {
             phoneInput.value = patient.phone || '';
