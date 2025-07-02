@@ -1149,6 +1149,22 @@ body {
     background: #5a67d8;
 }
 
+.download-btn {
+    margin-left: 1rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.download-btn:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+.download-btn:disabled:hover {
+    background: #ccc;
+}
+
 .modal-footer {
     padding: 1rem 2rem;
     border-top: 1px solid #e9ecef;

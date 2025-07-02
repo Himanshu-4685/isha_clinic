@@ -1519,6 +1519,112 @@ class BloodTestManager {
         }
     }
 
+    // Download upcoming tests as PDF
+    async downloadUpcomingTestsPDF() {
+        try {
+            const downloadBtn = document.getElementById('downloadUpcomingTestsBtn');
+
+            // Show loading state
+            downloadBtn.disabled = true;
+            downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating PDF...';
+
+            // Get upcoming tests data
+            const upcomingTests = this.sectionData['upcoming-test'] || [];
+
+            if (upcomingTests.length === 0) {
+                alert('No upcoming tests found to download.');
+                return;
+            }
+
+            // Filter and prepare data for PDF
+            const pdfData = upcomingTests.map(test => ({
+                name: test.name || '',
+                testName: test.testName || '',
+                payment: test.payment || '',
+                ageGender: '', // Empty as requested
+                email: '', // Empty as requested
+                phone: '' // Empty as requested
+            }));
+
+            // Generate PDF
+            this.generateTestsPDF(pdfData, 'Upcoming Blood Tests');
+
+        } catch (error) {
+            console.error('Error generating PDF:', error);
+            alert('Failed to generate PDF. Please try again.');
+        } finally {
+            // Restore button state
+            const downloadBtn = document.getElementById('downloadUpcomingTestsBtn');
+            if (downloadBtn) {
+                downloadBtn.disabled = false;
+                downloadBtn.innerHTML = '<i class="fas fa-download"></i> Download PDF';
+            }
+        }
+    }
+
+    // Generate PDF with test data
+    generateTestsPDF(testData, title) {
+        // Initialize jsPDF
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        // Set title
+        doc.setFontSize(16);
+        doc.setFont(undefined, 'bold');
+        doc.text(title, 14, 20);
+
+        // Add date
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'normal');
+        const currentDate = new Date().toLocaleDateString('en-IN');
+        doc.text(`Generated on: ${currentDate}`, 14, 30);
+
+        // Define table columns
+        const columns = [
+            { header: 'Name', dataKey: 'name' },
+            { header: 'Test', dataKey: 'testName' },
+            { header: 'Age/Gender', dataKey: 'ageGender' },
+            { header: 'Payment', dataKey: 'payment' },
+            { header: 'Email', dataKey: 'email' },
+            { header: 'Phone', dataKey: 'phone' }
+        ];
+
+        // Generate table using autoTable plugin
+        doc.autoTable({
+            columns: columns,
+            body: testData,
+            startY: 40,
+            styles: {
+                fontSize: 9,
+                cellPadding: 3,
+                overflow: 'linebreak',
+                halign: 'left'
+            },
+            headStyles: {
+                fillColor: [102, 126, 234], // Blue header
+                textColor: 255,
+                fontStyle: 'bold'
+            },
+            alternateRowStyles: {
+                fillColor: [245, 245, 245] // Light gray for alternate rows
+            },
+            columnStyles: {
+                name: { cellWidth: 35 },
+                testName: { cellWidth: 45 },
+                ageGender: { cellWidth: 25 },
+                payment: { cellWidth: 20 },
+                email: { cellWidth: 35 },
+                phone: { cellWidth: 25 }
+            },
+            margin: { top: 40, left: 14, right: 14 },
+            tableWidth: 'auto'
+        });
+
+        // Save the PDF
+        const fileName = `${title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+        doc.save(fileName);
+    }
+
     // Handle name search
     handleNameSearch(searchTerm) {
         if (!searchTerm || searchTerm.trim() === '' || searchTerm.length < 2) {
