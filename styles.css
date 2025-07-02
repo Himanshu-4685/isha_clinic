@@ -729,6 +729,7 @@ body {
     width: 100%;
     border-collapse: collapse;
     font-size: 0.9rem;
+    table-layout: fixed; /* Ensures consistent column widths */
 }
 
 .data-table th {
@@ -749,8 +750,91 @@ body {
     vertical-align: middle;
 }
 
+/* Test name column specific styling */
+.data-table td:nth-child(6) { /* Test Name column (6th column in pending/upcoming tables) */
+    max-width: 200px;
+    position: relative;
+}
+
+.data-table td:nth-child(4) { /* Test Name column (4th column in review/completed tables) */
+    max-width: 200px;
+    position: relative;
+}
+
+/* Tooltip for long test names */
+.test-name-cell {
+    position: relative;
+    cursor: help;
+    word-wrap: break-word;
+    white-space: normal;
+    line-height: 1.4;
+    vertical-align: top;
+}
+
+.test-name-cell:hover::after {
+    content: attr(data-full-text);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #333;
+    color: white;
+    padding: 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    z-index: 1000;
+    max-width: 300px;
+    word-wrap: break-word;
+    white-space: normal;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    line-height: 1.4;
+    pointer-events: none;
+}
+
+.test-name-cell:hover::before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(100%);
+    border: 5px solid transparent;
+    border-top-color: #333;
+    z-index: 1001;
+    pointer-events: none;
+}
+
 .data-table tbody tr:hover {
     background: #f8f9fa;
+}
+
+/* Patient List Table specific styling */
+#patientListTable {
+    table-layout: fixed;
+}
+
+#patientListTable th:nth-child(1),
+#patientListTable td:nth-child(1) {
+    width: 20%; /* IYC Number */
+}
+
+#patientListTable th:nth-child(2),
+#patientListTable td:nth-child(2) {
+    width: 30%; /* Name */
+}
+
+#patientListTable th:nth-child(3),
+#patientListTable td:nth-child(3) {
+    width: 25%; /* Phone Number */
+}
+
+#patientListTable th:nth-child(4),
+#patientListTable td:nth-child(4) {
+    width: 25%; /* Category */
+}
+
+#patientListTable td {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 
 .checkbox-col {
@@ -1094,6 +1178,22 @@ body {
 
 .btn-primary:hover {
     background: #5a67d8;
+}
+
+.download-btn {
+    margin-left: 1rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.download-btn:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+.download-btn:disabled:hover {
+    background: #ccc;
 }
 
 .modal-footer {
@@ -1762,12 +1862,7 @@ input[style*="background-color: rgb(232, 245, 232)"] {
     cursor: default;
 }
 
-/* Required field indicator */
-.form-group label:has(+ input[required])::after,
-.form-group label:has(+ select[required])::after {
-    content: " *";
-    color: #dc3545;
-}
+/* Required field indicator - removed automatic asterisk generation since manual asterisks are used in HTML */
 
 /* Hide spinner for success/error states */
 .loading-overlay.success .loading-spinner i,

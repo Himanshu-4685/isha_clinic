@@ -6,6 +6,8 @@
     <title>Clinic Management System</title>
     <link rel="stylesheet" href="styles.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
     <!-- Login Page -->
@@ -156,6 +158,17 @@
                                             </select>
                                         </div>
                                         <div class="form-group">
+                                            <label for="patientAge">Age *</label>
+                                            <input type="number" id="patientAge" name="age" min="1" max="120" required>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="patientDepartment">Department Name *</label>
+                                            <input type="text" id="patientDepartment" name="department" placeholder="Enter department name" required>
+                                        </div>
+                                        <div class="form-group">
                                             <label for="emergencyContact">Emergency Contact</label>
                                             <input type="tel" id="emergencyContact" name="emergencyContact">
                                         </div>
@@ -291,8 +304,8 @@
                                         </div>
                                     </div>
                                     <div class="form-group">
-                                        <label for="patientName">Name <span class="required">*</span></label>
-                                        <input type="text" id="patientName" name="patientName" placeholder="Patient name will be auto-filled" required>
+                                        <label for="bloodTestPatientName">Name <span class="required">*</span></label>
+                                        <input type="text" id="bloodTestPatientName" name="patientName" placeholder="Patient name will be auto-filled" required>
                                         <div class="search-dropdown" id="bloodTestNameSearchDropdown" style="display: none;"></div>
                                     </div>
                                 </div>
@@ -321,6 +334,20 @@
                                             <option value="Ashok">Ashok</option>
                                             <option value="Navneet">Navneet</option>
                                         </select>
+                                    </div>
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="payment">Payment <span class="required">*</span></label>
+                                        <select id="payment" name="payment" required>
+                                            <option value="">Select Payment Type</option>
+                                            <option value="Credit">Credit</option>
+                                            <option value="Cash">Cash</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <!-- Empty group for layout balance -->
                                     </div>
                                 </div>
 
@@ -389,16 +416,13 @@
                                             </th>
                                             <th>Date</th>
                                             <th>Name</th>
-                                            <th>Category</th>
-                                            <th>Phone</th>
                                             <th>Test Name</th>
-                                            <th>Remarks</th>
-                                            <th>Details</th>
+                                            <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <tr class="no-data">
-                                            <td colspan="8">No pending tests found</td>
+                                            <td colspan="5">No pending tests found</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -431,6 +455,10 @@
                                             </button>
                                         </div>
                                     </div>
+                                    <button id="downloadUpcomingTestsBtn" class="btn-primary download-btn" onclick="bloodTestManager.downloadUpcomingTestsPDF()">
+                                        <i class="fas fa-download"></i>
+                                        Download PDF
+                                    </button>
                                 </div>
                                 <div class="search-controls">
                                     <div class="search-input-group">
@@ -461,16 +489,14 @@
                                             </th>
                                             <th>Date</th>
                                             <th>Name</th>
-                                            <th>Category</th>
                                             <th>Phone</th>
                                             <th>Test Name</th>
-                                            <th>Remarks</th>
-                                            <th>Details</th>
+                                            <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <tr class="no-data">
-                                            <td colspan="8">No upcoming tests found</td>
+                                            <td colspan="6">No upcoming tests found</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -526,7 +552,7 @@
                                             <th>Date</th>
                                             <th>Name</th>
                                             <th>Test Name</th>
-                                            <th>Details</th>
+                                            <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -581,7 +607,7 @@
                                             <th>Date</th>
                                             <th>Name</th>
                                             <th>Test Name</th>
-                                            <th>Details</th>
+                                            <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -634,18 +660,14 @@
                                                 <input type="checkbox" class="select-all-checkbox" id="selectAllCancelledTests">
                                             </th>
                                             <th>Date</th>
-                                            <th>IYC Number</th>
                                             <th>Name</th>
-                                            <th>Category</th>
-                                            <th>Phone</th>
                                             <th>Test Name</th>
-                                            <th>Referred By</th>
-                                            <th>Remarks</th>
+                                            <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <tr class="no-data">
-                                            <td colspan="9">No cancelled tests found</td>
+                                            <td colspan="5">No cancelled tests found</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -753,6 +775,20 @@
                                             <option value="Ashok">Ashok</option>
                                             <option value="Navneet">Navneet</option>
                                         </select>
+                                    </div>
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="ultrasoundPayment">Payment <span class="required">*</span></label>
+                                        <select id="ultrasoundPayment" name="payment" required>
+                                            <option value="">Select Payment Type</option>
+                                            <option value="Credit">Credit</option>
+                                            <option value="Cash">Cash</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <!-- Empty group for layout balance -->
                                     </div>
                                 </div>
 
@@ -872,6 +908,10 @@
                                     </div>
                                 </div>
                                 <div class="section-actions">
+                                    <button id="downloadUpcomingUltrasoundBtn" class="btn-primary download-btn" onclick="ultrasoundManager.downloadUpcomingUltrasoundsPDF()">
+                                        <i class="fas fa-download"></i>
+                                        Download PDF
+                                    </button>
                                     <button id="sendMessageUpcomingUltrasoundBtn" class="send-message-btn" onclick="ultrasoundManager.sendMessage('upcoming-ultrasound')">
                                         <i class="fas fa-comment"></i>
                                         Send Message

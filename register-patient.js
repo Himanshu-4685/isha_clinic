@@ -9,6 +9,7 @@ class RegisterPatientManager {
         this.patients = [];
         this.filteredPatients = [];
         this.formTouched = false; // Track if user has interacted with the form
+        this.isSubmitting = false; // Track if form submission is in progress
     }
 
     // Initialize the register patient module
@@ -93,17 +94,18 @@ class RegisterPatientManager {
     // Setup patient registration form
     setupPatientForm() {
         const form = document.getElementById('registerPatientForm');
-        if (form) {
+        if (form && !form.hasAttribute('data-listener-attached')) {
             form.addEventListener('submit', (e) => {
                 e.preventDefault();
                 this.handlePatientRegistration();
             });
+            form.setAttribute('data-listener-attached', 'true');
         }
     }
 
     // Setup form validation
     setupFormValidation() {
-        const requiredFields = ['patientName', 'patientEmail', 'patientPhone', 'patientCategory'];
+        const requiredFields = ['patientName', 'patientEmail', 'patientPhone', 'patientCategory', 'patientAge', 'patientDepartment'];
 
         requiredFields.forEach(fieldId => {
             const field = document.getElementById(fieldId);
@@ -118,6 +120,16 @@ class RegisterPatientManager {
                 });
             }
         });
+
+        // Add special handling for category field to auto-fill Samskriti details
+        const categoryField = document.getElementById('patientCategory');
+        if (categoryField) {
+            categoryField.addEventListener('change', () => {
+                this.handleCategoryChange(categoryField.value);
+                this.formTouched = true;
+                this.validateForm();
+            });
+        }
 
         // Add validation for patient type radio buttons
         const patientTypeRadios = document.querySelectorAll('input[name="patientType"]');
@@ -177,7 +189,7 @@ class RegisterPatientManager {
 
     // Validate entire form
     validateForm() {
-        const requiredFields = ['patientName', 'patientEmail', 'patientPhone', 'patientCategory'];
+        const requiredFields = ['patientName', 'patientEmail', 'patientPhone', 'patientCategory', 'patientAge', 'patientDepartment'];
         let isValid = true;
 
         requiredFields.forEach(fieldId => {
@@ -266,6 +278,67 @@ class RegisterPatientManager {
         this.validateForm();
     }
 
+    // Handle category change for special cases like Samskriti
+    handleCategoryChange(category) {
+        console.log('Category selected:', category);
+
+        const emailField = document.getElementById('patientEmail');
+        const phoneField = document.getElementById('patientPhone');
+        const departmentField = document.getElementById('patientDepartment');
+
+        if (category === 'Samskriti') {
+            // Auto-fill Samskriti contact details
+            if (emailField) {
+                emailField.value = 'samaskriti.office@ishafoundation.com';
+                emailField.readOnly = true;
+                emailField.style.backgroundColor = '#f0f0f0';
+            }
+
+            if (phoneField) {
+                phoneField.value = '8870871357';
+                phoneField.readOnly = true;
+                phoneField.style.backgroundColor = '#f0f0f0';
+            }
+
+            if (departmentField) {
+                departmentField.value = 'Samskriti';
+                departmentField.readOnly = true;
+                departmentField.style.backgroundColor = '#f0f0f0';
+            }
+        } else {
+            // Reset fields for other categories
+            if (emailField) {
+                emailField.readOnly = false;
+                emailField.style.backgroundColor = '';
+                // Only clear if it was the Samskriti email
+                if (emailField.value === 'samaskriti.office@ishafoundation.com') {
+                    emailField.value = '';
+                }
+            }
+
+            if (phoneField) {
+                phoneField.readOnly = false;
+                phoneField.style.backgroundColor = '';
+                // Only clear if it was the Samskriti phone
+                if (phoneField.value === '8870871357') {
+                    phoneField.value = '';
+                }
+            }
+
+            if (departmentField) {
+                departmentField.readOnly = false;
+                departmentField.style.backgroundColor = '';
+                // Only clear if it was the Samskriti department
+                if (departmentField.value === 'Samskriti') {
+                    departmentField.value = '';
+                }
+            }
+        }
+
+        // Revalidate form after changes
+        this.validateForm();
+    }
+
     // Update category options based on patient type
     updateCategoryOptions(patientType) {
         const categoryField = document.getElementById('patientCategory');
@@ -283,7 +356,8 @@ class RegisterPatientManager {
                 { value: 'Staff', text: 'Staff' },
                 { value: 'Sevadar', text: 'Sevadar' },
                 { value: 'Samskriti', text: 'Samskriti' },
-                { value: 'Guest', text: 'Guest' }
+                { value: 'Guest', text: 'Guest' },
+                { value: 'SPD', text: 'SPD' }
             ];
 
             poornangaOptions.forEach(option => {
@@ -301,7 +375,8 @@ class RegisterPatientManager {
                 { value: 'Staff', text: 'Staff' },
                 { value: 'Sevadar', text: 'Sevadar' },
                 { value: 'Samskriti', text: 'Samskriti' },
-                { value: 'Guest', text: 'Guest' }
+                { value: 'Guest', text: 'Guest' },
+                { value: 'SPD', text: 'SPD' }
             ];
 
             nonPoornangaOptions.forEach(option => {
@@ -355,24 +430,41 @@ class RegisterPatientManager {
 
     // Handle patient registration
     async handlePatientRegistration() {
+        // Prevent multiple submissions
+        if (this.isSubmitting) {
+            console.log('Form submission already in progress, ignoring duplicate request');
+            return;
+        }
+
         if (!this.validateForm()) {
             this.showNotification('Please select patient type and fill in all required fields correctly', 'error');
             return;
         }
 
+        // Set submission flag and disable submit button
+        this.isSubmitting = true;
+        const submitButton = document.querySelector('#registerPatientForm button[type="submit"]');
+        if (submitButton) {
+            submitButton.disabled = true;
+            submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Registering...';
+        }
+
         // Collect form data - only fields that exist in Patient Database
-        const form = document.getElementById('registerPatientForm');
         const patientData = {
             name: document.getElementById('patientName').value.trim(),
             iyc: document.getElementById('patientIYC').value.trim(),
             email: document.getElementById('patientEmail').value.trim(),
             phone: document.getElementById('patientPhone').value.trim(),
             category: document.getElementById('patientCategory').value.trim(),
+            age: document.getElementById('patientAge').value.trim(),
+            department: document.getElementById('patientDepartment').value.trim(),
             emergencyContact: document.getElementById('emergencyContact').value.trim(),
             patientType: document.querySelector('input[name="patientType"]:checked')?.value || ''
         };
 
         console.log('=== PATIENT REGISTRATION DEBUG ===');
+        console.log('Submission timestamp:', new Date().toISOString());
+        console.log('Is submitting flag:', this.isSubmitting);
         console.log('Form validation passed:', this.validateForm());
         console.log('Patient data being sent:', patientData);
         console.log('Required fields check:');
@@ -411,13 +503,26 @@ class RegisterPatientManager {
             this.showNotification('Patient registered successfully!', 'success');
             this.clearForm();
 
-            // Refresh patient data
+            // Refresh patient data to show the newly registered patient at the top
             await this.loadPatientData();
+
+            // If we're currently viewing the patient list, ensure it's updated
+            if (this.currentSection === 'patient-list') {
+                console.log('Refreshing patient list view after registration');
+            }
 
         } catch (error) {
             console.error('Error registering patient:', error);
             this.hideLoadingOverlay();
             this.showNotification('Failed to register patient. Please try again.', 'error');
+        } finally {
+            // Reset submission flag and restore submit button
+            this.isSubmitting = false;
+            const submitButton = document.querySelector('#registerPatientForm button[type="submit"]');
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.innerHTML = '<i class="fas fa-user-plus"></i> Register Patient';
+            }
         }
     }
 
@@ -427,14 +532,25 @@ class RegisterPatientManager {
         if (form) {
             form.reset();
 
-            // Remove error styling
+            // Remove error styling and reset field properties
             const fields = form.querySelectorAll('input, select, textarea');
             fields.forEach(field => {
                 field.classList.remove('error');
+                // Reset readonly state and background color for all fields
+                field.readOnly = false;
+                field.style.backgroundColor = '';
             });
+
+            // Reset IYC field properties (will be set correctly when patient type is selected)
+            const iycField = document.getElementById('patientIYC');
+            if (iycField) {
+                iycField.placeholder = '';
+                iycField.required = false;
+            }
 
             this.isFormValid = false;
             this.formTouched = false; // Reset touched state
+            this.isSubmitting = false; // Reset submission flag
             this.validateForm();
         }
     }
@@ -460,11 +576,11 @@ class RegisterPatientManager {
                     }
                 }
 
-                // Debounce search
+                // Debounce search to prevent rapid table updates
                 clearTimeout(searchTimer);
                 searchTimer = setTimeout(() => {
                     this.performPatientSearch(query);
-                }, 300);
+                }, 150); // Reduced debounce time for better responsiveness
             });
         }
 
@@ -495,6 +611,8 @@ class RegisterPatientManager {
 
             if (result && result.success) {
                 this.patients = result.patients || [];
+                // Sort patients to show recently registered ones first
+                this.sortPatientsByRegistrationDate();
                 this.filteredPatients = [...this.patients];
                 console.log('Patient data loaded successfully:', this.patients.length, 'patients');
                 this.renderPatientTable();
@@ -514,21 +632,78 @@ class RegisterPatientManager {
         }
     }
 
+    // Sort patients by registration date (most recent first)
+    sortPatientsByRegistrationDate() {
+        this.patients.sort((a, b) => {
+            // Primary sort: Use row index (higher row index = more recent registration)
+            if (a.rowIndex && b.rowIndex) {
+                const rowDiff = b.rowIndex - a.rowIndex;
+                if (rowDiff !== 0) {
+                    return rowDiff;
+                }
+            }
+
+            // Secondary sort: For non-poornanga patients, sort by ID number
+            // (higher ID numbers are more recent)
+            if (a.iycNumber && b.iycNumber) {
+                const aIsId = a.iycNumber.startsWith('ID');
+                const bIsId = b.iycNumber.startsWith('ID');
+
+                if (aIsId && bIsId) {
+                    const aNum = parseInt(a.iycNumber.replace('ID', ''));
+                    const bNum = parseInt(b.iycNumber.replace('ID', ''));
+                    const idDiff = bNum - aNum;
+                    if (idDiff !== 0) {
+                        return idDiff;
+                    }
+                }
+            }
+
+            // Tertiary sort: Alphabetical by name
+            if (a.name && b.name) {
+                return a.name.localeCompare(b.name);
+            }
+
+            // Default: maintain original order
+            return 0;
+        });
+
+        console.log(`Patients sorted by registration date (most recent first). Total: ${this.patients.length}`);
+    }
+
     // Perform search on patient data
     performPatientSearch(query) {
+        console.log('Performing patient search for:', query);
+
+        // Ensure we have patient data to search
+        if (!this.patients || this.patients.length === 0) {
+            console.log('No patient data available for search');
+            this.filteredPatients = [];
+            this.renderPatientTable();
+            return;
+        }
+
         if (query === '') {
             this.filteredPatients = [...this.patients];
         } else {
-            const searchTerm = query.toLowerCase();
+            const searchTerm = query.toLowerCase().trim();
             this.filteredPatients = this.patients.filter(patient => {
+                // Ensure patient object exists and has properties
+                if (!patient) return false;
+
                 return (
-                    (patient.iycNumber && patient.iycNumber.toLowerCase().includes(searchTerm)) ||
-                    (patient.name && patient.name.toLowerCase().includes(searchTerm)) ||
-                    (patient.phone && patient.phone.toLowerCase().includes(searchTerm)) ||
-                    (patient.category && patient.category.toLowerCase().includes(searchTerm))
+                    (patient.iycNumber && patient.iycNumber.toString().toLowerCase().includes(searchTerm)) ||
+                    (patient.name && patient.name.toString().toLowerCase().includes(searchTerm)) ||
+                    (patient.phone && patient.phone.toString().toLowerCase().includes(searchTerm)) ||
+                    (patient.category && patient.category.toString().toLowerCase().includes(searchTerm))
                 );
             });
+
+            // Maintain the same sorting order for filtered results
+            // (The original patients array is already sorted, so filtered results will maintain that order)
         }
+
+        console.log(`Search results: ${this.filteredPatients.length} patients found`);
         this.renderPatientTable();
     }
 
@@ -546,23 +721,25 @@ class RegisterPatientManager {
             return;
         }
 
-        // Clear existing rows
-        tbody.innerHTML = '';
+        // Use DocumentFragment for better performance and stability
+        const fragment = document.createDocumentFragment();
 
         if (this.filteredPatients.length === 0) {
-            tbody.innerHTML = `
-                <tr class="no-data">
-                    <td colspan="4">No patients found</td>
-                </tr>
-            `;
-            return;
+            const noDataRow = document.createElement('tr');
+            noDataRow.className = 'no-data';
+            noDataRow.innerHTML = '<td colspan="4">No patients found</td>';
+            fragment.appendChild(noDataRow);
+        } else {
+            // Create rows for each patient
+            this.filteredPatients.forEach(patient => {
+                const row = this.createPatientRow(patient);
+                fragment.appendChild(row);
+            });
         }
 
-        // Create rows for each patient
-        this.filteredPatients.forEach(patient => {
-            const row = this.createPatientRow(patient);
-            tbody.appendChild(row);
-        });
+        // Clear existing rows and append new ones in one operation
+        tbody.innerHTML = '';
+        tbody.appendChild(fragment);
 
         console.log(`Rendered ${this.filteredPatients.length} patients in table`);
     }
@@ -571,12 +748,24 @@ class RegisterPatientManager {
     createPatientRow(patient) {
         const row = document.createElement('tr');
 
-        row.innerHTML = `
-            <td>${patient.iycNumber || 'N/A'}</td>
-            <td>${patient.name || 'N/A'}</td>
-            <td>${patient.phone || 'N/A'}</td>
-            <td>${patient.category || 'N/A'}</td>
-        `;
+        // Create cells individually for better control
+        const iycCell = document.createElement('td');
+        iycCell.textContent = patient.iycNumber || 'N/A';
+
+        const nameCell = document.createElement('td');
+        nameCell.textContent = patient.name || 'N/A';
+
+        const phoneCell = document.createElement('td');
+        phoneCell.textContent = patient.phone || 'N/A';
+
+        const categoryCell = document.createElement('td');
+        categoryCell.textContent = patient.category || 'N/A';
+
+        // Append cells to row
+        row.appendChild(iycCell);
+        row.appendChild(nameCell);
+        row.appendChild(phoneCell);
+        row.appendChild(categoryCell);
 
         return row;
     }
@@ -591,6 +780,8 @@ class RegisterPatientManager {
             patientPhone: document.getElementById('patientPhone')?.value || '',
             patientIYC: document.getElementById('patientIYC')?.value || '',
             patientCategory: document.getElementById('patientCategory')?.value || '',
+            patientAge: document.getElementById('patientAge')?.value || '',
+            patientDepartment: document.getElementById('patientDepartment')?.value || '',
             emergencyContact: document.getElementById('emergencyContact')?.value || '',
             patientType: document.querySelector('input[name="patientType"]:checked')?.value || ''
         };
@@ -605,7 +796,7 @@ class RegisterPatientManager {
         console.log('Restoring form state:', this.formData);
 
         // Restore text inputs
-        const fields = ['patientName', 'patientEmail', 'patientPhone', 'patientIYC', 'patientCategory', 'emergencyContact'];
+        const fields = ['patientName', 'patientEmail', 'patientPhone', 'patientIYC', 'patientCategory', 'patientAge', 'patientDepartment', 'emergencyContact'];
         fields.forEach(fieldId => {
             const field = document.getElementById(fieldId);
             if (field && this.formData[fieldId]) {
@@ -621,6 +812,13 @@ class RegisterPatientManager {
                 // Trigger the change event to update form behavior
                 this.handlePatientTypeChange(this.formData.patientType);
             }
+        }
+
+        // Restore category-specific behavior (like Samskriti auto-fill)
+        if (this.formData.patientCategory) {
+            setTimeout(() => {
+                this.handleCategoryChange(this.formData.patientCategory);
+            }, 100);
         }
 
         // Only revalidate form after restoration if it was previously touched
@@ -686,15 +884,23 @@ class RegisterPatientManager {
 }
 
 // Initialize the register patient manager
-const registerPatientManager = new RegisterPatientManager();
+let registerPatientManager;
 
-// Initialize when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
+// Ensure single initialization
+if (!window.registerPatientManager) {
+    registerPatientManager = new RegisterPatientManager();
+    window.registerPatientManager = registerPatientManager;
+
+    // Initialize when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            registerPatientManager.init();
+        });
+    } else {
         registerPatientManager.init();
-    });
+    }
 } else {
-    registerPatientManager.init();
+    registerPatientManager = window.registerPatientManager;
 }
 
 console.log('✅ Register Patient module loaded successfully');

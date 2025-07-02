@@ -260,6 +260,33 @@ class GoogleSheetsAPI {
         }
     }
 
+    // Update test details (wrapper for updateTest with specific fields)
+    async updateTestDetails(testData) {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            // Extract the row index and prepare the data for the existing updateTest method
+            const { rowIndex, date, testName } = testData;
+
+            // Prepare the test data object for the existing API
+            const updateData = {
+                date: date,
+                testName: testName
+            };
+
+            // Use the existing updateTest method
+            return await this.updateTest(rowIndex, updateData);
+        } catch (error) {
+            console.error('Error updating test details:', error);
+            return {
+                success: false,
+                message: 'Failed to update test details: ' + error.message
+            };
+        }
+    }
+
     // Delete tests
     async deleteTests(rowIndices) {
         if (!this.isInitialized) {

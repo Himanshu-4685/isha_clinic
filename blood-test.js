@@ -21,6 +21,7 @@ class BloodTestManager {
         this.editingCell = null;
         this.patients = [];
         this.loadingData = false;
+        this.isAutoFilling = false; // Flag to prevent name search during auto-fill
     }
 
     // Initialize the blood test module
@@ -105,10 +106,15 @@ class BloodTestManager {
         }
 
         // Handle name input for search
-        const nameInput = document.getElementById('patientName');
+        const nameInput = document.getElementById('bloodTestPatientName');
         if (nameInput) {
             let searchTimer;
             nameInput.addEventListener('input', () => {
+                // Skip name search if we're currently auto-filling from IYC lookup
+                if (this.isAutoFilling) {
+                    return;
+                }
+
                 clearTimeout(searchTimer);
                 searchTimer = setTimeout(() => {
                     this.handleNameSearch(nameInput.value);
@@ -122,6 +128,18 @@ class BloodTestManager {
                 }
             });
         }
+
+        // Handle category change for payment auto-population
+        const categoryInput = document.getElementById('category');
+        if (categoryInput) {
+            categoryInput.addEventListener('change', () => {
+                this.handleCategoryChange(categoryInput.value);
+            });
+        }
+
+
+
+
 
         // Handle form submission
         if (form) {
@@ -217,7 +235,7 @@ class BloodTestManager {
         console.log('Blood Test - googleSheetsAPI.isInitialized:', googleSheetsAPI.isInitialized);
 
         const loadingIndicator = document.getElementById('iycLoading');
-        const nameInput = document.getElementById('patientName');
+        const nameInput = document.getElementById('bloodTestPatientName');
         const categoryInput = document.getElementById('category');
         const phoneInput = document.getElementById('phoneNumber');
 
@@ -242,24 +260,41 @@ class BloodTestManager {
             // Show loading indicator
             if (loadingIndicator) loadingIndicator.style.display = 'block';
 
+            // Set auto-filling flag to prevent name search interference
+            this.isAutoFilling = true;
+
             console.log('Blood Test - About to call googleSheetsAPI.lookupPatientByIYC');
             // Lookup patient data
             const result = await googleSheetsAPI.lookupPatientByIYC(iycNumber.trim());
             console.log('Blood Test - API result:', result);
 
             if (result.found) {
+                console.log('Blood Test - Patient found, result data:', {
+                    name: result.name,
+                    category: result.category,
+                    phone: result.phone
+                });
+
                 // Populate fields with found data but allow manual editing
                 if (nameInput) {
+                    console.log('Blood Test - Setting name field value to:', result.name);
+                    console.log('Blood Test - Name input element:', nameInput);
                     nameInput.value = result.name;
                     nameInput.readOnly = false;
                     nameInput.style.backgroundColor = '#e8f5e8'; // Light green to indicate auto-filled
                     nameInput.placeholder = 'Auto-filled from database (editable)';
+                    console.log('Blood Test - Name field value after setting:', nameInput.value);
+                } else {
+                    console.error('Blood Test - Name input element not found!');
                 }
                 if (categoryInput) {
                     categoryInput.value = result.category;
                     categoryInput.readOnly = false;
                     categoryInput.style.backgroundColor = '#e8f5e8'; // Light green to indicate auto-filled
                     categoryInput.placeholder = 'Auto-filled from database (editable)';
+
+                    // Auto-populate payment based on category
+                    this.handleCategoryChange(result.category);
                 }
                 if (phoneInput) {
                     phoneInput.value = result.phone;
@@ -268,12 +303,16 @@ class BloodTestManager {
                     phoneInput.placeholder = 'Auto-filled from database (editable)';
                 }
             } else {
+                console.log('Blood Test - Patient not found, clearing fields');
                 // Clear fields and allow manual entry
                 if (nameInput) {
+                    console.log('Blood Test - Clearing name field');
                     nameInput.value = '';
                     nameInput.readOnly = false;
                     nameInput.style.backgroundColor = '';
                     nameInput.placeholder = 'Patient not found - enter manually';
+                } else {
+                    console.error('Blood Test - Name input element not found when clearing!');
                 }
                 if (categoryInput) {
                     categoryInput.value = '';
@@ -290,7 +329,7 @@ class BloodTestManager {
             }
         } catch (error) {
             console.error('Error looking up patient:', error);
-            
+
             // Allow manual entry on error
             if (nameInput) {
                 nameInput.readOnly = false;
@@ -310,9 +349,39 @@ class BloodTestManager {
         } finally {
             // Hide loading indicator
             if (loadingIndicator) loadingIndicator.style.display = 'none';
+
+            // Clear auto-filling flag
+            this.isAutoFilling = false;
+
             this.validateForm();
         }
     }
+
+    // Handle category change for payment auto-population
+    handleCategoryChange(category) {
+        const paymentSelect = document.getElementById('payment');
+
+        if (!paymentSelect) return;
+
+        // Categories that should use Credit: FTV, BR, Samaskriti (case-insensitive)
+        const creditCategories = ['FTV', 'BR', 'SAMSKRITI'];
+        const categoryUpper = category ? category.toUpperCase() : '';
+
+        if (creditCategories.includes(categoryUpper)) {
+            paymentSelect.value = 'Credit';
+        } else if (category && category.trim() !== '') {
+            // For all other non-empty categories, set to Cash
+            paymentSelect.value = 'Cash';
+        } else {
+            // If category is empty, clear payment selection
+            paymentSelect.value = '';
+        }
+
+        // Trigger validation after payment change
+        this.validateForm();
+    }
+
+
 
     // Validate form
     validateForm() {
@@ -368,7 +437,8 @@ class BloodTestManager {
                 category: this.formData.category,
                 phoneNumber: this.formData.phoneNumber,
                 testName: this.formData.testName,
-                referredBy: this.formData.referredBy
+                referredBy: this.formData.referredBy,
+                payment: this.formData.payment
             };
 
             // Save to Google Sheets
@@ -394,18 +464,20 @@ class BloodTestManager {
     // Reset form
     resetForm() {
         const form = document.getElementById('addTestForm');
-        const nameInput = document.getElementById('patientName');
+        const nameInput = document.getElementById('bloodTestPatientName');
         const categoryInput = document.getElementById('category');
         const phoneInput = document.getElementById('phoneNumber');
+        const paymentInput = document.getElementById('payment');
 
         if (form) {
             form.reset();
         }
 
         // Reset field states
-        [nameInput, categoryInput, phoneInput].forEach(input => {
+        [nameInput, categoryInput, phoneInput, paymentInput].forEach(input => {
             if (input) {
                 input.readOnly = false;
+                input.disabled = false;
                 input.style.backgroundColor = '';
                 input.placeholder = input.getAttribute('data-original-placeholder') || input.placeholder;
             }
@@ -592,11 +664,17 @@ class BloodTestManager {
             if (category.includes(searchTerm)) return true;
 
             // Search in phone number
-            const phone = (test.phoneNumber || '').toLowerCase();
+            const phone = (test.phone || '').toLowerCase();
             if (phone.includes(searchTerm)) return true;
 
             return false;
         });
+    }
+
+    // Get column count for a section
+    getColumnCount(sectionName) {
+        // upcoming-test has an extra Phone column
+        return sectionName === 'upcoming-test' ? 6 : 5;
     }
 
     // Render filtered tests
@@ -623,9 +701,10 @@ class BloodTestManager {
         tbody.innerHTML = '';
 
         if (filteredTests.length === 0) {
+            const colspan = this.getColumnCount(sectionName);
             tbody.innerHTML = `
                 <tr class="no-data">
-                    <td colspan="8">No matching tests found</td>
+                    <td colspan="${colspan}">No matching tests found</td>
                 </tr>
             `;
             return;
@@ -761,9 +840,10 @@ class BloodTestManager {
         tbody.innerHTML = '';
 
         if (tests.length === 0) {
+            const colspan = this.getColumnCount(sectionName);
             tbody.innerHTML = `
                 <tr class="no-data">
-                    <td colspan="8">No ${sectionName.replace('-', ' ')} found</td>
+                    <td colspan="${colspan}">No ${sectionName.replace('-', ' ')} found</td>
                 </tr>
             `;
             return;
@@ -784,43 +864,104 @@ class BloodTestManager {
         row.setAttribute('data-test-id', test.id);
         row.setAttribute('data-row-index', test.rowIndex);
 
+        // Truncate test name to 5 words for better table display
+        console.log('Original test name:', test.testName);
+        const truncatedTestName = this.truncateTestName(test.testName, 5);
+        console.log('Truncated test name:', truncatedTestName);
+
         // Different column structures for different sections (following ultrasound pattern)
-        if (sectionName === 'pending-test' || sectionName === 'upcoming-test') {
-            // Pending and upcoming: Date, Name, Category, Phone, Test Name, Remarks, Details
+        if (sectionName === 'pending-test') {
+            // Pending: Date, Name, Test Name, Actions
             row.innerHTML = `
                 <td class="checkbox-col">
                     <input type="checkbox" class="test-checkbox" data-test-id="${test.id}">
                 </td>
                 <td>${test.date}</td>
                 <td>${test.name}</td>
-                <td>${test.category}</td>
-                <td>${test.phone}</td>
-                <td>${test.testName}</td>
-                <td>${test.remarks}</td>
+                <td class="test-name-cell" data-full-text="${test.testName}">${truncatedTestName}</td>
                 <td>
                     <button class="btn-icon" onclick="bloodTestManager.viewTestDetails('${test.id}')" title="View Details">
                         <i class="fas fa-eye"></i>
                     </button>
+                    <button class="btn-icon" onclick="bloodTestManager.editTestDetails('${test.id}')" title="Edit Test">
+                        <i class="fas fa-edit"></i>
+                    </button>
                 </td>
             `;
-        } else {
-            // Pending review and completed: Date, Name, Test Name, Details (like ultrasound)
+        } else if (sectionName === 'upcoming-test') {
+            // Upcoming: Date, Name, Phone, Test Name, Actions
             row.innerHTML = `
                 <td class="checkbox-col">
                     <input type="checkbox" class="test-checkbox" data-test-id="${test.id}">
                 </td>
                 <td>${test.date}</td>
                 <td>${test.name}</td>
-                <td>${test.testName}</td>
+                <td>${test.phone || ''}</td>
+                <td class="test-name-cell" data-full-text="${test.testName}">${truncatedTestName}</td>
                 <td>
                     <button class="btn-icon" onclick="bloodTestManager.viewTestDetails('${test.id}')" title="View Details">
                         <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn-icon" onclick="bloodTestManager.editTestDetails('${test.id}')" title="Edit Test">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                </td>
+            `;
+        } else if (sectionName === 'cancelled-test') {
+            // Cancelled tests: Date, Name, Test Name, Actions (same as other tables)
+            row.innerHTML = `
+                <td class="checkbox-col">
+                    <input type="checkbox" class="test-checkbox" data-test-id="${test.id}">
+                </td>
+                <td>${test.date}</td>
+                <td>${test.name}</td>
+                <td class="test-name-cell" data-full-text="${test.testName}">${truncatedTestName}</td>
+                <td>
+                    <button class="btn-icon" onclick="bloodTestManager.viewTestDetails('${test.id}')" title="View Details">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn-icon" onclick="bloodTestManager.editTestDetails('${test.id}')" title="Edit Test">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                </td>
+            `;
+        } else {
+            // Pending review and completed: Date, Name, Test Name, Actions
+            row.innerHTML = `
+                <td class="checkbox-col">
+                    <input type="checkbox" class="test-checkbox" data-test-id="${test.id}">
+                </td>
+                <td>${test.date}</td>
+                <td>${test.name}</td>
+                <td class="test-name-cell" data-full-text="${test.testName}">${truncatedTestName}</td>
+                <td>
+                    <button class="btn-icon" onclick="bloodTestManager.viewTestDetails('${test.id}')" title="View Details">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn-icon" onclick="bloodTestManager.editTestDetails('${test.id}')" title="Edit Test">
+                        <i class="fas fa-edit"></i>
                     </button>
                 </td>
             `;
         }
 
         return row;
+    }
+
+    // Truncate test name to specified word count
+    truncateTestName(testName, maxWords) {
+        if (!testName) return '';
+
+        const words = testName.trim().split(/\s+/);
+        console.log(`Truncating "${testName}" - Word count: ${words.length}, Max: ${maxWords}`);
+
+        if (words.length <= maxWords) {
+            return testName;
+        }
+
+        const truncated = words.slice(0, maxWords).join(' ') + '...';
+        console.log(`Truncated to: "${truncated}"`);
+        return truncated;
     }
 
 
@@ -1131,7 +1272,7 @@ class BloodTestManager {
         // Get current form data
         const formData = {
             iycNumber: document.getElementById('iycNumber')?.value || '',
-            patientName: document.getElementById('patientName')?.value || '',
+            patientName: document.getElementById('bloodTestPatientName')?.value || '',
             email: document.getElementById('email')?.value || '',
             phoneNumber: document.getElementById('phoneNumber')?.value || ''
         };
@@ -1257,7 +1398,7 @@ class BloodTestManager {
                 loadingOverlay.showSuccess('Patient details updated successfully!', 'Your changes have been saved to the database');
 
                 // Update the form fields with the new values
-                const nameInput = document.getElementById('patientName');
+                const nameInput = document.getElementById('bloodTestPatientName');
                 const emailInput = document.getElementById('email');
                 const phoneInput = document.getElementById('phoneNumber');
 
@@ -1405,6 +1546,117 @@ class BloodTestManager {
         }
     }
 
+    // Download upcoming tests as PDF
+    async downloadUpcomingTestsPDF() {
+        try {
+            const downloadBtn = document.getElementById('downloadUpcomingTestsBtn');
+
+            // Show loading state
+            downloadBtn.disabled = true;
+            downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating PDF...';
+
+            // Get upcoming tests data
+            const upcomingTests = this.sectionData['upcoming-test'] || [];
+
+            if (upcomingTests.length === 0) {
+                alert('No upcoming tests found to download.');
+                return;
+            }
+
+            // Filter and prepare data for PDF
+            const pdfData = upcomingTests.map(test => ({
+                name: test.name || '',
+                testName: test.testName || '',
+                payment: test.payment || '',
+                ageGender: '', // Empty as requested
+                email: '', // Empty as requested
+                phone: '' // Empty as requested
+            }));
+
+            // Generate PDF
+            this.generateTestsPDF(pdfData, 'Upcoming Blood Tests');
+
+        } catch (error) {
+            console.error('Error generating PDF:', error);
+            alert('Failed to generate PDF. Please try again.');
+        } finally {
+            // Restore button state
+            const downloadBtn = document.getElementById('downloadUpcomingTestsBtn');
+            if (downloadBtn) {
+                downloadBtn.disabled = false;
+                downloadBtn.innerHTML = '<i class="fas fa-download"></i> Download PDF';
+            }
+        }
+    }
+
+    // Generate PDF with test data in landscape orientation with minimal borders
+    generateTestsPDF(testData, title) {
+        // Initialize jsPDF in landscape orientation
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('landscape'); // Set to landscape orientation
+
+        // Set title
+        doc.setFontSize(16);
+        doc.setFont(undefined, 'bold');
+        doc.text(title, 10, 15); // Reduced top margin
+
+        // Add date
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'normal');
+        const currentDate = new Date().toLocaleDateString('en-IN');
+        doc.text(`Generated on: ${currentDate}`, 10, 25); // Reduced margin
+
+        // Define table columns
+        const columns = [
+            { header: 'Name', dataKey: 'name' },
+            { header: 'Test', dataKey: 'testName' },
+            { header: 'Age/Gender', dataKey: 'ageGender' },
+            { header: 'Payment', dataKey: 'payment' },
+            { header: 'Email', dataKey: 'email' },
+            { header: 'Phone', dataKey: 'phone' }
+        ];
+
+        // Generate table using autoTable plugin with no borders and full width
+        doc.autoTable({
+            columns: columns,
+            body: testData,
+            startY: 35,
+            styles: {
+                fontSize: 9,
+                cellPadding: 2,
+                overflow: 'linebreak',
+                halign: 'left',
+                lineColor: [255, 255, 255], // White lines (invisible borders)
+                lineWidth: 0 // No border lines
+            },
+            headStyles: {
+                fillColor: [102, 126, 234], // Blue header
+                textColor: 255,
+                fontStyle: 'bold',
+                lineColor: [255, 255, 255], // White lines for header
+                lineWidth: 0 // No border lines for header
+            },
+            alternateRowStyles: {
+                fillColor: [245, 245, 245] // Light gray for alternate rows
+            },
+            columnStyles: {
+                name: { cellWidth: 'auto' },
+                testName: { cellWidth: 'auto' },
+                ageGender: { cellWidth: 'auto' },
+                payment: { cellWidth: 'auto' },
+                email: { cellWidth: 'auto' },
+                phone: { cellWidth: 'auto' }
+            },
+            margin: { top: 35, left: 10, right: 10, bottom: 5 }, // Match left spacing on both sides
+            tableWidth: 'auto',
+            theme: 'plain' // Remove all default styling and borders
+        });
+
+        // Save the PDF
+        const fileName = `${title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+        doc.save(fileName);
+    }
+
     // Handle name search
     handleNameSearch(searchTerm) {
         if (!searchTerm || searchTerm.trim() === '' || searchTerm.length < 2) {
@@ -1454,7 +1706,7 @@ class BloodTestManager {
     // Select patient from dropdown
     selectPatient(patient) {
         const iycInput = document.getElementById('iycNumber');
-        const nameInput = document.getElementById('patientName');
+        const nameInput = document.getElementById('bloodTestPatientName');
         const categoryInput = document.getElementById('category');
         const phoneInput = document.getElementById('phoneNumber');
 
@@ -1475,6 +1727,8 @@ class BloodTestManager {
         this.hideNameDropdown();
         this.validateForm();
     }
+
+
 
     // View test details
     viewTestDetails(testId) {
@@ -1529,6 +1783,10 @@ class BloodTestManager {
                                 <span>${test.status || 'N/A'}</span>
                             </div>
                             <div class="detail-item">
+                                <label>Payment:</label>
+                                <span>${test.payment || 'N/A'}</span>
+                            </div>
+                            <div class="detail-item">
                                 <label>Remarks:</label>
                                 <span>${test.remarks || 'N/A'}</span>
                             </div>
@@ -1572,6 +1830,141 @@ class BloodTestManager {
             modal.remove();
         }
     }
+
+    // Edit test details
+    editTestDetails(testId) {
+        const test = this.findTestById(testId);
+        if (test) {
+            this.showEditTestModal(test);
+        }
+    }
+
+    // Show edit test modal
+    showEditTestModal(test) {
+        // Create modal HTML with editable date and test fields
+        const modalHtml = `
+            <div id="editTestModal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Edit Blood Test</h3>
+                        <span class="modal-close" onclick="bloodTestManager.closeEditTestModal()">&times;</span>
+                    </div>
+                    <div class="modal-body">
+                        <div class="details-grid">
+                            <div class="detail-item">
+                                <label>IYC Number:</label>
+                                <input type="text" class="readonly-field" value="${test.iycNumber || ''}" readonly>
+                            </div>
+                            <div class="detail-item">
+                                <label>Name:</label>
+                                <input type="text" class="readonly-field" value="${test.name || ''}" readonly>
+                            </div>
+                            <div class="detail-item">
+                                <label>Category:</label>
+                                <input type="text" class="readonly-field" value="${test.category || ''}" readonly>
+                            </div>
+                            <div class="detail-item">
+                                <label>Date: <span class="required">*</span></label>
+                                <input type="date" id="editTestDate" value="${test.date || ''}" required>
+                            </div>
+                            <div class="detail-item">
+                                <label>Test Name: <span class="required">*</span></label>
+                                <textarea id="editTestName" rows="3" required>${test.testName || ''}</textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-primary" onclick="bloodTestManager.saveEditedTest('${test.id}')">Save Changes</button>
+                        <button type="button" class="btn-secondary" onclick="bloodTestManager.closeEditTestModal()">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Add modal to page
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        // Show modal with proper display
+        const modal = document.getElementById('editTestModal');
+        modal.style.display = 'flex';
+
+        // Add event listener for clicking outside modal to close
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                this.closeEditTestModal();
+            }
+        });
+
+        // Add keyboard event listener for ESC key
+        const handleKeyPress = (e) => {
+            if (e.key === 'Escape') {
+                this.closeEditTestModal();
+                document.removeEventListener('keydown', handleKeyPress);
+            }
+        };
+        document.addEventListener('keydown', handleKeyPress);
+    }
+
+    // Close edit test modal
+    closeEditTestModal() {
+        const modal = document.getElementById('editTestModal');
+        if (modal) {
+            modal.remove();
+        }
+    }
+
+    // Save edited test
+    async saveEditedTest(testId) {
+        try {
+            // Get form values from modal
+            const date = document.getElementById('editTestDate').value.trim();
+            const testName = document.getElementById('editTestName').value.trim();
+
+            // Validate required fields
+            if (!date || !testName) {
+                alert('Please fill in all required fields (Date, Test Name)');
+                return;
+            }
+
+            // Show loading overlay
+            loadingOverlay.show('Updating test details...', 'Please wait while we save your changes');
+
+            // Find the test to get its row index
+            const test = this.findTestById(testId);
+            if (!test) {
+                throw new Error('Test not found');
+            }
+
+            // Prepare test data for update
+            const testData = {
+                id: testId,
+                rowIndex: test.rowIndex,
+                date: date,
+                testName: testName
+            };
+
+            // Update test via API
+            const result = await googleSheetsAPI.updateTestDetails(testData);
+
+            if (result && result.success) {
+                // Show success overlay
+                loadingOverlay.showSuccess('Test details updated successfully!', 'Your changes have been saved');
+
+                // Close the modal
+                this.closeEditTestModal();
+
+                // Reload the current section data to reflect changes
+                await this.loadSectionData(this.currentSection);
+
+            } else {
+                throw new Error(result?.message || 'Failed to update test details');
+            }
+
+        } catch (error) {
+            console.error('Error updating test details:', error);
+            loadingOverlay.showError('Failed to update test details', error.message || 'Please try again');
+        }
+    }
 }
 
 // Create global blood test manager instance
@@ -1589,5 +1982,38 @@ window.testBloodTestAPI = async function() {
     } catch (error) {
         console.error('API test error:', error);
         return error;
+    }
+};
+
+// Debug function to test name field directly
+window.debugBloodTestNameField = function() {
+    const nameInput = document.getElementById('bloodTestPatientName');
+    console.log('Name input element:', nameInput);
+    console.log('Current value:', nameInput ? nameInput.value : 'Element not found');
+
+    if (nameInput) {
+        console.log('Setting test value...');
+        nameInput.value = 'Test Name';
+        console.log('Value after setting:', nameInput.value);
+        nameInput.style.backgroundColor = '#e8f5e8';
+
+        setTimeout(() => {
+            console.log('Value after 1 second:', nameInput.value);
+        }, 1000);
+    }
+};
+
+// Debug function to test IYC lookup
+window.debugBloodTestIYCLookup = async function(iycNumber = 'TEST001') {
+    console.log('=== DEBUG: Testing Blood Test IYC lookup ===');
+    console.log('IYC Number:', iycNumber);
+    console.log('bloodTestManager:', bloodTestManager);
+    console.log('googleSheetsAPI.isInitialized:', googleSheetsAPI.isInitialized);
+
+    try {
+        await bloodTestManager.handleIYCLookup(iycNumber);
+        console.log('=== DEBUG: IYC lookup completed ===');
+    } catch (error) {
+        console.error('=== DEBUG: IYC lookup failed ===', error);
     }
 };
