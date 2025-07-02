@@ -749,6 +749,59 @@ body {
     vertical-align: middle;
 }
 
+/* Test name column specific styling */
+.data-table td:nth-child(6) { /* Test Name column (6th column in pending/upcoming tables) */
+    max-width: 200px;
+    position: relative;
+}
+
+.data-table td:nth-child(4) { /* Test Name column (4th column in review/completed tables) */
+    max-width: 200px;
+    position: relative;
+}
+
+/* Tooltip for long test names */
+.test-name-cell {
+    position: relative;
+    cursor: help;
+    word-wrap: break-word;
+    white-space: normal;
+    line-height: 1.4;
+    vertical-align: top;
+}
+
+.test-name-cell:hover::after {
+    content: attr(data-full-text);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #333;
+    color: white;
+    padding: 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    z-index: 1000;
+    max-width: 300px;
+    word-wrap: break-word;
+    white-space: normal;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    line-height: 1.4;
+    pointer-events: none;
+}
+
+.test-name-cell:hover::before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(100%);
+    border: 5px solid transparent;
+    border-top-color: #333;
+    z-index: 1001;
+    pointer-events: none;
+}
+
 .data-table tbody tr:hover {
     background: #f8f9fa;
 }

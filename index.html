@@ -156,6 +156,17 @@
                                             </select>
                                         </div>
                                         <div class="form-group">
+                                            <label for="patientAge">Age *</label>
+                                            <input type="number" id="patientAge" name="age" min="1" max="120" required>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="patientDepartment">Department Name *</label>
+                                            <input type="text" id="patientDepartment" name="department" placeholder="Enter department name" required>
+                                        </div>
+                                        <div class="form-group">
                                             <label for="emergencyContact">Emergency Contact</label>
                                             <input type="tel" id="emergencyContact" name="emergencyContact">
                                         </div>
@@ -324,6 +335,20 @@
                                     </div>
                                 </div>
 
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="payment">Payment <span class="required">*</span></label>
+                                        <select id="payment" name="payment" required>
+                                            <option value="">Select Payment Type</option>
+                                            <option value="Credit">Credit</option>
+                                            <option value="Cash">Cash</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <!-- Empty group for layout balance -->
+                                    </div>
+                                </div>
+
                                 <div class="form-actions">
                                     <button type="submit" id="saveTestBtn" disabled>
                                         <i class="fas fa-save"></i>
@@ -389,16 +414,13 @@
                                             </th>
                                             <th>Date</th>
                                             <th>Name</th>
-                                            <th>Category</th>
-                                            <th>Phone</th>
                                             <th>Test Name</th>
-                                            <th>Remarks</th>
-                                            <th>Details</th>
+                                            <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <tr class="no-data">
-                                            <td colspan="8">No pending tests found</td>
+                                            <td colspan="5">No pending tests found</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -461,16 +483,13 @@
                                             </th>
                                             <th>Date</th>
                                             <th>Name</th>
-                                            <th>Category</th>
-                                            <th>Phone</th>
                                             <th>Test Name</th>
-                                            <th>Remarks</th>
-                                            <th>Details</th>
+                                            <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <tr class="no-data">
-                                            <td colspan="8">No upcoming tests found</td>
+                                            <td colspan="5">No upcoming tests found</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -526,7 +545,7 @@
                                             <th>Date</th>
                                             <th>Name</th>
                                             <th>Test Name</th>
-                                            <th>Details</th>
+                                            <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -581,7 +600,7 @@
                                             <th>Date</th>
                                             <th>Name</th>
                                             <th>Test Name</th>
-                                            <th>Details</th>
+                                            <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -634,18 +653,14 @@
                                                 <input type="checkbox" class="select-all-checkbox" id="selectAllCancelledTests">
                                             </th>
                                             <th>Date</th>
-                                            <th>IYC Number</th>
                                             <th>Name</th>
-                                            <th>Category</th>
-                                            <th>Phone</th>
                                             <th>Test Name</th>
-                                            <th>Referred By</th>
-                                            <th>Remarks</th>
+                                            <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <tr class="no-data">
-                                            <td colspan="9">No cancelled tests found</td>
+                                            <td colspan="5">No cancelled tests found</td>
                                         </tr>
                                     </tbody>
                                 </table>

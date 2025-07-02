@@ -81,10 +81,10 @@ app.get('/api/patient/:iycNumber', async (req, res) => {
 
         console.log(`Looking up patient with IYC: ${iycNumber}`);
 
-        // Read from Patient Database worksheet - main patient area (A-G)
+        // Read from Patient Database worksheet - main patient area (A-H)
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: 'Patient Database!A:G',
+            range: 'Patient Database!A:H',
         });
 
         const rows = response.data.values || [];
@@ -99,7 +99,9 @@ app.get('/api/patient/:iycNumber', async (req, res) => {
                     iycNumber: row[1] || '',   // B: IYC Number
                     email: row[2] || '',       // C: Email
                     phone: row[4] || '',       // E: Phone Numbers
-                    category: row[6] || ''     // G: Category
+                    department: row[5] || '',  // F: Current Department
+                    category: row[6] || '',    // G: Category
+                    age: row[7] || ''          // H: Age
                 });
             }
         }
@@ -118,7 +120,7 @@ app.get('/api/patient/:iycNumber', async (req, res) => {
 // Save blood test
 app.post('/api/blood-test', async (req, res) => {
     try {
-        const { schedule, testDate, iycNumber, patientName, category, phoneNumber, testName, referredBy } = req.body;
+        const { schedule, testDate, iycNumber, patientName, category, phoneNumber, testName, referredBy, payment } = req.body;
 
         console.log('Saving blood test:', req.body);
 
@@ -134,7 +136,7 @@ app.post('/api/blood-test', async (req, res) => {
         const currentTimestamp = new Date().toISOString();
 
         // Prepare row data with all columns including ID, Created, and Updated timestamps
-        const values = [[testId, finalDate, iycNumber, patientName, category, phoneNumber, testName, referredBy, schedule, '', currentTimestamp, currentTimestamp]];
+        const values = [[testId, finalDate, iycNumber, patientName, category, phoneNumber, testName, referredBy, schedule, '', payment || '', currentTimestamp, currentTimestamp]];
 
         // First, insert a new row at the specified position
         await sheets.spreadsheets.batchUpdate({
@@ -155,7 +157,7 @@ app.post('/api/blood-test', async (req, res) => {
         });
 
         // Then update the values in the new row
-        const range = `${worksheetName}!A${insertAfterRow}:L${insertAfterRow}`;
+        const range = `${worksheetName}!A${insertAfterRow}:M${insertAfterRow}`;
         await sheets.spreadsheets.values.update({
             spreadsheetId: SPREADSHEET_ID,
             range: range,
@@ -213,10 +215,10 @@ async function ensureBloodTestHeaders() {
         // Check if the worksheet exists and has correct headers
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: 'Blood_Test_Data!A1:L1',
+            range: 'Blood_Test_Data!A1:M1',
         });
 
-        const expectedHeaders = ['ID', 'Date', 'IYC Number', 'Name', 'Category', 'Phone', 'Test Name', 'Referred By', 'Status', 'Remarks', 'Created', 'Updated'];
+        const expectedHeaders = ['ID', 'Date', 'IYC Number', 'Name', 'Category', 'Phone', 'Test Name', 'Referred By', 'Status', 'Remarks', 'Payment', 'Created', 'Updated'];
         const currentHeaders = response.data.values ? response.data.values[0] : [];
 
         // Check if headers match
@@ -228,7 +230,7 @@ async function ensureBloodTestHeaders() {
             // Update the header row
             await sheets.spreadsheets.values.update({
                 spreadsheetId: SPREADSHEET_ID,
-                range: 'Blood_Test_Data!A1:L1',
+                range: 'Blood_Test_Data!A1:M1',
                 valueInputOption: 'RAW',
                 resource: {
                     values: [expectedHeaders]
@@ -252,7 +254,7 @@ app.get('/api/tests/all', async (req, res) => {
 
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: `Blood_Test_Data!A:L`,
+            range: `Blood_Test_Data!A:M`,
         });
 
         const rows = response.data.values || [];
@@ -270,8 +272,9 @@ app.get('/api/tests/all', async (req, res) => {
             referredBy: row[7] || '',
             status: row[8] || '',
             remarks: row[9] || '',
-            created: row[10] || '',
-            updated: row[11] || ''
+            payment: row[10] || '',
+            created: row[11] || '',
+            updated: row[12] || ''
         })).filter(test => {
             // Only include rows with IYC numbers
             return test.iycNumber;
@@ -302,7 +305,7 @@ app.get('/api/tests/:status', async (req, res) => {
 
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: `Blood_Test_Data!A:L`,
+            range: `Blood_Test_Data!A:M`,
         });
 
         const rows = response.data.values || [];
@@ -320,8 +323,9 @@ app.get('/api/tests/:status', async (req, res) => {
             referredBy: row[7] || '', // H=Referred By
             status: row[8] || '', // I=Status
             remarks: row[9] || '', // J=Remarks
-            created: row[10] || '', // K=Created
-            updated: row[11] || '' // L=Updated
+            payment: row[10] || '', // K=Payment
+            created: row[11] || '', // L=Created
+            updated: row[12] || '' // M=Updated
         })).filter(test => {
             // Filter by status and ensure we have required data
             return test.iycNumber && test.status === status;
@@ -365,10 +369,10 @@ app.post('/api/update-status', async (req, res) => {
         for (let i = 0; i < rowIndices.length; i++) {
             const rowIndex = rowIndices[i];
 
-            // Update status (column I) and updated timestamp (column L)
+            // Update status (column I) and updated timestamp (column M)
             updates.push({
-                range: `Blood_Test_Data!I${rowIndex}:L${rowIndex}`,
-                values: [[newStatus, '', '', currentTimestamp]] // Status, Remarks (unchanged), Created (unchanged), Updated
+                range: `Blood_Test_Data!I${rowIndex}:M${rowIndex}`,
+                values: [[newStatus, '', '', '', currentTimestamp]] // Status, Remarks (unchanged), Payment (unchanged), Created (unchanged), Updated
             });
         }
 
@@ -408,10 +412,10 @@ app.put('/api/test/:rowIndex', async (req, res) => {
 
         const currentTimestamp = new Date().toISOString();
 
-        // Update only the editable fields (B to L for updated timestamp)
-        // Keep ID (A), Created (K) unchanged
-        const range = `Blood_Test_Data!B${rowIndex}:L${rowIndex}`;
-        const values = [[date, iycNumber, name, category, phone, testName, referredBy, status, remarks, '', currentTimestamp]];
+        // Update only the editable fields (B to M for updated timestamp)
+        // Keep ID (A), Created (L) unchanged
+        const range = `Blood_Test_Data!B${rowIndex}:M${rowIndex}`;
+        const values = [[date, iycNumber, name, category, phone, testName, referredBy, status, remarks, '', '', currentTimestamp]];
 
         await sheets.spreadsheets.values.update({
             spreadsheetId: SPREADSHEET_ID,
@@ -907,10 +911,10 @@ app.get('/api/patients', async (req, res) => {
     try {
         console.log('Getting all patients for search...');
 
-        // Read from Patient Database worksheet - main patient area (A-G)
+        // Read from Patient Database worksheet - main patient area (A-H)
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: 'Patient Database!A:G',
+            range: 'Patient Database!A:H',
         });
 
         const rows = response.data.values || [];
@@ -2068,10 +2072,10 @@ app.get('/api/patients', async (req, res) => {
     try {
         console.log('Getting all patients for name search');
 
-        // Read from Patient Database worksheet - main patient area (A-G)
+        // Read from Patient Database worksheet - main patient area (A-H)
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: 'Patient Database!A:G',
+            range: 'Patient Database!A:H',
         });
 
         const rows = response.data.values || [];
@@ -2091,7 +2095,8 @@ app.get('/api/patients', async (req, res) => {
             personalEmail: row[3] || '',     // D: Personal Email
             phone: row[4] || '',             // E: Phone Numbers
             department: row[5] || '',        // F: Current Department
-            category: row[6] || ''           // G: Category
+            category: row[6] || '',          // G: Category
+            age: row[7] || ''                // H: Age
         })).filter(patient => {
             // Only include rows with both name and IYC number
             return patient.name && patient.iycNumber;
@@ -2772,22 +2777,36 @@ async function ensurePatientDatabaseHeaders() {
             range: 'Patient Database!A1:I1'
         });
 
-        const expectedHeaders = ['Name', 'IYC Number', 'Email', 'Personal Email', 'Phone Numbers'];
+        const expectedHeaders = ['Name', 'IYC Number', 'Email', 'Personal Email', 'Phone Numbers', 'Current Department', 'Category', 'Age'];
         const existingHeaders = response.data.values ? response.data.values[0] : [];
 
-        // Check if key headers match (A, B, C, E)
+        // Check if key headers match (A, B, C, E, F, G, H)
         const keyHeadersMatch = (
             existingHeaders[0] === 'Name' &&
             existingHeaders[1] === 'IYC Number' &&
             existingHeaders[2] === 'Email' &&
-            existingHeaders[4] === 'Phone Numbers'
+            existingHeaders[4] === 'Phone Numbers' &&
+            existingHeaders[5] === 'Current Department' &&
+            existingHeaders[6] === 'Category' &&
+            existingHeaders[7] === 'Age'
         );
 
         if (!keyHeadersMatch) {
-            console.log('Patient Database worksheet key headers need verification...');
-            console.log('Expected: Name, IYC Number, Email, [Personal Email], Phone Numbers');
+            console.log('Patient Database worksheet headers need updating...');
+            console.log('Expected: Name, IYC Number, Email, [Personal Email], Phone Numbers, Current Department, Category, Age');
             console.log('Found:', existingHeaders);
-            console.log('Note: Manual header verification may be needed');
+
+            // Update the headers to include Age column
+            await sheets.spreadsheets.values.update({
+                spreadsheetId: SPREADSHEET_ID,
+                range: 'Patient Database!A1:I1',
+                valueInputOption: 'RAW',
+                resource: {
+                    values: [expectedHeaders.concat(['Emergency Contact'])] // Add Emergency Contact as column I
+                }
+            });
+
+            console.log('Patient Database worksheet headers updated successfully');
         } else {
             console.log('Patient Database worksheet key headers are correct');
         }
@@ -2816,7 +2835,7 @@ async function ensurePatientDatabaseHeaders() {
                     range: 'Patient Database!A1:I1',
                     valueInputOption: 'RAW',
                     resource: {
-                        values: [['Name', 'IYC Number', 'Email', 'Personal Email', 'Phone Numbers', 'Address', 'Category', 'Emergency Contact', 'Patient Type']]
+                        values: [['Name', 'IYC Number', 'Email', 'Personal Email', 'Phone Numbers', 'Current Department', 'Category', 'Age', 'Emergency Contact']]
                     }
                 });
 
@@ -2886,12 +2905,12 @@ app.get('/api/next-patient-id', async (req, res) => {
 // Register new patient in Patient Database sheet
 app.post('/api/register-patient', async (req, res) => {
     try {
-        const { name, email, phone, iyc, category, emergencyContact, patientType } = req.body;
+        const { name, email, phone, iyc, category, age, department, emergencyContact, patientType } = req.body;
 
-        if (!name || !email || !phone || !patientType || !category) {
+        if (!name || !email || !phone || !patientType || !category || !age || !department) {
             return res.status(400).json({
                 success: false,
-                message: 'Name, email, phone, patient type, and category are required'
+                message: 'Name, email, phone, patient type, category, age, and department are required'
             });
         }
 
@@ -2903,7 +2922,7 @@ app.post('/api/register-patient', async (req, res) => {
             });
         }
 
-        console.log(`Registering new patient: ${name}, Type: ${patientType}, Email: ${email}, Phone: ${phone}`);
+        console.log(`Registering new patient: ${name}, Type: ${patientType}, Email: ${email}, Phone: ${phone}, Age: ${age}, Department: ${department}`);
 
         // Ensure Patient Database worksheet exists and has correct headers
         await ensurePatientDatabaseHeaders();
@@ -2911,7 +2930,7 @@ app.post('/api/register-patient', async (req, res) => {
         // Check if patient already exists (by email or IYC if provided)
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: 'Patient Database!A:G'
+            range: 'Patient Database!A:H'
         });
 
         const rows = response.data.values || [];
@@ -2949,8 +2968,8 @@ app.post('/api/register-patient', async (req, res) => {
 
         const timestamp = new Date().toISOString();
 
-        // Prepare row data: [Name, IYC, Email, Personal Email, Phone, Current Department, Category]
-        // Match the existing sheet structure: A=Name, B=IYC, C=Email, D=Personal Email, E=Phone, F=Current Department, G=Category
+        // Prepare row data: [Name, IYC, Email, Personal Email, Phone, Current Department, Category, Age]
+        // Match the existing sheet structure: A=Name, B=IYC, C=Email, D=Personal Email, E=Phone, F=Current Department, G=Category, H=Age
         // Email placement logic: All emails go to Email column (C)
         const rowData = [
             name,                    // A: Name
@@ -2958,14 +2977,15 @@ app.post('/api/register-patient', async (req, res) => {
             email,                  // C: Email (for all patient types)
             '',                     // D: Personal Email (empty for all)
             phone,                  // E: Phone Numbers
-            'Medical - General',     // F: Current Department (default value)
-            finalCategory           // G: Category
+            department,             // F: Current Department (user provided)
+            finalCategory,          // G: Category
+            age                     // H: Age
         ];
 
-        // Add new patient to the sheet - save in main patient area (columns A-G)
+        // Add new patient to the sheet - save in main patient area (columns A-H)
         await sheets.spreadsheets.values.append({
             spreadsheetId: SPREADSHEET_ID,
-            range: 'Patient Database!A:G', // Save in main patient columns
+            range: 'Patient Database!A:H', // Save in main patient columns including Age
             valueInputOption: 'RAW',
             resource: {
                 values: [rowData]

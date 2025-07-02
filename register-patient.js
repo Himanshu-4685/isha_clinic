@@ -103,7 +103,7 @@ class RegisterPatientManager {
 
     // Setup form validation
     setupFormValidation() {
-        const requiredFields = ['patientName', 'patientEmail', 'patientPhone', 'patientCategory'];
+        const requiredFields = ['patientName', 'patientEmail', 'patientPhone', 'patientCategory', 'patientAge', 'patientDepartment'];
 
         requiredFields.forEach(fieldId => {
             const field = document.getElementById(fieldId);
@@ -118,6 +118,16 @@ class RegisterPatientManager {
                 });
             }
         });
+
+        // Add special handling for category field to auto-fill Samskriti details
+        const categoryField = document.getElementById('patientCategory');
+        if (categoryField) {
+            categoryField.addEventListener('change', () => {
+                this.handleCategoryChange(categoryField.value);
+                this.formTouched = true;
+                this.validateForm();
+            });
+        }
 
         // Add validation for patient type radio buttons
         const patientTypeRadios = document.querySelectorAll('input[name="patientType"]');
@@ -177,7 +187,7 @@ class RegisterPatientManager {
 
     // Validate entire form
     validateForm() {
-        const requiredFields = ['patientName', 'patientEmail', 'patientPhone', 'patientCategory'];
+        const requiredFields = ['patientName', 'patientEmail', 'patientPhone', 'patientCategory', 'patientAge', 'patientDepartment'];
         let isValid = true;
 
         requiredFields.forEach(fieldId => {
@@ -266,6 +276,67 @@ class RegisterPatientManager {
         this.validateForm();
     }
 
+    // Handle category change for special cases like Samskriti
+    handleCategoryChange(category) {
+        console.log('Category selected:', category);
+
+        const emailField = document.getElementById('patientEmail');
+        const phoneField = document.getElementById('patientPhone');
+        const departmentField = document.getElementById('patientDepartment');
+
+        if (category === 'Samskriti') {
+            // Auto-fill Samskriti contact details
+            if (emailField) {
+                emailField.value = 'samaskriti.office@ishafoundation.com';
+                emailField.readOnly = true;
+                emailField.style.backgroundColor = '#f0f0f0';
+            }
+
+            if (phoneField) {
+                phoneField.value = '8870871357';
+                phoneField.readOnly = true;
+                phoneField.style.backgroundColor = '#f0f0f0';
+            }
+
+            if (departmentField) {
+                departmentField.value = 'Samskriti';
+                departmentField.readOnly = true;
+                departmentField.style.backgroundColor = '#f0f0f0';
+            }
+        } else {
+            // Reset fields for other categories
+            if (emailField) {
+                emailField.readOnly = false;
+                emailField.style.backgroundColor = '';
+                // Only clear if it was the Samskriti email
+                if (emailField.value === 'samaskriti.office@ishafoundation.com') {
+                    emailField.value = '';
+                }
+            }
+
+            if (phoneField) {
+                phoneField.readOnly = false;
+                phoneField.style.backgroundColor = '';
+                // Only clear if it was the Samskriti phone
+                if (phoneField.value === '8870871357') {
+                    phoneField.value = '';
+                }
+            }
+
+            if (departmentField) {
+                departmentField.readOnly = false;
+                departmentField.style.backgroundColor = '';
+                // Only clear if it was the Samskriti department
+                if (departmentField.value === 'Samskriti') {
+                    departmentField.value = '';
+                }
+            }
+        }
+
+        // Revalidate form after changes
+        this.validateForm();
+    }
+
     // Update category options based on patient type
     updateCategoryOptions(patientType) {
         const categoryField = document.getElementById('patientCategory');
@@ -283,7 +354,8 @@ class RegisterPatientManager {
                 { value: 'Staff', text: 'Staff' },
                 { value: 'Sevadar', text: 'Sevadar' },
                 { value: 'Samskriti', text: 'Samskriti' },
-                { value: 'Guest', text: 'Guest' }
+                { value: 'Guest', text: 'Guest' },
+                { value: 'SPD', text: 'SPD' }
             ];
 
             poornangaOptions.forEach(option => {
@@ -301,7 +373,8 @@ class RegisterPatientManager {
                 { value: 'Staff', text: 'Staff' },
                 { value: 'Sevadar', text: 'Sevadar' },
                 { value: 'Samskriti', text: 'Samskriti' },
-                { value: 'Guest', text: 'Guest' }
+                { value: 'Guest', text: 'Guest' },
+                { value: 'SPD', text: 'SPD' }
             ];
 
             nonPoornangaOptions.forEach(option => {
@@ -368,6 +441,8 @@ class RegisterPatientManager {
             email: document.getElementById('patientEmail').value.trim(),
             phone: document.getElementById('patientPhone').value.trim(),
             category: document.getElementById('patientCategory').value.trim(),
+            age: document.getElementById('patientAge').value.trim(),
+            department: document.getElementById('patientDepartment').value.trim(),
             emergencyContact: document.getElementById('emergencyContact').value.trim(),
             patientType: document.querySelector('input[name="patientType"]:checked')?.value || ''
         };
@@ -427,11 +502,21 @@ class RegisterPatientManager {
         if (form) {
             form.reset();
 
-            // Remove error styling
+            // Remove error styling and reset field properties
             const fields = form.querySelectorAll('input, select, textarea');
             fields.forEach(field => {
                 field.classList.remove('error');
+                // Reset readonly state and background color for all fields
+                field.readOnly = false;
+                field.style.backgroundColor = '';
             });
+
+            // Reset IYC field properties (will be set correctly when patient type is selected)
+            const iycField = document.getElementById('patientIYC');
+            if (iycField) {
+                iycField.placeholder = '';
+                iycField.required = false;
+            }
 
             this.isFormValid = false;
             this.formTouched = false; // Reset touched state
@@ -591,6 +676,8 @@ class RegisterPatientManager {
             patientPhone: document.getElementById('patientPhone')?.value || '',
             patientIYC: document.getElementById('patientIYC')?.value || '',
             patientCategory: document.getElementById('patientCategory')?.value || '',
+            patientAge: document.getElementById('patientAge')?.value || '',
+            patientDepartment: document.getElementById('patientDepartment')?.value || '',
             emergencyContact: document.getElementById('emergencyContact')?.value || '',
             patientType: document.querySelector('input[name="patientType"]:checked')?.value || ''
         };
@@ -605,7 +692,7 @@ class RegisterPatientManager {
         console.log('Restoring form state:', this.formData);
 
         // Restore text inputs
-        const fields = ['patientName', 'patientEmail', 'patientPhone', 'patientIYC', 'patientCategory', 'emergencyContact'];
+        const fields = ['patientName', 'patientEmail', 'patientPhone', 'patientIYC', 'patientCategory', 'patientAge', 'patientDepartment', 'emergencyContact'];
         fields.forEach(fieldId => {
             const field = document.getElementById(fieldId);
             if (field && this.formData[fieldId]) {
@@ -621,6 +708,13 @@ class RegisterPatientManager {
                 // Trigger the change event to update form behavior
                 this.handlePatientTypeChange(this.formData.patientType);
             }
+        }
+
+        // Restore category-specific behavior (like Samskriti auto-fill)
+        if (this.formData.patientCategory) {
+            setTimeout(() => {
+                this.handleCategoryChange(this.formData.patientCategory);
+            }, 100);
         }
 
         // Only revalidate form after restoration if it was previously touched

@@ -36,8 +36,9 @@ const CONFIG = {
                 REFERRED_BY: 'H',
                 STATUS: 'I',
                 REMARKS: 'J',
-                CREATED: 'K',
-                UPDATED: 'L'
+                PAYMENT: 'K',
+                CREATED: 'L',
+                UPDATED: 'M'
             },
             STATUSES: {
                 UPCOMING: 'Upcoming',
