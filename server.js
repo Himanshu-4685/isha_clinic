@@ -402,6 +402,130 @@ app.post('/api/update-status', async (req, res) => {
     }
 });
 
+// Update test status and date (for moving pending tests to upcoming with date change)
+app.post('/api/update-status-and-date', async (req, res) => {
+    try {
+        const { testIds, newStatus, newDate, rowIndices } = req.body;
+
+        console.log(`Updating ${testIds.length} tests to status: ${newStatus} with date: ${newDate}`);
+
+        if (testIds.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'No tests provided for update'
+            });
+        }
+
+        const currentTimestamp = new Date().toISOString();
+        const updates = [];
+
+        // Prepare batch update for all selected tests
+        for (let i = 0; i < rowIndices.length; i++) {
+            const rowIndex = rowIndices[i];
+
+            // Update date (column B), status (column I), and updated timestamp (column M)
+            updates.push({
+                range: `Blood_Test_Data!B${rowIndex}`,
+                values: [[newDate]]
+            });
+            updates.push({
+                range: `Blood_Test_Data!I${rowIndex}`,
+                values: [[newStatus]]
+            });
+            updates.push({
+                range: `Blood_Test_Data!M${rowIndex}`,
+                values: [[currentTimestamp]]
+            });
+        }
+
+        // Execute batch update
+        await sheets.spreadsheets.values.batchUpdate({
+            spreadsheetId: SPREADSHEET_ID,
+            resource: {
+                valueInputOption: 'RAW',
+                data: updates
+            }
+        });
+
+        res.json({
+            success: true,
+            message: `Successfully updated ${testIds.length} tests to ${newStatus} with date ${newDate}`,
+            updatedCount: testIds.length,
+            newStatus: newStatus,
+            newDate: newDate
+        });
+
+    } catch (error) {
+        console.error('Error updating test status and date:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update test status and date',
+            error: error.message
+        });
+    }
+});
+
+// Update test dates only (without changing status)
+app.post('/api/update-dates', async (req, res) => {
+    try {
+        console.log('=== UPDATE DATES ENDPOINT CALLED ===');
+        console.log('Request body:', req.body);
+
+        const { testIds, newDate, rowIndices } = req.body;
+
+        console.log(`Updating dates for ${testIds.length} tests to date: ${newDate}`);
+
+        if (testIds.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'No tests provided for date update'
+            });
+        }
+
+        const currentTimestamp = new Date().toISOString();
+        const updates = [];
+
+        // Prepare batch update for all selected tests (only date and updated timestamp)
+        for (let i = 0; i < rowIndices.length; i++) {
+            const rowIndex = rowIndices[i];
+
+            // Update date (column B) and updated timestamp (column M)
+            updates.push({
+                range: `Blood_Test_Data!B${rowIndex}`,
+                values: [[newDate]]
+            });
+            updates.push({
+                range: `Blood_Test_Data!M${rowIndex}`,
+                values: [[currentTimestamp]]
+            });
+        }
+
+        // Execute batch update
+        await sheets.spreadsheets.values.batchUpdate({
+            spreadsheetId: SPREADSHEET_ID,
+            resource: {
+                valueInputOption: 'RAW',
+                data: updates
+            }
+        });
+
+        res.json({
+            success: true,
+            message: `Successfully updated dates for ${testIds.length} tests to ${newDate}`,
+            updatedCount: testIds.length,
+            newDate: newDate
+        });
+
+    } catch (error) {
+        console.error('Error updating test dates:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update test dates',
+            error: error.message
+        });
+    }
+});
+
 // Update individual test data
 app.put('/api/test/:rowIndex', async (req, res) => {
     try {

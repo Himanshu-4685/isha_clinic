@@ -879,6 +879,9 @@ class UltrasoundManager {
                     <button class="btn-icon" onclick="ultrasoundManager.viewUltrasoundDetails('${ultrasound.id}')" title="View Details">
                         <i class="fas fa-eye"></i>
                     </button>
+                    <button class="btn-icon" onclick="ultrasoundManager.editUltrasoundDetails('${ultrasound.id}')" title="Edit Ultrasound">
+                        <i class="fas fa-edit"></i>
+                    </button>
                 </td>
             `;
         } else if (this.currentSection === 'pending-review-ultrasound' || this.currentSection === 'completed-ultrasound' || this.currentSection === 'cancelled-ultrasound') {
@@ -894,6 +897,9 @@ class UltrasoundManager {
                     <button class="btn-icon" onclick="ultrasoundManager.viewUltrasoundDetails('${ultrasound.id}')" title="View Details">
                         <i class="fas fa-eye"></i>
                     </button>
+                    <button class="btn-icon" onclick="ultrasoundManager.editUltrasoundDetails('${ultrasound.id}')" title="Edit Ultrasound">
+                        <i class="fas fa-edit"></i>
+                    </button>
                 </td>
             `;
         } else {
@@ -908,6 +914,9 @@ class UltrasoundManager {
                 <td>
                     <button class="btn-icon" onclick="ultrasoundManager.viewUltrasoundDetails('${ultrasound.id}')" title="View Details">
                         <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn-icon" onclick="ultrasoundManager.editUltrasoundDetails('${ultrasound.id}')" title="Edit Ultrasound">
+                        <i class="fas fa-edit"></i>
                     </button>
                 </td>
             `;
@@ -1628,16 +1637,27 @@ class UltrasoundManager {
                 return;
             }
 
-            // Filter and prepare data for PDF
-            const pdfData = upcomingUltrasounds.map(ultrasound => ({
-                name: ultrasound.name || '',
-                testName: ultrasound.testName || '',
-                timing: ultrasound.timing || '',
-                payment: ultrasound.payment || '',
-                ageGender: '', // Empty as requested
-                email: '', // Empty as requested
-                phone: '' // Empty as requested
-            }));
+            // Filter and prepare data for PDF with formatted test names
+            const pdfData = upcomingUltrasounds.map(ultrasound => {
+                // Format test name with proper line breaks
+                let formattedTestName = ultrasound.testName || '';
+
+                // Add line breaks for better formatting
+                formattedTestName = formattedTestName
+                    .replace(/;\s*/g, ';\n')  // Line break after semicolons
+                    .replace(/,\s*(?=[A-Z])/g, ',\n')  // Line break after commas before capital letters
+                    .replace(/\s*-\s*/g, '\n- ')  // Line break before dashes
+                    .replace(/\(\s*([^)]+)\s*\)/g, '\n($1)')  // Put parentheses content on new line
+                    .replace(/\n+/g, '\n')  // Remove multiple consecutive line breaks
+                    .trim();
+
+                return {
+                    name: ultrasound.name || '',
+                    testName: formattedTestName,
+                    timing: ultrasound.timing || '',
+                    payment: ultrasound.payment || ''
+                };
+            });
 
             // Generate PDF
             this.generateUltrasoundsPDF(pdfData, 'Upcoming Ultrasounds');
@@ -1672,26 +1692,23 @@ class UltrasoundManager {
         const currentDate = new Date().toLocaleDateString('en-IN');
         doc.text(`Generated on: ${currentDate}`, 10, 25); // Reduced margin
 
-        // Define table columns for ultrasounds
+        // Define table columns for ultrasounds (removed Age/Gender, Email, Phone)
         const columns = [
             { header: 'Name', dataKey: 'name' },
             { header: 'Ultrasound Type', dataKey: 'testName' },
             { header: 'Timing', dataKey: 'timing' },
-            { header: 'Age/Gender', dataKey: 'ageGender' },
-            { header: 'Payment', dataKey: 'payment' },
-            { header: 'Email', dataKey: 'email' },
-            { header: 'Phone', dataKey: 'phone' }
+            { header: 'Payment', dataKey: 'payment' }
         ];
 
-        // Generate table using autoTable plugin with no borders and full width
+        // Generate table using autoTable plugin with equal column widths and text wrapping
         doc.autoTable({
             columns: columns,
             body: ultrasoundData,
             startY: 35,
             styles: {
-                fontSize: 9,
-                cellPadding: 2,
-                overflow: 'linebreak',
+                fontSize: 8, // Reduced font size to fit more content
+                cellPadding: 1.5,
+                overflow: 'linebreak', // Enable text wrapping for all cells
                 halign: 'left',
                 lineColor: [255, 255, 255], // White lines (invisible borders)
                 lineWidth: 0 // No border lines
@@ -1700,6 +1717,7 @@ class UltrasoundManager {
                 fillColor: [102, 126, 234], // Blue header
                 textColor: 255,
                 fontStyle: 'bold',
+                fontSize: 8,
                 lineColor: [255, 255, 255], // White lines for header
                 lineWidth: 0 // No border lines for header
             },
@@ -1707,16 +1725,25 @@ class UltrasoundManager {
                 fillColor: [245, 245, 245] // Light gray for alternate rows
             },
             columnStyles: {
-                name: { cellWidth: 'auto' },
-                testName: { cellWidth: 'auto' },
-                timing: { cellWidth: 'auto' },
-                ageGender: { cellWidth: 'auto' },
-                payment: { cellWidth: 'auto' },
-                email: { cellWidth: 'auto' },
-                phone: { cellWidth: 'auto' }
+                name: {
+                    cellWidth: 60, // Optimized for A4 landscape
+                    overflow: 'linebreak'
+                },
+                testName: {
+                    cellWidth: 120, // Adequate space for wrapped test names on A4
+                    overflow: 'linebreak' // Ensure test names wrap properly
+                },
+                timing: {
+                    cellWidth: 50, // Optimized for A4 landscape
+                    overflow: 'linebreak'
+                },
+                payment: {
+                    cellWidth: 40, // Optimized for A4 landscape
+                    overflow: 'linebreak'
+                }
             },
-            margin: { top: 35, left: 10, right: 10, bottom: 5 }, // Match left spacing on both sides
-            tableWidth: 'auto',
+            margin: { top: 35, left: 10, right: 10, bottom: 5 }, // Standard A4 margins
+            tableWidth: 'wrap', // Use wrap to ensure all columns fit on A4
             theme: 'plain' // Remove all default styling and borders
         });
 
@@ -1831,6 +1858,147 @@ class UltrasoundManager {
         const modal = document.getElementById('ultrasoundDetailsModal');
         if (modal) {
             modal.remove();
+        }
+    }
+
+    // Edit ultrasound details
+    editUltrasoundDetails(ultrasoundId) {
+        const ultrasound = this.findUltrasoundById(ultrasoundId);
+        if (ultrasound) {
+            this.showEditUltrasoundModal(ultrasound);
+        }
+    }
+
+    // Show edit ultrasound modal
+    showEditUltrasoundModal(ultrasound) {
+        // Create modal HTML with editable test type, timing and date fields
+        const modalHtml = `
+            <div id="editUltrasoundModal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Edit Ultrasound</h3>
+                        <span class="modal-close" onclick="ultrasoundManager.closeEditUltrasoundModal()">&times;</span>
+                    </div>
+                    <div class="modal-body">
+                        <div class="details-grid">
+                            <div class="detail-item">
+                                <label>IYC Number:</label>
+                                <input type="text" class="readonly-field" value="${ultrasound.iycNumber || ''}" readonly>
+                            </div>
+                            <div class="detail-item">
+                                <label>Name:</label>
+                                <input type="text" class="readonly-field" value="${ultrasound.name || ''}" readonly>
+                            </div>
+                            <div class="detail-item">
+                                <label>Category:</label>
+                                <input type="text" class="readonly-field" value="${ultrasound.category || ''}" readonly>
+                            </div>
+                            <div class="detail-item">
+                                <label>Test Type: <span class="required">*</span></label>
+                                <input type="text" id="editUltrasoundTestType" value="${ultrasound.testName || ''}" required>
+                            </div>
+                            <div class="detail-item">
+                                <label>Date:</label>
+                                <input type="date" id="editUltrasoundDate" value="${ultrasound.date || ''}">
+                            </div>
+                            <div class="detail-item">
+                                <label>Timing:</label>
+                                <input type="text" id="editUltrasoundTiming" value="${ultrasound.timing || ''}" placeholder="e.g., 10:00 AM - 10:30 AM">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-primary" onclick="ultrasoundManager.saveEditedUltrasound('${ultrasound.id}')">Save Changes</button>
+                        <button type="button" class="btn-secondary" onclick="ultrasoundManager.closeEditUltrasoundModal()">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Add modal to page
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        // Show modal with proper display
+        const modal = document.getElementById('editUltrasoundModal');
+        modal.style.display = 'flex';
+
+        // Add event listener for clicking outside modal to close
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                this.closeEditUltrasoundModal();
+            }
+        });
+
+        // Add keyboard event listener for ESC key
+        const handleKeyPress = (e) => {
+            if (e.key === 'Escape') {
+                this.closeEditUltrasoundModal();
+                document.removeEventListener('keydown', handleKeyPress);
+            }
+        };
+        document.addEventListener('keydown', handleKeyPress);
+    }
+
+    // Close edit ultrasound modal
+    closeEditUltrasoundModal() {
+        const modal = document.getElementById('editUltrasoundModal');
+        if (modal) {
+            modal.remove();
+        }
+    }
+
+    // Save edited ultrasound
+    async saveEditedUltrasound(ultrasoundId) {
+        try {
+            // Get form values from modal
+            const testType = document.getElementById('editUltrasoundTestType').value.trim();
+            const date = document.getElementById('editUltrasoundDate').value.trim();
+            const timing = document.getElementById('editUltrasoundTiming').value.trim();
+
+            // Validate required fields
+            if (!testType) {
+                alert('Please fill in the required field (Test Type)');
+                return;
+            }
+
+            // Show loading overlay
+            loadingOverlay.show('Updating ultrasound details...', 'Please wait while we save your changes');
+
+            // Find the ultrasound to get its row index
+            const ultrasound = this.findUltrasoundById(ultrasoundId);
+            if (!ultrasound) {
+                throw new Error('Ultrasound not found');
+            }
+
+            // Prepare ultrasound data for update
+            const ultrasoundData = {
+                id: ultrasoundId,
+                rowIndex: ultrasound.rowIndex,
+                testName: testType,
+                date: date,
+                timing: timing
+            };
+
+            // Update ultrasound via API
+            const result = await googleSheetsAPI.updateUltrasoundDetails(ultrasoundData);
+
+            if (result && result.success) {
+                // Show success overlay
+                loadingOverlay.showSuccess('Ultrasound details updated successfully!', 'Your changes have been saved');
+
+                // Close the modal
+                this.closeEditUltrasoundModal();
+
+                // Reload the current section data to reflect changes
+                await this.loadSectionData(this.currentSection);
+
+            } else {
+                throw new Error(result?.message || 'Failed to update ultrasound details');
+            }
+
+        } catch (error) {
+            console.error('Error updating ultrasound details:', error);
+            loadingOverlay.showError('Failed to update ultrasound details', error.message || 'Please try again');
         }
     }
 

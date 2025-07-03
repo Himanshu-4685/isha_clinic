@@ -673,8 +673,8 @@ class BloodTestManager {
 
     // Get column count for a section
     getColumnCount(sectionName) {
-        // upcoming-test has an extra Phone column
-        return sectionName === 'upcoming-test' ? 6 : 5;
+        // upcoming-test and pending-review have an extra Phone column
+        return (sectionName === 'upcoming-test' || sectionName === 'pending-review') ? 6 : 5;
     }
 
     // Render filtered tests
@@ -925,8 +925,27 @@ class BloodTestManager {
                     </button>
                 </td>
             `;
+        } else if (sectionName === 'pending-review') {
+            // Pending review: Date, Name, Phone, Test Name, Actions
+            row.innerHTML = `
+                <td class="checkbox-col">
+                    <input type="checkbox" class="test-checkbox" data-test-id="${test.id}">
+                </td>
+                <td>${test.date}</td>
+                <td>${test.name}</td>
+                <td>${test.phone || ''}</td>
+                <td class="test-name-cell" data-full-text="${test.testName}">${truncatedTestName}</td>
+                <td>
+                    <button class="btn-icon" onclick="bloodTestManager.viewTestDetails('${test.id}')" title="View Details">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn-icon" onclick="bloodTestManager.editTestDetails('${test.id}')" title="Edit Test">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                </td>
+            `;
         } else {
-            // Pending review and completed: Date, Name, Test Name, Actions
+            // Completed: Date, Name, Test Name, Actions
             row.innerHTML = `
                 <td class="checkbox-col">
                     <input type="checkbox" class="test-checkbox" data-test-id="${test.id}">
@@ -1095,6 +1114,18 @@ class BloodTestManager {
 
         // Close dropdown
         this.closeAllDropdowns();
+
+        // Special handling for moving pending tests to upcoming - show date change dialog
+        if (action === 'upcoming' && this.currentSection === 'pending-test') {
+            this.showDateChangeDialog(selectedTestIds);
+            return;
+        }
+
+        // Special handling for changing date of upcoming tests - show date change dialog
+        if (action === 'change-date' && this.currentSection === 'upcoming-test') {
+            this.showDateChangeDialog(selectedTestIds, true); // true indicates this is for date change only
+            return;
+        }
 
         // Confirm action
         const actionText = actionItem.textContent.trim();
@@ -1563,15 +1594,29 @@ class BloodTestManager {
                 return;
             }
 
-            // Filter and prepare data for PDF
-            const pdfData = upcomingTests.map(test => ({
-                name: test.name || '',
-                testName: test.testName || '',
-                payment: test.payment || '',
-                ageGender: '', // Empty as requested
-                email: '', // Empty as requested
-                phone: '' // Empty as requested
-            }));
+            // Filter and prepare data for PDF with formatted test names
+            const pdfData = upcomingTests.map(test => {
+                // Format test name with proper line breaks for better wrapping
+                let formattedTestName = test.testName || '';
+
+                // Add line breaks for better formatting
+                formattedTestName = formattedTestName
+                    .replace(/;\s*/g, ';\n')  // Line break after semicolons
+                    .replace(/,\s*(?=[A-Z])/g, ',\n')  // Line break after commas before capital letters
+                    .replace(/\s*-\s*/g, '\n- ')  // Line break before dashes
+                    .replace(/\(\s*([^)]+)\s*\)/g, '\n($1)')  // Put parentheses content on new line
+                    .replace(/\n+/g, '\n')  // Remove multiple consecutive line breaks
+                    .trim();
+
+                return {
+                    name: test.name || '',
+                    testName: formattedTestName,
+                    payment: test.payment || '',
+                    ageGender: '', // Empty as requested
+                    email: '', // Empty as requested
+                    phone: '' // Empty as requested
+                };
+            });
 
             // Generate PDF
             this.generateTestsPDF(pdfData, 'Upcoming Blood Tests');
@@ -1965,6 +2010,262 @@ class BloodTestManager {
             loadingOverlay.showError('Failed to update test details', error.message || 'Please try again');
         }
     }
+
+    // Show date change dialog for moving pending tests to upcoming or changing date of upcoming tests
+    showDateChangeDialog(selectedTestIds, isDateChangeOnly = false) {
+        console.log('showDateChangeDialog called with:', selectedTestIds, 'isDateChangeOnly:', isDateChangeOnly);
+
+        if (!selectedTestIds || selectedTestIds.length === 0) {
+            this.showSectionMessage(this.currentSection, 'No tests selected', 'error');
+            return;
+        }
+
+        const selectedTests = selectedTestIds.map(id => this.findTestById(id)).filter(t => t);
+        console.log('Found tests:', selectedTests);
+
+        if (selectedTests.length === 0) {
+            this.showSectionMessage(this.currentSection, 'No valid tests selected', 'error');
+            return;
+        }
+
+        // Store selected tests for later use
+        this.schedulingTests = selectedTests;
+        this.isDateChangeOnly = isDateChangeOnly; // Store the mode
+        console.log('Stored scheduling tests:', this.schedulingTests, 'Mode:', isDateChangeOnly ? 'Date Change Only' : 'Move to Upcoming');
+
+        // Create modal HTML with dynamic title and button text
+        const modalTitle = isDateChangeOnly ? 'Change Test Date' : 'Move Tests to Upcoming';
+        const buttonText = isDateChangeOnly ? 'Update Date' : 'Move to Upcoming';
+
+        const modalHtml = `
+            <div id="dateChangeModal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>${modalTitle}</h3>
+                        <span class="modal-close" onclick="bloodTestManager.closeDateChangeModal()">&times;</span>
+                    </div>
+                    <div class="modal-body">
+                        <div class="selected-tests-info">
+                            <h4>Selected Tests (${selectedTests.length}):</h4>
+                            <div class="selected-tests-table">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Test Name</th>
+                                            <th>Current Date</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${selectedTests.map(test => `
+                                            <tr>
+                                                <td>${test.name}</td>
+                                                <td>${test.testName}</td>
+                                                <td>${test.date}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="date-change-form">
+                            <div class="form-group">
+                                <label for="newTestDate">New Test Date:</label>
+                                <input type="date" id="newTestDate" class="form-control" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" onclick="bloodTestManager.closeDateChangeModal()">Cancel</button>
+                        <button type="button" class="btn btn-primary" onclick="bloodTestManager.confirmDateChange()">${buttonText}</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Add modal to page
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        // Set default date to next test date
+        const newTestDateInput = document.getElementById('newTestDate');
+        newTestDateInput.value = UTILS.getNextTestDate();
+
+        // Show modal
+        const modal = document.getElementById('dateChangeModal');
+        modal.style.display = 'block';
+
+        // Close modal when clicking outside
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                this.closeDateChangeModal();
+            }
+        });
+    }
+
+    // Close date change modal
+    closeDateChangeModal() {
+        const modal = document.getElementById('dateChangeModal');
+        if (modal) {
+            modal.remove();
+        }
+        this.schedulingTests = null;
+        this.isDateChangeOnly = false; // Reset the mode
+    }
+
+    // Confirm date change and move tests to upcoming
+    async confirmDateChange() {
+        const newDate = document.getElementById('newTestDate').value;
+
+        if (!newDate) {
+            alert('Please select a new test date');
+            return;
+        }
+
+        console.log('confirmDateChange called with schedulingTests:', this.schedulingTests);
+
+        // Backup: try to get selected tests from current selection if schedulingTests is null
+        if (!this.schedulingTests || this.schedulingTests.length === 0) {
+            console.log('Attempting to recover selected tests from current selection...');
+            const selectedTestIds = Array.from(this.selectedTests[this.currentSection] || []);
+            console.log('Selected test IDs:', selectedTestIds);
+
+            if (selectedTestIds.length > 0) {
+                this.schedulingTests = selectedTestIds.map(id => this.findTestById(id)).filter(t => t);
+                console.log('Recovered scheduling tests:', this.schedulingTests);
+            }
+        }
+
+        if (!this.schedulingTests || this.schedulingTests.length === 0) {
+            console.error('No scheduling tests found after recovery attempt:', this.schedulingTests);
+            alert('No tests selected for scheduling. Please try selecting tests again.');
+            return;
+        }
+
+        try {
+            // Show loading overlay instead of section loading
+            if (typeof loadingOverlay !== 'undefined') {
+                loadingOverlay.show('Moving tests to upcoming...', 'Please wait while we update the test status and date');
+            } else {
+                this.showSectionLoading(this.currentSection, true);
+            }
+
+            // Store the count before clearing
+            const testCount = this.schedulingTests.length;
+
+            // Update tests based on mode
+            if (this.isDateChangeOnly) {
+                // Just change the date, keep current status
+                await this.changeTestDates(this.schedulingTests, newDate);
+            } else {
+                // Update tests with new date and status (move to upcoming)
+                await this.moveTestsToUpcoming(this.schedulingTests, newDate);
+            }
+
+            // Show success with dynamic message
+            const successTitle = this.isDateChangeOnly ? 'Date updated successfully!' : 'Tests moved successfully!';
+            const successMessage = this.isDateChangeOnly ?
+                `Date updated for ${testCount} test(s)` :
+                `${testCount} test(s) have been moved to upcoming`;
+
+            if (typeof loadingOverlay !== 'undefined') {
+                loadingOverlay.showSuccess(successTitle, successMessage);
+            }
+
+            // Close modal
+            this.closeDateChangeModal();
+
+            // Clear selections
+            this.selectedTests[this.currentSection].clear();
+
+            // Reload data
+            await this.loadSectionData(this.currentSection);
+
+            const sectionMessage = this.isDateChangeOnly ?
+                `Successfully updated date for ${testCount} test(s)` :
+                `Successfully moved ${testCount} test(s) to upcoming`;
+            this.showSectionMessage(this.currentSection, sectionMessage, 'success');
+
+        } catch (error) {
+            console.error('Error moving tests to upcoming:', error);
+
+            if (typeof loadingOverlay !== 'undefined') {
+                loadingOverlay.showError('Failed to move tests', error.message || 'Please try again');
+            } else {
+                alert('Failed to move tests to upcoming: ' + error.message);
+            }
+        } finally {
+            if (typeof loadingOverlay === 'undefined') {
+                this.showSectionLoading(this.currentSection, false);
+            }
+        }
+    }
+
+    // Move tests to upcoming with new date
+    async moveTestsToUpcoming(tests, newDate) {
+        console.log('moveTestsToUpcoming called with:', { tests, newDate });
+
+        if (!tests || tests.length === 0) {
+            throw new Error('No tests provided for update');
+        }
+
+        // Validate test data
+        const validTests = tests.filter(test => test && test.id && test.rowIndex);
+        if (validTests.length === 0) {
+            throw new Error('No valid tests found for update');
+        }
+
+        console.log('Valid tests for update:', validTests);
+
+        const testIds = validTests.map(test => test.id);
+        const rowIndices = validTests.map(test => test.rowIndex);
+
+        console.log('Calling API with:', { testIds, newDate, rowIndices });
+
+        // Update test status and date via API
+        const result = await googleSheetsAPI.updateTestStatusAndDate(testIds, 'Upcoming', newDate, rowIndices);
+
+        console.log('API result:', result);
+
+        if (!result || !result.success) {
+            throw new Error(result?.message || 'Failed to update test status and date');
+        }
+
+        return result;
+    }
+
+    // Change test dates only (without changing status)
+    async changeTestDates(tests, newDate) {
+        console.log('changeTestDates called with:', { tests, newDate });
+
+        if (!tests || tests.length === 0) {
+            throw new Error('No tests provided for date update');
+        }
+
+        // Validate test data
+        const validTests = tests.filter(test => test && test.id && test.rowIndex);
+        if (validTests.length === 0) {
+            throw new Error('No valid tests found for date update');
+        }
+
+        console.log('Valid tests for date update:', validTests);
+
+        const testIds = validTests.map(test => test.id);
+        const rowIndices = validTests.map(test => test.rowIndex);
+
+        console.log('Calling API with:', { testIds, newDate, rowIndices });
+
+        // Update test dates only via API
+        const result = await googleSheetsAPI.updateTestDates(testIds, newDate, rowIndices);
+
+        console.log('API result:', result);
+
+        if (!result || !result.success) {
+            throw new Error(result?.message || 'Failed to update test dates');
+        }
+
+        return result;
+    }
 }
 
 // Create global blood test manager instance
@@ -2012,6 +2313,44 @@ window.debugBloodTestIYCLookup = async function(iycNumber = 'TEST001') {
 
     try {
         await bloodTestManager.handleIYCLookup(iycNumber);
+
+// Debug function to test date change dialog
+window.debugDateChangeDialog = function(isDateChangeOnly = false) {
+    console.log('=== DEBUG: Testing Date Change Dialog ===');
+    console.log('Mode:', isDateChangeOnly ? 'Date Change Only' : 'Move to Upcoming');
+
+    // Create fake test data
+    const fakeTests = [
+        {
+            id: 'TEST001',
+            name: 'Test Patient 1',
+            testName: 'Blood Test 1',
+            date: '2025-07-04',
+            rowIndex: 2
+        },
+        {
+            id: 'TEST002',
+            name: 'Test Patient 2',
+            testName: 'Blood Test 2',
+            date: '2025-07-05',
+            rowIndex: 3
+        }
+    ];
+
+    console.log('Fake tests:', fakeTests);
+
+    // Set up the manager state
+    bloodTestManager.currentSection = isDateChangeOnly ? 'upcoming-test' : 'pending-test';
+    bloodTestManager.schedulingTests = fakeTests;
+
+    // Show the dialog
+    bloodTestManager.showDateChangeDialog(['TEST001', 'TEST002'], isDateChangeOnly);
+};
+
+// Debug function to test upcoming test date change
+window.debugUpcomingDateChange = function() {
+    debugDateChangeDialog(true);
+};
         console.log('=== DEBUG: IYC lookup completed ===');
     } catch (error) {
         console.error('=== DEBUG: IYC lookup failed ===', error);

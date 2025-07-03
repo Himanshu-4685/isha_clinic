@@ -1070,16 +1070,20 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
+    padding: 20px;
+    box-sizing: border-box;
 }
 
 .modal-content {
     background: white;
     border-radius: 10px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-    max-width: 600px;
+    max-width: 700px;
     width: 90%;
-    max-height: 80vh;
+    max-height: 85vh;
     overflow-y: auto;
+    margin: auto;
+    position: relative;
 }
 
 .modal-header {
@@ -1230,6 +1234,89 @@ body {
 .view-details-link:hover {
     color: #5a67d8;
     text-decoration: underline;
+}
+
+/* Date Change Modal Styles */
+.selected-tests-info {
+    margin-bottom: 2rem;
+}
+
+.selected-tests-info h4 {
+    margin: 0 0 1rem 0;
+    color: #333;
+    font-weight: 600;
+}
+
+.selected-tests-table {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+}
+
+.selected-tests-table table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0;
+}
+
+.selected-tests-table th,
+.selected-tests-table td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid #e9ecef;
+    font-size: 0.9rem;
+}
+
+.selected-tests-table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    color: #495057;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.selected-tests-table tr:last-child td {
+    border-bottom: none;
+}
+
+.selected-tests-table tr:hover {
+    background-color: #f8f9fa;
+}
+
+.date-change-form {
+    padding: 1.5rem;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+.date-change-form .form-group {
+    margin-bottom: 0;
+}
+
+.date-change-form label {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 0.5rem;
+    display: block;
+}
+
+.date-change-form .form-control {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    font-size: 1rem;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.date-change-form .form-control:focus {
+    border-color: #5a67d8;
+    box-shadow: 0 0 0 0.2rem rgba(90, 103, 216, 0.25);
+    outline: 0;
 }
 
 @media (max-width: 768px) {

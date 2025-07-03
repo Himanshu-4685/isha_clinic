@@ -232,6 +232,88 @@ class GoogleSheetsAPI {
         }
     }
 
+    // Update test status and date (for moving pending tests to upcoming with date change)
+    async updateTestStatusAndDate(testIds, newStatus, newDate, rowIndices) {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            const response = await fetch(`${this.baseURL}/update-status-and-date`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    testIds,
+                    newStatus,
+                    newDate,
+                    rowIndices
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                return data;
+            } else {
+                throw new Error(data.message || 'Failed to update test status and date');
+            }
+        } catch (error) {
+            console.error('Error updating test status and date:', error);
+            throw error;
+        }
+    }
+
+    // Update test dates only (without changing status)
+    async updateTestDates(testIds, newDate, rowIndices) {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            console.log('=== CALLING UPDATE DATES API ===');
+            console.log('URL:', `${this.baseURL}/update-dates`);
+            console.log('Payload:', { testIds, newDate, rowIndices });
+
+            const response = await fetch(`${this.baseURL}/update-dates`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    testIds,
+                    newDate,
+                    rowIndices
+                })
+            });
+
+            console.log('Response status:', response.status);
+            console.log('Response headers:', response.headers);
+
+            const responseText = await response.text();
+            console.log('Raw response text:', responseText);
+
+            let data;
+            try {
+                data = JSON.parse(responseText);
+            } catch (parseError) {
+                console.error('JSON parse error:', parseError);
+                console.error('Response text that failed to parse:', responseText);
+                throw new Error(`Invalid JSON response: ${responseText.substring(0, 100)}...`);
+            }
+
+            if (response.ok) {
+                return data;
+            } else {
+                throw new Error(data.message || 'Failed to update test dates');
+            }
+        } catch (error) {
+            console.error('Error updating test dates:', error);
+            throw error;
+        }
+    }
+
     // Update test data
     async updateTest(rowIndex, testData) {
         if (!this.isInitialized) {
@@ -590,6 +672,34 @@ class GoogleSheetsAPI {
         } catch (error) {
             console.error('Error updating ultrasound:', error);
             throw error;
+        }
+    }
+
+    // Update ultrasound details (wrapper for updateUltrasound with specific fields)
+    async updateUltrasoundDetails(ultrasoundData) {
+        if (!this.isInitialized) {
+            throw new Error('Google Sheets API not initialized');
+        }
+
+        try {
+            // Extract the row index and prepare the data for the existing updateUltrasound method
+            const { rowIndex, testName, date, timing } = ultrasoundData;
+
+            // Prepare the ultrasound data object for the existing API
+            const updateData = {
+                testName: testName,
+                date: date,
+                timing: timing
+            };
+
+            // Use the existing updateUltrasound method
+            return await this.updateUltrasound(rowIndex, updateData);
+        } catch (error) {
+            console.error('Error updating ultrasound details:', error);
+            return {
+                success: false,
+                message: 'Failed to update ultrasound details: ' + error.message
+            };
         }
     }
 
