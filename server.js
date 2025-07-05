@@ -120,7 +120,7 @@ app.get('/api/patient/:iycNumber', async (req, res) => {
 // Save blood test
 app.post('/api/blood-test', async (req, res) => {
     try {
-        const { schedule, testDate, iycNumber, patientName, category, phoneNumber, testName, referredBy, payment } = req.body;
+        const { schedule, testDate, iycNumber, patientName, category, phoneNumber, testName, testPrice, referredBy, payment } = req.body;
 
         console.log('Saving blood test:', req.body);
 
@@ -136,7 +136,8 @@ app.post('/api/blood-test', async (req, res) => {
         const currentTimestamp = new Date().toISOString();
 
         // Prepare row data with all columns including ID, Created, and Updated timestamps
-        const values = [[testId, finalDate, iycNumber, patientName, category, phoneNumber, testName, referredBy, schedule, '', payment || '', currentTimestamp, currentTimestamp]];
+        // Insert price after testName
+        const values = [[testId, finalDate, iycNumber, patientName, category, phoneNumber, testName, testPrice, referredBy, schedule, '', payment || '', currentTimestamp, currentTimestamp]];
 
         // First, insert a new row at the specified position
         await sheets.spreadsheets.batchUpdate({
@@ -157,7 +158,7 @@ app.post('/api/blood-test', async (req, res) => {
         });
 
         // Then update the values in the new row
-        const range = `${worksheetName}!A${insertAfterRow}:M${insertAfterRow}`;
+        const range = `${worksheetName}!A${insertAfterRow}:N${insertAfterRow}`;
         await sheets.spreadsheets.values.update({
             spreadsheetId: SPREADSHEET_ID,
             range: range,
@@ -215,22 +216,22 @@ async function ensureBloodTestHeaders() {
         // Check if the worksheet exists and has correct headers
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: 'Blood_Test_Data!A1:M1',
+            range: 'Blood_Test_Data!A1:N1',
         });
 
-        const expectedHeaders = ['ID', 'Date', 'IYC Number', 'Name', 'Category', 'Phone', 'Test Name', 'Referred By', 'Status', 'Remarks', 'Payment', 'Created', 'Updated'];
+        const expectedHeaders = ['ID', 'Date', 'IYC Number', 'Name', 'Category', 'Phone', 'Test Name', 'Price', 'Referred By', 'Status', 'Remarks', 'Payment', 'Created', 'Updated'];
         const currentHeaders = response.data.values ? response.data.values[0] : [];
 
         // Check if headers match
         const headersMatch = expectedHeaders.every((header, index) => currentHeaders[index] === header);
 
         if (!headersMatch) {
-            console.log('Updating Blood_Test_Data headers to include Category column...');
+            console.log('Updating Blood_Test_Data headers to include Price column...');
 
             // Update the header row
             await sheets.spreadsheets.values.update({
                 spreadsheetId: SPREADSHEET_ID,
-                range: 'Blood_Test_Data!A1:M1',
+                range: 'Blood_Test_Data!A1:N1',
                 valueInputOption: 'RAW',
                 resource: {
                     values: [expectedHeaders]
@@ -604,6 +605,44 @@ app.delete('/api/tests', async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to delete tests',
+            error: error.message
+        });
+    }
+});
+
+// Get blood test price list from Price_list_bloodtest sheet
+app.get('/api/blood-test-prices', async (req, res) => {
+    try {
+        console.log('Getting blood test price list from Price_list_bloodtest sheet');
+
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'Price_list_bloodtest!A:C',
+        });
+
+        const rows = response.data.values || [];
+
+        // Skip header row and format data
+        const priceList = rows.slice(1).map(row => ({
+            testName: row[2] || '', // C: ServiceName
+            serviceCode: row[1] || '', // B: ServiceCode
+            price: row[3] || '' // D: Revised MRP
+        })).filter(item => {
+            // Only include rows with test names
+            return item.testName;
+        });
+
+        res.json({
+            success: true,
+            priceList: priceList,
+            count: priceList.length
+        });
+
+    } catch (error) {
+        console.error('Error getting blood test price list:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to get blood test price list',
             error: error.message
         });
     }

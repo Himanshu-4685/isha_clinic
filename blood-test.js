@@ -22,6 +22,7 @@ class BloodTestManager {
         this.patients = [];
         this.loadingData = false;
         this.isAutoFilling = false; // Flag to prevent name search during auto-fill
+        this.priceList = [];
     }
 
     // Initialize the blood test module
@@ -80,12 +81,71 @@ class BloodTestManager {
     }
 
     // Setup add test form
-    setupAddTestForm() {
+    async setupAddTestForm() {
         const form = document.getElementById('addTestForm');
         const scheduleSelect = document.getElementById('schedule');
-
         const iycInput = document.getElementById('iycNumber');
         const resetBtn = document.getElementById('resetFormBtn');
+        const testNameSelect = document.getElementById('testName');
+        const testPriceInput = document.getElementById('testPrice');
+        const testNameDropdown = document.getElementById('testNameSearchDropdown');
+
+        // Fetch and store price list for autocomplete
+        this.priceList = [];
+        try {
+            const response = await fetch('/api/blood-test-prices');
+            const data = await response.json();
+            if (data.success && Array.isArray(data.priceList)) {
+                this.priceList = data.priceList;
+            }
+        } catch (err) {
+            console.error('Failed to fetch blood test price list:', err);
+        }
+
+        // Autocomplete logic for test name
+        if (testNameSelect && testNameDropdown && testPriceInput) {
+            testNameSelect.addEventListener('input', () => {
+                const value = testNameSelect.value.trim().toLowerCase();
+                if (!value) {
+                    testNameDropdown.style.display = 'none';
+                    return;
+                }
+                // Filter priceList for matches
+                const matches = this.priceList.filter(item =>
+                    item.testName.toLowerCase().includes(value) ||
+                    (item.serviceCode && item.serviceCode.toLowerCase().includes(value))
+                );
+                if (matches.length === 0) {
+                    testNameDropdown.style.display = 'none';
+                    return;
+                }
+                // Build dropdown
+                testNameDropdown.innerHTML = matches.map(item =>
+                    `<div class="dropdown-item" data-name="${item.testName.replace(/"/g, '&quot;')}" data-price="${item.price}">
+                        ${item.testName} <span style='color:#888;'>(${item.serviceCode})</span>
+                    </div>`
+                ).join('');
+                testNameDropdown.style.display = 'block';
+            });
+
+            // Handle click on dropdown item
+            testNameDropdown.addEventListener('click', (e) => {
+                const item = e.target.closest('.dropdown-item');
+                if (item) {
+                    testNameSelect.value = item.getAttribute('data-name');
+                    testPriceInput.value = item.getAttribute('data-price');
+                    testNameDropdown.style.display = 'none';
+                    this.validateForm && this.validateForm();
+                }
+            });
+
+            // Hide dropdown when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!testNameSelect.contains(e.target) && !testNameDropdown.contains(e.target)) {
+                    testNameDropdown.style.display = 'none';
+                }
+            });
+        }
 
         // Handle schedule change
         if (scheduleSelect) {
@@ -437,6 +497,7 @@ class BloodTestManager {
                 category: this.formData.category,
                 phoneNumber: this.formData.phoneNumber,
                 testName: this.formData.testName,
+                testPrice: this.formData.testPrice,
                 referredBy: this.formData.referredBy,
                 payment: this.formData.payment
             };

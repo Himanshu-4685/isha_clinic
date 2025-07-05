@@ -322,10 +322,18 @@
                                 </div>
 
                                 <div class="form-row">
-                                    <div class="form-group">
+                                    <div class="form-group form-group-wide">
                                         <label for="testName">Test Name <span class="required">*</span></label>
-                                        <input type="text" id="testName" name="testName" placeholder="Enter test name" required>
+                                        <input type="text" id="testName" name="testName" placeholder="Enter test name" required autocomplete="off">
+                                        <div class="search-dropdown" id="testNameSearchDropdown" style="display: none;"></div>
                                     </div>
+                                    <div class="form-group form-group-narrow">
+                                        <label for="testPrice">Price <span class="required">*</span></label>
+                                        <input type="number" id="testPrice" name="testPrice" placeholder="Price will be auto-filled" required readonly style="background:#f8f9fa;">
+                                    </div>
+                                </div>
+
+                                <div class="form-row">
                                     <div class="form-group">
                                         <label for="referredBy">Referred By <span class="required">*</span></label>
                                         <select id="referredBy" name="referredBy" required>
@@ -335,9 +343,6 @@
                                             <option value="Navneet">Navneet</option>
                                         </select>
                                     </div>
-                                </div>
-
-                                <div class="form-row">
                                     <div class="form-group">
                                         <label for="payment">Payment <span class="required">*</span></label>
                                         <select id="payment" name="payment" required>
@@ -345,9 +350,6 @@
                                             <option value="Credit">Credit</option>
                                             <option value="Cash">Cash</option>
                                         </select>
-                                    </div>
-                                    <div class="form-group">
-                                        <!-- Empty group for layout balance -->
                                     </div>
                                 </div>
 
@@ -936,13 +938,14 @@
                                             </th>
                                             <th>Timing</th>
                                             <th>Name</th>
+                                            <th>Phone</th>
                                             <th>Ultrasound Type</th>
                                             <th>Details</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <tr class="no-data">
-                                            <td colspan="5">No upcoming ultrasounds found</td>
+                                            <td colspan="6">No upcoming ultrasounds found</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -998,13 +1001,14 @@
                                             </th>
                                             <th>Date</th>
                                             <th>Name</th>
+                                            <th>Phone</th>
                                             <th>Ultrasound Type</th>
                                             <th>Details</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <tr class="no-data">
-                                            <td colspan="5">No ultrasounds pending review</td>
+                                            <td colspan="6">No ultrasounds pending review</td>
                                         </tr>
                                     </tbody>
                                 </table>

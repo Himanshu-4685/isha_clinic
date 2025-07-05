@@ -671,7 +671,7 @@ class UltrasoundManager {
         if (filteredUltrasounds.length === 0) {
             tbody.innerHTML = `
                 <tr class="no-data">
-                    <td colspan="5">No matching ultrasounds found</td>
+                    <td colspan="6">No matching ultrasounds found</td>
                 </tr>
             `;
             return;
@@ -844,7 +844,7 @@ class UltrasoundManager {
         if (ultrasounds.length === 0) {
             tbody.innerHTML = `
                 <tr class="no-data">
-                    <td colspan="5">No ${sectionName.replace('-', ' ')} found</td>
+                    <td colspan="6">No ${sectionName.replace('-', ' ')} found</td>
                 </tr>
             `;
             return;
@@ -884,8 +884,27 @@ class UltrasoundManager {
                     </button>
                 </td>
             `;
-        } else if (this.currentSection === 'pending-review-ultrasound' || this.currentSection === 'completed-ultrasound' || this.currentSection === 'cancelled-ultrasound') {
-            // Pending review, completed, and cancelled ultrasounds: Date, Name, Ultrasound Type, Details
+        } else if (this.currentSection === 'pending-review-ultrasound') {
+            // Pending review ultrasounds: Date, Name, Phone, Ultrasound Type, Details
+            row.innerHTML = `
+                <td class="checkbox-col">
+                    <input type="checkbox" class="ultrasound-checkbox" data-ultrasound-id="${ultrasound.id}">
+                </td>
+                <td>${ultrasound.date || ''}</td>
+                <td>${ultrasound.name}</td>
+                <td>${ultrasound.phone || ''}</td>
+                <td>${ultrasound.testName}</td>
+                <td>
+                    <button class="btn-icon" onclick="ultrasoundManager.viewUltrasoundDetails('${ultrasound.id}')" title="View Details">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn-icon" onclick="ultrasoundManager.editUltrasoundDetails('${ultrasound.id}')" title="Edit Ultrasound">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                </td>
+            `;
+        } else if (this.currentSection === 'completed-ultrasound' || this.currentSection === 'cancelled-ultrasound') {
+            // Completed and cancelled ultrasounds: Date, Name, Ultrasound Type, Details
             row.innerHTML = `
                 <td class="checkbox-col">
                     <input type="checkbox" class="ultrasound-checkbox" data-ultrasound-id="${ultrasound.id}">
@@ -902,8 +921,27 @@ class UltrasoundManager {
                     </button>
                 </td>
             `;
+        } else if (this.currentSection === 'upcoming-ultrasound') {
+            // Upcoming ultrasounds: Timing, Name, Phone, Ultrasound Type, Details
+            row.innerHTML = `
+                <td class="checkbox-col">
+                    <input type="checkbox" class="ultrasound-checkbox" data-ultrasound-id="${ultrasound.id}">
+                </td>
+                <td>${ultrasound.timing || ''}</td>
+                <td>${ultrasound.name}</td>
+                <td>${ultrasound.phone || ''}</td>
+                <td>${ultrasound.testName}</td>
+                <td>
+                    <button class="btn-icon" onclick="ultrasoundManager.viewUltrasoundDetails('${ultrasound.id}')" title="View Details">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn-icon" onclick="ultrasoundManager.editUltrasoundDetails('${ultrasound.id}')" title="Edit Ultrasound">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                </td>
+            `;
         } else {
-            // Other sections (upcoming): Timing, Name, Ultrasound Type, Details
+            // Other sections: Timing, Name, Ultrasound Type, Details
             row.innerHTML = `
                 <td class="checkbox-col">
                     <input type="checkbox" class="ultrasound-checkbox" data-ultrasound-id="${ultrasound.id}">
