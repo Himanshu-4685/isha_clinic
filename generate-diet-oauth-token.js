@@ -3,23 +3,24 @@ const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
 
-// Read credentials
-const credentialsPath = path.join(__dirname, 'Email_Credentials.json');
+// Read diet request credentials
+const credentialsPath = path.join(__dirname, 'dietReq2.json');
 const credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
 
 // OAuth2 configuration
 const oauth2Client = new google.auth.OAuth2(
     credentials.oauth2.client_id,
     credentials.oauth2.client_secret,
-    'urn:ietf:wg:oauth:2.0:oob' // redirect URI for server applications
+    'http://localhost:10000' // Use localhost redirect URI
 );
 
 // Gmail scopes for sending emails only (minimal required scope)
 const SCOPES = ['https://www.googleapis.com/auth/gmail.send'];
 
 async function generateToken() {
-    console.log('🔐 OAuth2 Token Generator for Gmail');
+    console.log('🔐 OAuth2 Token Generator for Diet Request Emails');
     console.log('📧 Email:', credentials.email);
+    console.log('🍽️  Purpose: Diet Request Module');
     console.log('');
 
     // Generate authorization URL
@@ -29,19 +30,21 @@ async function generateToken() {
         prompt: 'consent' // Force consent screen to get refresh token
     });
 
-    console.log('📋 STEP 1: Open this URL in your browser:');
+    console.log('🌐 Please visit this URL to authorize the application:');
     console.log('');
     console.log(authUrl);
     console.log('');
-    console.log('📋 STEP 2: Sign in with', credentials.email);
-    console.log('📋 STEP 3: Grant permissions for Gmail access');
-    console.log('📋 STEP 4: Copy the authorization code from the URL');
+    console.log('📋 Steps:');
+    console.log('1. Click the URL above or copy-paste it into your browser');
+    console.log('2. Log in with clinic.backoffice@ishafoundation.org');
+    console.log('3. Grant permissions to send emails');
+    console.log('4. Copy the authorization code from the browser');
+    console.log('5. Paste it below');
     console.log('');
 
-    // Get authorization code from user
     const rl = readline.createInterface({
         input: process.stdin,
-        output: process.stdout
+        output: process.stdout,
     });
 
     rl.question('📝 Paste the authorization code here: ', async (code) => {
@@ -61,8 +64,8 @@ async function generateToken() {
                 fs.writeFileSync(credentialsPath, JSON.stringify(credentials, null, 2));
                 
                 console.log('');
-                console.log('✅ Email_Credentials.json updated with refresh token!');
-                console.log('🚀 Email system is now ready to use!');
+                console.log('✅ dietReq2.json updated with refresh token!');
+                console.log('🚀 Diet request email system is now ready to use!');
                 
                 // Test the email setup
                 console.log('');
@@ -71,35 +74,19 @@ async function generateToken() {
                 
             } else {
                 console.log('');
-                console.log('❌ No refresh token received. This might happen if:');
-                console.log('   1. You\'ve already authorized this app before');
-                console.log('   2. The consent screen wasn\'t shown');
+                console.log('⚠️  No refresh token received. This might happen if:');
+                console.log('   - You\'ve already authorized this app before');
+                console.log('   - The consent screen wasn\'t shown');
                 console.log('');
-                console.log('💡 Try revoking app access and running this script again:');
+                console.log('💡 Try revoking app permissions and running this again:');
                 console.log('   https://myaccount.google.com/permissions');
             }
             
         } catch (error) {
             console.error('❌ Error generating tokens:', error.message);
-            console.error('Full error details:', error);
-
-            if (error.message.includes('invalid_grant')) {
-                console.log('');
-                console.log('💡 This usually means:');
-                console.log('   1. The authorization code has expired (try getting a new one)');
-                console.log('   2. The code was already used');
-                console.log('   3. There was a copy/paste error');
-                console.log('');
-                console.log('🔄 Please run the script again and get a fresh authorization code');
-            }
         }
         
         rl.close();
-
-        // Wait a bit before exiting to show any final messages
-        setTimeout(() => {
-            process.exit(0);
-        }, 2000);
     });
 }
 
@@ -117,6 +104,14 @@ async function testEmailSetup(tokens) {
         console.log('✅ Gmail API connection successful!');
         console.log('📧 Email address verified:', profile.data.emailAddress);
         console.log('📊 Total messages:', profile.data.messagesTotal);
+        
+        if (profile.data.emailAddress !== credentials.email) {
+            console.log('');
+            console.log('⚠️  WARNING: Email mismatch!');
+            console.log('   Expected:', credentials.email);
+            console.log('   Actual:', profile.data.emailAddress);
+            console.log('   Make sure you logged in with the correct account!');
+        }
         
     } catch (error) {
         console.error('❌ Email test failed:', error.message);

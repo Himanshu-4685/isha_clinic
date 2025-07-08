@@ -1,0 +1,18 @@
+{
+  "type": "oauth2",
+  "email": "clinic.backoffice@ishafoundation.org",
+  "smtp": {
+    "host": "smtp.gmail.com",
+    "port": 587,
+    "secure": false
+  },
+  "from": {
+    "name": "Isha Yoga Center - Diet Request",
+    "email": "clinic.backoffice@ishafoundation.org"
+  },
+  "oauth2": {
+    "client_id": "263649091559-l1u7ejj16vhqc1mufg59tpilbeidatvt.apps.googleusercontent.com",
+    "client_secret": "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",
+    "refresh_token": "1//0gAjDWM_DegpMCgYIARAAGBASNwF-L9IrG214I0oW9aWIirdH6JXMIHLj3zz8HY2gIxLElIoE9OOPJufk3_7wIO0Av6qIsw1lV-I"
+  }
+}

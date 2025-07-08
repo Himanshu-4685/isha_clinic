@@ -1084,18 +1084,22 @@ app.get('/api/patients', async (req, res) => {
         const rows = response.data.values || [];
 
         // Extract patient data (skip header row)
-        const patients = rows.slice(1)
-            .filter(row => row[0] && row[1]) // Must have name and IYC
-            .map((row, index) => ({
-                name: row[0] || '',              // A: Name
-                iycNumber: row[1] || '',         // B: IYC Number
-                email: row[2] || '',             // C: Email
-                personalEmail: row[3] || '',     // D: Personal Email
-                phone: row[4] || '',             // E: Phone Numbers
-                department: row[5] || '',        // F: Current Department
-                category: row[6] || '',          // G: Category
-                rowIndex: index + 2              // Row index in sheet (starting from 2, since row 1 is header)
-            }));
+        const patients = [];
+        for (let i = 1; i < rows.length; i++) { // Skip header row
+            const row = rows[i];
+            if (row[0] && row[1]) { // Must have name and IYC
+                patients.push({
+                    name: row[0] || '',              // A: Name
+                    iycNumber: row[1] || '',         // B: IYC Number
+                    email: row[2] || '',             // C: Email
+                    personalEmail: row[3] || '',     // D: Personal Email
+                    phone: row[4] || '',             // E: Phone Numbers
+                    department: row[5] || '',        // F: Current Department
+                    category: row[6] || '',          // G: Category
+                    rowIndex: i + 1                  // Actual row index in sheet (i+1 because sheets are 1-indexed)
+                });
+            }
+        }
 
         res.json({
             success: true,
@@ -1534,9 +1538,15 @@ async function sendCreditEmail(emailAddresses, content, visitDetails, patientEma
         console.log('Email credentials loaded successfully');
 
         // Check if OAuth2 refresh token is available
+        console.log('Checking OAuth2 refresh token...');
+        console.log('Has oauth2 object:', !!credentials.oauth2);
+        console.log('Has refresh_token:', !!credentials.oauth2?.refresh_token);
+        console.log('Refresh token length:', credentials.oauth2?.refresh_token?.length || 0);
+
         if (!credentials.oauth2 || !credentials.oauth2.refresh_token ||
-            credentials.oauth2.refresh_token === 'WILL_BE_GENERATED_AUTOMATICALLY') {
-            console.log('OAuth2 refresh token not found. Please run: node generate-oauth-token.js');
+            credentials.oauth2.refresh_token === 'WILL_BE_GENERATED_AUTOMATICALLY' ||
+            credentials.oauth2.refresh_token.trim() === '') {
+            console.log('OAuth2 refresh token not found or invalid. Please run: node generate-hospital-oauth.js');
 
             // For demo purposes, simulate successful email sending
             console.log('DEMO MODE: Simulating email send to:', emailAddresses);
@@ -1549,6 +1559,8 @@ async function sendCreditEmail(emailAddresses, content, visitDetails, patientEma
             };
         }
 
+        console.log('OAuth2 refresh token found and valid, proceeding with real email sending...');
+
         // OAuth2 token is available, proceed with Gmail API email sending
         console.log('OAuth2 refresh token found, using Gmail API for email sending...');
 
@@ -1556,7 +1568,7 @@ async function sendCreditEmail(emailAddresses, content, visitDetails, patientEma
         const oauth2Client = new google.auth.OAuth2(
             credentials.oauth2.client_id,
             credentials.oauth2.client_secret,
-            'urn:ietf:wg:oauth:2.0:oob'  // Use OOB (out-of-band) for server applications
+            'http://localhost:10000'  // Use OOB (out-of-band) for server applications
         );
 
         // Set refresh token
@@ -1566,8 +1578,20 @@ async function sendCreditEmail(emailAddresses, content, visitDetails, patientEma
 
         console.log('Getting fresh access token...');
 
-        // Get fresh access token
-        const { token } = await oauth2Client.getAccessToken();
+        // Get fresh access token with timeout
+        let token;
+        try {
+            const tokenResponse = await Promise.race([
+                oauth2Client.getAccessToken(),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('OAuth2 token refresh timeout after 10 seconds')), 10000)
+                )
+            ]);
+            token = tokenResponse.token;
+        } catch (tokenError) {
+            console.error('OAuth2 token refresh failed:', tokenError);
+            throw new Error(`OAuth2 token refresh failed: ${tokenError.message}`);
+        }
 
         if (!token) {
             throw new Error('Failed to get access token from OAuth2');
@@ -1653,9 +1677,11 @@ async function sendDietRequestEmail(emailAddresses, content, dietRequestDetails,
         if (process.env.DIET_EMAIL_CREDENTIALS) {
             // Production: Use diet-specific environment variable
             credentials = JSON.parse(process.env.DIET_EMAIL_CREDENTIALS);
+            console.log('Using DIET_EMAIL_CREDENTIALS environment variable');
         } else if (process.env.EMAIL_CREDENTIALS) {
             // Production: Fallback to general email credentials
             credentials = JSON.parse(process.env.EMAIL_CREDENTIALS);
+            console.log('Using EMAIL_CREDENTIALS environment variable');
         } else {
             // Development: Try diet-specific file first, then fallback
             const dietCredentialsPath = path.join(__dirname, 'dietReq2.json');
@@ -1663,12 +1689,20 @@ async function sendDietRequestEmail(emailAddresses, content, dietRequestDetails,
 
             if (fs.existsSync(dietCredentialsPath)) {
                 credentials = JSON.parse(fs.readFileSync(dietCredentialsPath, 'utf8'));
+                console.log('Using dietReq2.json credentials file');
             } else if (fs.existsSync(generalCredentialsPath)) {
                 credentials = JSON.parse(fs.readFileSync(generalCredentialsPath, 'utf8'));
+                console.log('Using Email_Credentials.json credentials file');
             } else {
                 throw new Error('Email credentials file not found');
             }
         }
+
+        console.log('Diet request credentials loaded:', {
+            email: credentials.email,
+            client_id: credentials.oauth2?.client_id,
+            has_refresh_token: !!credentials.oauth2?.refresh_token
+        });
 
         if (!credentials.oauth2 || !credentials.oauth2.refresh_token) {
             throw new Error('OAuth2 refresh token not found in credentials');
@@ -1681,7 +1715,7 @@ async function sendDietRequestEmail(emailAddresses, content, dietRequestDetails,
         const oauth2Client = new google.auth.OAuth2(
             credentials.oauth2.client_id,
             credentials.oauth2.client_secret,
-            'urn:ietf:wg:oauth:2.0:oob'  // Use OOB (out-of-band) for server applications
+            'http://localhost:10000'  // Use same redirect URI as token generation
         );
 
         // Set refresh token
@@ -1720,8 +1754,14 @@ From: ${credentials.from.name} <${credentials.from.email}>`;
             emailContent += `\nCc: ${allCcEmails.join(', ')}`;
         }
 
+        // Check if this might be a renewal (same patient with request date = today)
+        const today = new Date().toISOString().split('T')[0];
+        const isLikelyRenewal = dietRequestDetails.dateRequested === today;
+
         // Create subject line for diet request
-        const emailSubject = `Diet Request - Isha Foundation - ${dietRequestDetails.patientName} - ${dietRequestDetails.startDate}`;
+        const emailSubject = isLikelyRenewal
+            ? `Diet Request Renewal - Isha Foundation - ${dietRequestDetails.patientName} - ${dietRequestDetails.startDate}`
+            : `Diet Request - Isha Foundation - ${dietRequestDetails.patientName} - ${dietRequestDetails.startDate}`;
 
         emailContent += `\nSubject: ${emailSubject}
 Content-Type: text/html; charset=utf-8
@@ -1876,21 +1916,26 @@ app.post('/api/send-credit-email', async (req, res) => {
 
         console.log('Processing credit email for visit:', visitId);
 
+        console.log('Step 1: Fetching visit details from Hospital_Visit_Data...');
         // Get visit details from Hospital_Visit_Data
         const visitResponse = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
             range: 'Hospital_Visit_Data!A:O',
         });
+        console.log('Step 1: Visit details fetched successfully');
 
         const visitRows = visitResponse.data.values || [];
+        console.log('Step 2: Processing visit data, total rows:', visitRows.length);
         const visitData = visitRows.find(row => row[0] === visitId);
 
         if (!visitData) {
+            console.log('Step 2: Visit not found for ID:', visitId);
             return res.status(404).json({
                 success: false,
                 message: 'Visit not found'
             });
         }
+        console.log('Step 2: Visit data found successfully');
 
         const visitDetails = {
             id: visitData[0],
@@ -1910,8 +1955,11 @@ app.post('/api/send-credit-email', async (req, res) => {
             appointmentDate: visitData[14] || '' // Column O (index 14 in 0-based array)
         };
 
+        console.log('Step 3: Visit details parsed, appointment date:', visitDetails.appointmentDate);
+
         // Check if appointment date is empty and require it before sending email
         if (!visitDetails.appointmentDate || visitDetails.appointmentDate.trim() === '') {
+            console.log('Step 3: Appointment date missing, returning error');
             return res.status(400).json({
                 success: false,
                 message: 'Appointment date is required before sending credit email. Please update the appointment date first.',
@@ -1920,21 +1968,32 @@ app.post('/api/send-credit-email', async (req, res) => {
             });
         }
 
+        console.log('Step 3: Appointment date found, proceeding to hospital lookup');
+
+        console.log('Step 4: Fetching hospital directory...');
         // Get hospital email addresses from Hospital Directory
         const hospitalResponse = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
             range: 'Hospital Directory!B:I',
         });
+        console.log('Step 4: Hospital directory fetched successfully');
 
         const hospitalRows = hospitalResponse.data.values || [];
+        console.log('Step 4: Processing hospital rows, total:', hospitalRows.length);
+        console.log('Step 4: Looking for hospital:', visitDetails.hospital);
+        console.log('Step 4: Available hospitals:', hospitalRows.map(row => row[0]).filter(name => name));
         const hospitalRow = hospitalRows.find(row => row[0] === visitDetails.hospital);
+        console.log('Step 4: Hospital row found:', !!hospitalRow);
 
         if (!hospitalRow || !hospitalRow[3]) {
+            console.log('Step 4: Hospital not found or no email addresses configured');
             return res.status(404).json({
                 success: false,
-                message: 'Hospital email addresses not found'
+                message: `Hospital email addresses not found for: ${visitDetails.hospital}. Available hospitals: ${hospitalRows.map(row => row[0]).filter(name => name).join(', ')}`
             });
         }
+
+        console.log('Step 4: Hospital found, proceeding with email addresses');
 
         // Parse comma-separated email addresses from Column E (index 3) - these go to "To" field
         const hospitalEmails = hospitalRow[3].split(',').map(email => email.trim()).filter(email => email);
@@ -2206,10 +2265,10 @@ app.post('/api/hospital-visit-status', async (req, res) => {
             const visitId = row[0]; // ID is in column A
 
             if (visitIds.includes(visitId)) {
-                // Update status in column N (index 13)
+                // Update status in column K (index 10)
                 await sheets.spreadsheets.values.update({
                     spreadsheetId: SPREADSHEET_ID,
-                    range: `Hospital_Visit_Data!N${i + 1}`,
+                    range: `Hospital_Visit_Data!K${i + 1}`,
                     valueInputOption: 'RAW',
                     resource: {
                         values: [[newStatus]]
@@ -2232,57 +2291,7 @@ app.post('/api/hospital-visit-status', async (req, res) => {
     }
 });
 
-// Get all patients for name search dropdown
-app.get('/api/patients', async (req, res) => {
-    try {
-        console.log('Getting all patients for name search');
 
-        // Read from Patient Database worksheet - main patient area (A-H)
-        const response = await sheets.spreadsheets.values.get({
-            spreadsheetId: SPREADSHEET_ID,
-            range: 'Patient Database!A:H',
-        });
-
-        const rows = response.data.values || [];
-
-        if (rows.length <= 1) {
-            return res.json({
-                success: true,
-                patients: []
-            });
-        }
-
-        // Skip header row and format data
-        const patients = rows.slice(1).map((row, index) => ({
-            name: row[0] || '',              // A: Name
-            iycNumber: row[1] || '',         // B: IYC Number
-            email: row[2] || '',             // C: Email
-            personalEmail: row[3] || '',     // D: Personal Email
-            phone: row[4] || '',             // E: Phone Numbers
-            department: row[5] || '',        // F: Current Department
-            category: row[6] || '',          // G: Category
-            age: row[7] || '',               // H: Age
-            rowIndex: index + 2              // Row index in sheet (starting from 2, since row 1 is header)
-        })).filter(patient => {
-            // Only include rows with both name and IYC number
-            return patient.name && patient.iycNumber;
-        });
-
-        res.json({
-            success: true,
-            patients: patients,
-            count: patients.length
-        });
-
-    } catch (error) {
-        console.error('Error getting patients:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to get patients',
-            error: error.message
-        });
-    }
-});
 
 // Delete multiple visits
 app.post('/api/delete-visits', async (req, res) => {
@@ -2660,44 +2669,44 @@ app.post('/api/diet-request/send-email', async (req, res) => {
         // Get system configuration for email addresses
         const configResponse = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: 'System_Config!A:B',
+            range: 'System Config!C1:C15',
         });
 
-        const configRows = configResponse.data.values || [];
-        let c4Emails = [];
-        let c5Emails = [];
-        let c7Emails = [];
-        let c10Emails = [];
+        const configValues = configResponse.data.values || [];
 
-        configRows.forEach(row => {
-            if (row[0] && row[1]) {
-                const key = row[0].trim();
-                const value = row[1].trim();
-
-                if (key === 'C4') {
-                    c4Emails = value.split(',').map(email => email.trim()).filter(email => email);
-                } else if (key === 'C5') {
-                    c5Emails = value.split(',').map(email => email.trim()).filter(email => email);
-                } else if (key === 'C7') {
-                    c7Emails = value.split(',').map(email => email.trim()).filter(email => email);
-                } else if (key === 'C10') {
-                    c10Emails = value.split(',').map(email => email.trim()).filter(email => email);
-                }
-            }
-        });
-
-        // Main recipients (C4)
-        const emailAddresses = c4Emails;
-
-        // CC recipients (C5, C10, and selected from C7)
-        const ccEmails = [...c5Emails, ...c10Emails];
-
-        // Add selected emails from C7 based on "others" field
-        if (dietRequestDetails.others) {
-            const selectedOthers = dietRequestDetails.others.split(',').map(item => item.trim());
-            // For now, include all C7 emails. In future, this could be filtered based on selectedOthers
-            ccEmails.push(...c7Emails);
+        // Get main email addresses from row 3 (index 3)
+        let mainEmails = [];
+        if (configValues[3] && configValues[3][0]) {
+            mainEmails = configValues[3][0].split(',').map(email => email.trim()).filter(email => email);
         }
+
+        // Get anchor emails from row 4 (index 4) - anchors JSON
+        let anchorEmails = [];
+        if (configValues[4] && configValues[4][0]) {
+            try {
+                const anchorsData = JSON.parse(configValues[4][0].replace(/\n/g, '').replace(/\r/g, '').trim());
+                anchorEmails = Object.values(anchorsData).filter(email => email);
+            } catch (error) {
+                console.error('Error parsing anchors JSON for diet request emails:', error);
+            }
+        }
+
+        // Get others emails from row 6 (index 6) - others JSON
+        let othersEmails = [];
+        if (configValues[6] && configValues[6][0]) {
+            try {
+                const othersData = JSON.parse(configValues[6][0].replace(/\n/g, '').replace(/\r/g, '').trim());
+                othersEmails = Object.values(othersData).filter(email => email);
+            } catch (error) {
+                console.error('Error parsing others JSON for diet request emails:', error);
+            }
+        }
+
+        // Main recipients - use main emails from system config
+        const emailAddresses = mainEmails;
+
+        // CC recipients - include anchor and others emails
+        const ccEmails = [...anchorEmails, ...othersEmails];
 
         // Get patient email for CC
         let patientEmail = '';
@@ -2717,65 +2726,56 @@ app.post('/api/diet-request/send-email', async (req, res) => {
             console.error('Error fetching patient email:', error);
         }
 
-        // Create HTML email content
+        // Create email body table matching original format exactly
+        let emailBody = '<table border="1" cellpadding="5" cellspacing="0">';
+
+        // Build table rows - start with basic info
+        const tableRows = [
+            ['Name', dietRequestDetails.patientName || ''],
+            ['Email', dietRequestDetails.email || ''],
+            ['Phone No.', dietRequestDetails.phoneNumber || '']
+        ];
+
+        // Add meal fields only if they have content
+        if (dietRequestDetails.brunch && dietRequestDetails.brunch.trim()) {
+            tableRows.push(['Brunch', dietRequestDetails.brunch]);
+        }
+        if (dietRequestDetails.lunch && dietRequestDetails.lunch.trim()) {
+            tableRows.push(['Lunch', dietRequestDetails.lunch]);
+        }
+        if (dietRequestDetails.dinner && dietRequestDetails.dinner.trim()) {
+            tableRows.push(['Dinner', dietRequestDetails.dinner]);
+        }
+
+        // Add remaining fields
+        if (dietRequestDetails.oneTimeTakeaway && dietRequestDetails.oneTimeTakeaway.trim()) {
+            tableRows.push(['One time takeaway', dietRequestDetails.oneTimeTakeaway]);
+        }
+
+        tableRows.push(['Duration (in Days)', dietRequestDetails.duration || '']);
+        tableRows.push(['Start Date', dietRequestDetails.startDate || '']);
+        tableRows.push(['End Date', dietRequestDetails.endDate || '']);
+
+        // Add each row to the table
+        tableRows.forEach(row => {
+            emailBody += '<tr>';
+            row.forEach(cell => {
+                const cellValue = cell || '';
+                // Handle line breaks like in original code
+                const cellLines = cellValue.toString().split('\\n');
+                emailBody += '<td><span style="white-space:pre-wrap;">' + cellLines.join('<br>') + '</span></td>';
+            });
+            emailBody += '</tr>';
+        });
+
+        emailBody += '</table>';
+
+        // Get signer name from anchor (the person sending the request)
+        const signerName = dietRequestDetails.anchor || 'Clinic Team';
+
+        // Create HTML email content in the original format
         const emailContent = `
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .header { background-color: #f8f9fa; padding: 20px; text-align: center; }
-        .content { padding: 20px; }
-        .details-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-        .details-table th, .details-table td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-        .details-table th { background-color: #f2f2f2; font-weight: bold; }
-        .footer { background-color: #f8f9fa; padding: 15px; text-align: center; font-size: 0.9em; color: #666; }
-        .highlight { background-color: #fff3cd; padding: 10px; border-left: 4px solid #ffc107; margin: 15px 0; }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h2>Diet Request - Isha Foundation</h2>
-        <p>New diet request submitted for processing</p>
-    </div>
-
-    <div class="content">
-        <div class="highlight">
-            <strong>Patient:</strong> ${dietRequestDetails.patientName}<br>
-            <strong>Duration:</strong> ${dietRequestDetails.duration} days<br>
-            <strong>Period:</strong> ${dietRequestDetails.startDate} to ${dietRequestDetails.endDate}
-        </div>
-
-        <table class="details-table">
-            <tr><th>Field</th><th>Details</th></tr>
-            <tr><td>Date Requested</td><td>${dietRequestDetails.dateRequested}</td></tr>
-            <tr><td>IYC Number</td><td>${dietRequestDetails.iycNumber}</td></tr>
-            <tr><td>Patient Name</td><td>${dietRequestDetails.patientName}</td></tr>
-            <tr><td>Email</td><td>${dietRequestDetails.email || 'Not provided'}</td></tr>
-            <tr><td>Phone Number</td><td>${dietRequestDetails.phoneNumber || 'Not provided'}</td></tr>
-            <tr><td>Anchor</td><td>${dietRequestDetails.anchor}</td></tr>
-            <tr><td>Others</td><td>${dietRequestDetails.others}</td></tr>
-            <tr><td>Duration</td><td>${dietRequestDetails.duration} days</td></tr>
-            <tr><td>Start Date</td><td>${dietRequestDetails.startDate}</td></tr>
-            <tr><td>End Date</td><td>${dietRequestDetails.endDate}</td></tr>
-            ${dietRequestDetails.brunch ? `<tr><td>Brunch</td><td>${dietRequestDetails.brunch}</td></tr>` : ''}
-            ${dietRequestDetails.lunch ? `<tr><td>Lunch</td><td>${dietRequestDetails.lunch}</td></tr>` : ''}
-            ${dietRequestDetails.dinner ? `<tr><td>Dinner</td><td>${dietRequestDetails.dinner}</td></tr>` : ''}
-            ${dietRequestDetails.oneTimeTakeaway ? `<tr><td>One Time Takeaway</td><td>${dietRequestDetails.oneTimeTakeaway}</td></tr>` : ''}
-            ${dietRequestDetails.remarks ? `<tr><td>Remarks</td><td>${dietRequestDetails.remarks}</td></tr>` : ''}
-        </table>
-
-        <p><strong>Please process this diet request according to the specified requirements and timeline.</strong></p>
-
-        <p>For any clarifications, please contact the clinic management team.</p>
-    </div>
-
-    <div class="footer">
-        <p>This is an automated email from Isha Yoga Center - Clinic Management System</p>
-        <p>Please do not reply to this email directly</p>
-    </div>
-</body>
-</html>`;
+        Namaskaram, Kindly take note of following diet request<br><br>${emailBody}<br><br><b>Guidelines for Patients:</b><br>Please bring your own container. Akshaya front office will not provide any container.<br><br>If you are no longer collecting the diet or wish to skip it for a day, please send us a quick email informing the same. This helps us reduce food wastage and unnecessary efforts for our sevadars.<br><br><b>Below mentioned are the food collection timings:</b><ul><li><b>Morning :</b> 8:30am to 11am</li><li><b>Afternoon :</b> 12:30pm to 1:30pm</li><li><b>Evening :</b> 6pm to 8pm</li></ul><br>Pranam,<br>${signerName}`;
 
         // Send email
         const emailResult = await sendDietRequestEmail(emailAddresses, emailContent, dietRequestDetails, patientEmail, ccEmails);
@@ -3176,6 +3176,92 @@ app.post('/api/register-patient', async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to register patient',
+            error: error.message
+        });
+    }
+});
+
+// Update patient IYC and category in Patient Database sheet
+app.post('/api/update-patient-iyc-category', async (req, res) => {
+    try {
+        const { patientRowIndex, currentIYC, newIYC, newCategory, updateReason, patientName, patientPhone } = req.body;
+
+        if (!patientRowIndex || !newIYC || !newCategory) {
+            return res.status(400).json({
+                success: false,
+                message: 'Patient row index, new IYC number, and new category are required'
+            });
+        }
+
+        console.log(`Updating patient IYC and category - Row: ${patientRowIndex}, Current IYC: ${currentIYC}, New IYC: ${newIYC}, New Category: ${newCategory}`);
+
+        // Ensure Patient Database worksheet exists and has correct headers
+        await ensurePatientDatabaseHeaders();
+
+        // Check if new IYC already exists (if it's different from current)
+        if (newIYC !== currentIYC) {
+            const checkResponse = await sheets.spreadsheets.values.get({
+                spreadsheetId: SPREADSHEET_ID,
+                range: 'Patient Database!B:B' // IYC column
+            });
+
+            const iycRows = checkResponse.data.values || [];
+            for (let i = 1; i < iycRows.length; i++) { // Skip header row
+                if (iycRows[i][0] && iycRows[i][0].toString().toLowerCase() === newIYC.toLowerCase()) {
+                    return res.status(400).json({
+                        success: false,
+                        message: `IYC number ${newIYC} already exists for another patient`
+                    });
+                }
+            }
+        }
+
+        // Update the specific row - update IYC (column B) and Category (column G)
+        const updateRange = `Patient Database!B${patientRowIndex}:G${patientRowIndex}`;
+
+        // Get current row data first
+        const currentRowResponse = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: updateRange
+        });
+
+        const currentRowData = currentRowResponse.data.values?.[0] || [];
+
+        // Update only IYC (index 0 in B:G range) and Category (index 5 in B:G range)
+        const updatedRowData = [...currentRowData];
+        updatedRowData[0] = newIYC;     // B column (IYC)
+        updatedRowData[5] = newCategory; // G column (Category)
+
+        // Update the row
+        await sheets.spreadsheets.values.update({
+            spreadsheetId: SPREADSHEET_ID,
+            range: updateRange,
+            valueInputOption: 'RAW',
+            resource: {
+                values: [updatedRowData]
+            }
+        });
+
+        // Log the update for audit purposes
+        console.log(`Patient updated successfully - Name: ${patientName}, Phone: ${patientPhone}, Old IYC: ${currentIYC}, New IYC: ${newIYC}, New Category: ${newCategory}, Reason: ${updateReason}`);
+
+        res.json({
+            success: true,
+            message: 'Patient IYC and category updated successfully',
+            data: {
+                patientName: patientName,
+                oldIYC: currentIYC,
+                newIYC: newIYC,
+                newCategory: newCategory,
+                updateReason: updateReason
+            }
+        });
+
+    } catch (error) {
+        console.error('Error updating patient IYC and category:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update patient information',
             error: error.message
         });
     }

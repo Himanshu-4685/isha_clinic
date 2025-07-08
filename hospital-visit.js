@@ -30,6 +30,7 @@ class HospitalVisitManager {
         this.editingCell = null;
         this.hospitals = [];
         this.patients = [];
+        this.selectedHospitals = new Set();
     }
 
     // Initialize the hospital visit module
@@ -496,29 +497,51 @@ class HospitalVisitManager {
 
     // Load hospitals from Hospital Directory
     async loadHospitals() {
-        const hospitalSelect = document.getElementById('visitHospital');
+        const hospitalDropdownOptions = document.getElementById('hospitalDropdownOptions');
         const loadingIndicator = document.getElementById('hospitalLoading');
 
-        if (!hospitalSelect) return;
+        if (!hospitalDropdownOptions) return;
 
         try {
             if (loadingIndicator) loadingIndicator.style.display = 'block';
 
             const result = await googleSheetsAPI.getHospitals();
-            
+
             if (result.success) {
                 this.hospitals = result.hospitals;
-                
-                // Clear existing options except the first one
-                hospitalSelect.innerHTML = '<option value="">Select Hospital</option>';
-                
-                // Add hospital options
-                this.hospitals.forEach(hospital => {
-                    const option = document.createElement('option');
-                    option.value = hospital;
-                    option.textContent = hospital;
-                    hospitalSelect.appendChild(option);
+                this.selectedHospitals = new Set(); // Initialize selected hospitals set
+
+                console.log(`Loaded ${this.hospitals.length} hospitals:`, this.hospitals);
+
+                // Clear existing options
+                hospitalDropdownOptions.innerHTML = '';
+
+                // Add hospital checkbox options
+                this.hospitals.forEach((hospital, index) => {
+                    const optionDiv = document.createElement('div');
+                    optionDiv.className = 'multi-select-option';
+
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.id = `hospital-${index}`;
+                    checkbox.value = hospital;
+                    checkbox.addEventListener('change', (e) => {
+                        this.handleHospitalSelection(e.target);
+                    });
+
+                    const label = document.createElement('label');
+                    label.htmlFor = `hospital-${index}`;
+                    label.textContent = hospital;
+
+                    optionDiv.appendChild(checkbox);
+                    optionDiv.appendChild(label);
+                    hospitalDropdownOptions.appendChild(optionDiv);
                 });
+
+                console.log(`Created ${hospitalDropdownOptions.children.length} hospital options in dropdown`);
+
+                // Setup dropdown trigger functionality
+                this.setupHospitalDropdown();
             } else {
                 console.error('Failed to load hospitals:', result.message);
             }
@@ -527,6 +550,147 @@ class HospitalVisitManager {
         } finally {
             if (loadingIndicator) loadingIndicator.style.display = 'none';
         }
+    }
+
+    // Setup hospital dropdown functionality
+    setupHospitalDropdown() {
+        const trigger = document.getElementById('hospitalDropdownTrigger');
+        const options = document.getElementById('hospitalDropdownOptions');
+
+        if (!trigger || !options) return;
+
+        // Handle dropdown trigger click
+        trigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.toggleHospitalDropdown();
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!trigger.contains(e.target) && !options.contains(e.target)) {
+                this.closeHospitalDropdown();
+            }
+        });
+    }
+
+    // Toggle hospital dropdown
+    toggleHospitalDropdown() {
+        const trigger = document.getElementById('hospitalDropdownTrigger');
+        const options = document.getElementById('hospitalDropdownOptions');
+
+        if (!trigger || !options) return;
+
+        const isOpen = options.classList.contains('show');
+
+        if (isOpen) {
+            this.closeHospitalDropdown();
+        } else {
+            this.openHospitalDropdown();
+        }
+    }
+
+    // Open hospital dropdown
+    openHospitalDropdown() {
+        const trigger = document.getElementById('hospitalDropdownTrigger');
+        const options = document.getElementById('hospitalDropdownOptions');
+
+        if (!trigger || !options) return;
+
+        trigger.classList.add('active');
+        options.classList.add('show');
+
+        // Debug scroll functionality
+        console.log('Dropdown opened. Options height:', options.scrollHeight, 'vs max height: 280px');
+        console.log('Scroll needed:', options.scrollHeight > 280);
+        console.log('Options element:', options);
+        console.log('Options computed style:', window.getComputedStyle(options));
+        console.log('Options overflow-y:', window.getComputedStyle(options).overflowY);
+        console.log('Options max-height:', window.getComputedStyle(options).maxHeight);
+
+        // Force scroll if needed
+        if (options.scrollHeight > 280) {
+            options.style.overflowY = 'scroll';
+            options.style.maxHeight = '280px';
+            console.log('Forced scroll on dropdown');
+        }
+
+        // Additional scroll forcing - set after a small delay to ensure DOM is ready
+        setTimeout(() => {
+            const computedStyle = window.getComputedStyle(options);
+            console.log('=== SCROLL DEBUG ===');
+            console.log('ScrollHeight:', options.scrollHeight);
+            console.log('ClientHeight:', options.clientHeight);
+            console.log('OffsetHeight:', options.offsetHeight);
+            console.log('Computed max-height:', computedStyle.maxHeight);
+            console.log('Computed overflow-y:', computedStyle.overflowY);
+            console.log('Computed height:', computedStyle.height);
+            console.log('Children count:', options.children.length);
+            console.log('===================');
+
+            if (options.scrollHeight > 280) {
+                options.style.overflowY = 'scroll';
+                options.style.maxHeight = '280px';
+                console.log('Applied delayed scroll forcing');
+
+                // Force reflow
+                options.offsetHeight;
+
+                // Check again after forcing
+                console.log('After forcing - ScrollHeight:', options.scrollHeight, 'ClientHeight:', options.clientHeight);
+            }
+        }, 50);
+    }
+
+    // Close hospital dropdown
+    closeHospitalDropdown() {
+        const trigger = document.getElementById('hospitalDropdownTrigger');
+        const options = document.getElementById('hospitalDropdownOptions');
+
+        if (!trigger || !options) return;
+
+        trigger.classList.remove('active');
+        options.classList.remove('show');
+    }
+
+    // Handle hospital selection
+    handleHospitalSelection(checkbox) {
+        const hospitalName = checkbox.value;
+
+        if (checkbox.checked) {
+            this.selectedHospitals.add(hospitalName);
+        } else {
+            this.selectedHospitals.delete(hospitalName);
+        }
+
+        this.updateHospitalDisplay();
+        this.updateHiddenHospitalInput();
+        this.validateForm();
+    }
+
+    // Update hospital display text
+    updateHospitalDisplay() {
+        const selectedText = document.getElementById('hospitalSelectedText');
+        if (!selectedText) return;
+
+        if (this.selectedHospitals.size === 0) {
+            selectedText.textContent = 'Select Hospitals';
+            selectedText.classList.add('placeholder');
+        } else if (this.selectedHospitals.size === 1) {
+            selectedText.textContent = Array.from(this.selectedHospitals)[0];
+            selectedText.classList.remove('placeholder');
+        } else {
+            selectedText.textContent = `${this.selectedHospitals.size} hospitals selected`;
+            selectedText.classList.remove('placeholder');
+        }
+    }
+
+    // Update hidden input for form validation
+    updateHiddenHospitalInput() {
+        const hiddenInput = document.getElementById('visitHospital');
+        if (!hiddenInput) return;
+
+        // Set value to comma-separated list of selected hospitals
+        hiddenInput.value = Array.from(this.selectedHospitals).join(',');
     }
 
     // Load patients for search functionality
@@ -704,7 +868,7 @@ class HospitalVisitManager {
         }
 
         // Check required fields
-        const requiredFields = ['iycNumber', 'patientName', 'phoneNumber', 'hospital', 'purpose', 'priority'];
+        const requiredFields = ['iycNumber', 'patientName', 'phoneNumber', 'purpose', 'priority'];
         const errors = [];
 
         requiredFields.forEach(field => {
@@ -712,6 +876,11 @@ class HospitalVisitManager {
                 errors.push(`${field} is required`);
             }
         });
+
+        // Special validation for hospitals - check if at least one hospital is selected
+        if (this.selectedHospitals.size === 0) {
+            errors.push('At least one hospital must be selected');
+        }
 
         // Special validation: Doctor field is mandatory when purpose is "Consultation & Investigation"
         if (data.purpose === 'Consultation & Investigation') {
@@ -782,32 +951,51 @@ class HospitalVisitManager {
             saveBtn.disabled = true;
             saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
 
-            // Prepare visit data
-            const visitData = {
-                dateRequested: new Date().toISOString().split('T')[0], // Current date
-                iycNumber: this.formData.iycNumber,
-                patientName: this.formData.patientName,
-                phoneNumber: this.formData.phoneNumber,
-                hospital: this.formData.hospital,
-                purpose: this.formData.purpose,
-                doctor: this.formData.doctor || '',
-                remarks: this.formData.remarks || '',
-                priority: this.formData.priority,
-                status: 'Pending'
-            };
+            // Create separate visit entries for each selected hospital
+            const selectedHospitalsArray = Array.from(this.selectedHospitals);
+            const visitEntries = [];
 
-            // Save to Google Sheets
-            const result = await googleSheetsAPI.saveHospitalVisit(visitData);
+            selectedHospitalsArray.forEach(hospital => {
+                const visitData = {
+                    dateRequested: new Date().toISOString().split('T')[0], // Current date
+                    iycNumber: this.formData.iycNumber,
+                    patientName: this.formData.patientName,
+                    phoneNumber: this.formData.phoneNumber,
+                    hospital: hospital,
+                    purpose: this.formData.purpose,
+                    doctor: this.formData.doctor || '',
+                    remarks: this.formData.remarks || '',
+                    priority: this.formData.priority,
+                    status: 'Pending'
+                };
+                visitEntries.push(visitData);
+            });
 
-            if (result.success) {
-                this.showMessage('visitFormMessage', 'Hospital visit request saved successfully!', 'success');
+            // Save all visit entries to Google Sheets
+            const results = await Promise.all(
+                visitEntries.map(visitData => googleSheetsAPI.saveHospitalVisit(visitData))
+            );
+
+            // Check if all saves were successful
+            const failedSaves = results.filter(result => !result.success);
+
+            if (failedSaves.length === 0) {
+                const hospitalCount = selectedHospitalsArray.length;
+                const message = hospitalCount === 1
+                    ? 'Hospital visit request saved successfully!'
+                    : `${hospitalCount} hospital visit requests saved successfully!`;
+                this.showMessage('visitFormMessage', message, 'success');
                 this.resetForm();
             } else {
-                this.showMessage('visitFormMessage', result.message || 'Failed to save hospital visit request', 'error');
+                const successCount = results.length - failedSaves.length;
+                const errorMessage = successCount > 0
+                    ? `${successCount} requests saved, but ${failedSaves.length} failed. Please check and retry.`
+                    : 'Failed to save hospital visit requests';
+                this.showMessage('visitFormMessage', errorMessage, 'error');
             }
 
         } catch (error) {
-            console.error('Error saving hospital visit:', error);
+            console.error('Error saving hospital visits:', error);
             this.showMessage('visitFormMessage', 'An error occurred while saving. Please try again.', 'error');
         } finally {
             // Restore button state
@@ -828,6 +1016,20 @@ class HospitalVisitManager {
                 input.style.backgroundColor = '';
                 input.placeholder = input.getAttribute('placeholder') || '';
             });
+
+            // Reset hospital selection
+            this.selectedHospitals.clear();
+            this.updateHospitalDisplay();
+            this.updateHiddenHospitalInput();
+
+            // Uncheck all hospital checkboxes
+            const hospitalCheckboxes = document.querySelectorAll('#hospitalDropdownOptions input[type="checkbox"]');
+            hospitalCheckboxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
+
+            // Close hospital dropdown
+            this.closeHospitalDropdown();
 
             // Reset validation
             this.validateForm();
@@ -1685,7 +1887,9 @@ class HospitalVisitManager {
             action,
             currentSection: this.currentSection,
             selectedVisitIds,
-            selectedCount: selectedVisitIds.length
+            selectedCount: selectedVisitIds.length,
+            actionItem: actionItem,
+            actionText: actionItem.textContent.trim()
         });
 
         if (selectedVisitIds.length === 0) {
@@ -1743,19 +1947,36 @@ class HospitalVisitManager {
         const selectedVisitIds = Array.from(this.selectedVisits[this.currentSection]);
         const statusValue = this.getStatusFromAction(newStatus);
 
+        console.log('moveSelectedVisits called:', {
+            newStatus,
+            statusValue,
+            selectedVisitIds,
+            currentSection: this.currentSection
+        });
+
         try {
             // Get row indices for selected visits (like blood test module does)
             const rowIndices = selectedVisitIds.map(visitId => {
                 const visit = this.findVisitById(visitId);
+                console.log(`Finding visit ${visitId}:`, visit);
                 return visit ? visit.rowIndex : null;
             }).filter(index => index !== null);
+
+            console.log('Row indices found:', rowIndices);
 
             if (rowIndices.length === 0) {
                 throw new Error('No valid visits found for update');
             }
 
             // Use Google Sheets API like blood test module does
+            console.log('Calling updateHospitalVisitStatus with:', {
+                selectedVisitIds,
+                statusValue,
+                rowIndices
+            });
             const result = await googleSheetsAPI.updateHospitalVisitStatus(selectedVisitIds, statusValue, rowIndices);
+
+            console.log('API result:', result);
 
             if (!result.success) {
                 throw new Error(result.message || 'Failed to update visit status');
