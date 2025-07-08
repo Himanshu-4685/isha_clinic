@@ -10,6 +10,8 @@ class RegisterPatientManager {
         this.filteredPatients = [];
         this.formTouched = false; // Track if user has interacted with the form
         this.isSubmitting = false; // Track if form submission is in progress
+        this.selectedPatientForUpdate = null; // Track selected patient for update
+        this.updateSearchResults = []; // Store search results for update
     }
 
     // Initialize the register patient module
@@ -34,6 +36,8 @@ class RegisterPatientManager {
         this.setupPatientForm();
         this.setupFormValidation();
         this.setupPatientListFunctionality();
+        this.setupUpdatePatientFunctionality();
+        this.setupIYCUppercaseConversion();
     }
 
     // Setup sidebar navigation
@@ -86,6 +90,10 @@ class RegisterPatientManager {
         } else if (sectionName === 'new-patient') {
             // Restore form state when returning to new-patient section
             this.restoreFormState();
+        } else if (sectionName === 'update-patient') {
+            // Load patient data for update section and clear any previous selections
+            this.loadPatientData();
+            this.clearUpdateForm();
         }
 
         console.log(`Switched to section: ${sectionName}`);
@@ -94,12 +102,50 @@ class RegisterPatientManager {
     // Setup patient registration form
     setupPatientForm() {
         const form = document.getElementById('registerPatientForm');
+        const iycInput = document.getElementById('patientIYC');
+
         if (form && !form.hasAttribute('data-listener-attached')) {
             form.addEventListener('submit', (e) => {
                 e.preventDefault();
                 this.handlePatientRegistration();
             });
             form.setAttribute('data-listener-attached', 'true');
+        }
+
+        // Setup IYC validation for main registration form
+        if (iycInput && !iycInput.hasAttribute('data-validation-attached')) {
+            let validationTimer;
+            iycInput.addEventListener('input', (e) => {
+                const iycValue = e.target.value.trim();
+
+                // Clear previous validation timer
+                clearTimeout(validationTimer);
+
+                // Remove any existing error styling
+                iycInput.classList.remove('error');
+                const existingError = iycInput.parentNode.querySelector('.error-message');
+                if (existingError) {
+                    existingError.remove();
+                }
+
+                if (iycValue.length > 0) {
+                    // Debounce validation
+                    validationTimer = setTimeout(async () => {
+                        const validation = await this.validateNewIYC(iycValue);
+                        if (!validation.valid) {
+                            iycInput.classList.add('error');
+                            const errorDiv = document.createElement('div');
+                            errorDiv.className = 'error-message';
+                            errorDiv.textContent = validation.message;
+                            errorDiv.style.color = '#dc3545';
+                            errorDiv.style.fontSize = '12px';
+                            errorDiv.style.marginTop = '4px';
+                            iycInput.parentNode.appendChild(errorDiv);
+                        }
+                    }, 20);
+                }
+            });
+            iycInput.setAttribute('data-validation-attached', 'true');
         }
     }
 
@@ -462,6 +508,21 @@ class RegisterPatientManager {
             patientType: document.querySelector('input[name="patientType"]:checked')?.value || ''
         };
 
+        // Validate IYC number if provided
+        if (patientData.iyc) {
+            const iycValidation = await this.validateNewIYC(patientData.iyc);
+            if (!iycValidation.valid) {
+                // Reset submission state
+                this.isSubmitting = false;
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = '<i class="fas fa-user-plus"></i> Register Patient';
+                }
+                this.showNotification(iycValidation.message, 'error');
+                return;
+            }
+        }
+
         console.log('=== PATIENT REGISTRATION DEBUG ===');
         console.log('Submission timestamp:', new Date().toISOString());
         console.log('Is submitting flag:', this.isSubmitting);
@@ -769,6 +830,365 @@ class RegisterPatientManager {
 
         return row;
     }
+
+    // Setup update patient functionality
+    setupUpdatePatientFunctionality() {
+        // Setup search functionality for update
+        const searchInput = document.getElementById('searchPatientUpdate');
+        const updateForm = document.getElementById('updatePatientForm');
+        const newIYCInput = document.getElementById('newPatientIYC');
+
+        if (searchInput) {
+            let searchTimer;
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value.trim();
+
+                // Debounce search
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(() => {
+                    this.performUpdatePatientSearch(query);
+                }, 300);
+            });
+        }
+
+        // Setup real-time IYC validation
+        if (newIYCInput) {
+            let validationTimer;
+            newIYCInput.addEventListener('input', (e) => {
+                const iycValue = e.target.value.trim();
+
+                // Clear previous validation timer
+                clearTimeout(validationTimer);
+
+                // Remove any existing error styling and messages
+                newIYCInput.classList.remove('error');
+                const existingErrors = newIYCInput.parentNode.querySelectorAll('.error-message');
+                existingErrors.forEach(error => error.remove());
+
+                if (iycValue.length > 0) {
+                    // Debounce validation
+                    validationTimer = setTimeout(async () => {
+                        // Double-check that no error messages exist before adding new one
+                        const existingErrors = newIYCInput.parentNode.querySelectorAll('.error-message');
+                        existingErrors.forEach(error => error.remove());
+
+                        const validation = await this.validateNewIYC(iycValue, this.selectedPatientForUpdate);
+                        if (!validation.valid) {
+                            newIYCInput.classList.add('error');
+                            const errorDiv = document.createElement('div');
+                            errorDiv.className = 'error-message';
+                            errorDiv.textContent = validation.message;
+                            errorDiv.style.color = '#dc3545';
+                            errorDiv.style.fontSize = '12px';
+                            errorDiv.style.marginTop = '4px';
+                            newIYCInput.parentNode.appendChild(errorDiv);
+                        }
+                    }, 20);
+                }
+            });
+        }
+
+        if (updateForm) {
+            updateForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.handlePatientUpdate();
+            });
+        }
+    }
+
+    // Perform search for patients to update
+    async performUpdatePatientSearch(query) {
+        const resultsContainer = document.getElementById('patientSearchResults');
+
+        if (!query || query.length < 2) {
+            if (resultsContainer) {
+                resultsContainer.style.display = 'none';
+            }
+            return;
+        }
+
+        try {
+            // Ensure we have patient data
+            if (!this.patients || this.patients.length === 0) {
+                await this.loadPatientData();
+            }
+
+            const searchTerm = query.toLowerCase().trim();
+            this.updateSearchResults = this.patients.filter(patient => {
+                if (!patient) return false;
+                return (
+                    (patient.iycNumber && patient.iycNumber.toString().toLowerCase().includes(searchTerm)) ||
+                    (patient.name && patient.name.toString().toLowerCase().includes(searchTerm)) ||
+                    (patient.phone && patient.phone.toString().toLowerCase().includes(searchTerm))
+                );
+            });
+
+            this.renderUpdateSearchResults();
+
+        } catch (error) {
+            console.error('Error searching patients for update:', error);
+            this.showNotification('Error searching patients. Please try again.', 'error');
+        }
+    }
+
+    // Render search results for update
+    renderUpdateSearchResults() {
+        const resultsContainer = document.getElementById('patientSearchResults');
+        const resultsList = document.getElementById('searchResultsList');
+
+        if (!resultsContainer || !resultsList) return;
+
+        if (this.updateSearchResults.length === 0) {
+            resultsContainer.style.display = 'none';
+            return;
+        }
+
+        // Clear existing results
+        resultsList.innerHTML = '';
+
+        // Create result items
+        this.updateSearchResults.forEach(patient => {
+            const resultItem = document.createElement('div');
+            resultItem.className = 'search-result-item';
+            resultItem.innerHTML = `
+                <div class="result-info">
+                    <div class="result-name">${patient.name || 'N/A'}</div>
+                    <div class="result-details">
+                        <span>IYC: ${patient.iycNumber || 'N/A'}</span>
+                        <span>Phone: ${patient.phone || 'N/A'}</span>
+                        <span>Category: ${patient.category || 'N/A'}</span>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-sm btn-primary select-patient-btn">
+                    <i class="fas fa-check"></i>
+                    Select
+                </button>
+            `;
+
+            // Add click handler for select button
+            const selectBtn = resultItem.querySelector('.select-patient-btn');
+            selectBtn.addEventListener('click', () => {
+                this.selectPatientForUpdate(patient);
+            });
+
+            resultsList.appendChild(resultItem);
+        });
+
+        resultsContainer.style.display = 'block';
+    }
+
+    // Select a patient for update
+    selectPatientForUpdate(patient) {
+        this.selectedPatientForUpdate = patient;
+
+        // Hide search results
+        const resultsContainer = document.getElementById('patientSearchResults');
+        if (resultsContainer) {
+            resultsContainer.style.display = 'none';
+        }
+
+        // Show selected patient info
+        this.displaySelectedPatientInfo(patient);
+
+        // Show update form fields
+        const updateFields = document.getElementById('updateFormFields');
+        if (updateFields) {
+            updateFields.style.display = 'block';
+        }
+
+        // Pre-fill current values
+        const newIYCField = document.getElementById('newPatientIYC');
+        const newCategoryField = document.getElementById('newPatientCategory');
+
+        if (newIYCField) {
+            newIYCField.value = patient.iycNumber || '';
+        }
+        if (newCategoryField) {
+            newCategoryField.value = patient.category || '';
+        }
+    }
+
+    // Display selected patient information
+    displaySelectedPatientInfo(patient) {
+        const selectedInfo = document.getElementById('selectedPatientInfo');
+        const nameEl = document.getElementById('selectedPatientName');
+        const phoneEl = document.getElementById('selectedPatientPhone');
+        const iycEl = document.getElementById('selectedPatientCurrentIYC');
+        const categoryEl = document.getElementById('selectedPatientCurrentCategory');
+
+        if (selectedInfo) {
+            selectedInfo.style.display = 'block';
+        }
+
+        if (nameEl) nameEl.textContent = patient.name || 'N/A';
+        if (phoneEl) phoneEl.textContent = patient.phone || 'N/A';
+        if (iycEl) iycEl.textContent = patient.iycNumber || 'N/A';
+        if (categoryEl) categoryEl.textContent = patient.category || 'N/A';
+    }
+
+    // Handle patient update
+    async handlePatientUpdate() {
+        if (!this.selectedPatientForUpdate) {
+            this.showNotification('Please select a patient to update', 'error');
+            return;
+        }
+
+        const newIYC = document.getElementById('newPatientIYC').value.trim();
+        const newCategory = document.getElementById('newPatientCategory').value.trim();
+        const updateReason = document.getElementById('updateReason').value.trim();
+
+        if (!newIYC || !newCategory) {
+            this.showNotification('Please fill in both new IYC number and category', 'error');
+            return;
+        }
+
+        // Validate new IYC number
+        const iycValidation = await this.validateNewIYC(newIYC, this.selectedPatientForUpdate);
+        if (!iycValidation.valid) {
+            this.showNotification(iycValidation.message, 'error');
+            return;
+        }
+
+        // Check if anything actually changed
+        if (newIYC === this.selectedPatientForUpdate.iycNumber &&
+            newCategory === this.selectedPatientForUpdate.category) {
+            this.showNotification('No changes detected. Please modify IYC number or category to update.', 'error');
+            return;
+        }
+
+        try {
+            this.showLoadingOverlay('Updating patient information...');
+
+            const updateData = {
+                patientRowIndex: this.selectedPatientForUpdate.rowIndex,
+                currentIYC: this.selectedPatientForUpdate.iycNumber,
+                newIYC: newIYC,
+                newCategory: newCategory,
+                updateReason: updateReason,
+                patientName: this.selectedPatientForUpdate.name,
+                patientPhone: this.selectedPatientForUpdate.phone
+            };
+
+            console.log('Updating patient with data:', updateData);
+            console.log('Selected patient for update:', this.selectedPatientForUpdate);
+
+            const response = await fetch('/api/update-patient-iyc-category', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(updateData)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+            }
+
+            const result = await response.json();
+            console.log('Patient update response:', result);
+
+            this.hideLoadingOverlay();
+            this.showNotification('Patient information updated successfully!', 'success');
+
+            // Clear the form and refresh data
+            this.clearUpdateForm();
+            await this.loadPatientData();
+
+        } catch (error) {
+            console.error('Error updating patient:', error);
+            this.hideLoadingOverlay();
+            this.showNotification('Failed to update patient information. Please try again.', 'error');
+        }
+    }
+
+    // Check if IYC number already exists
+    async checkIYCExists(iycNumber) {
+        try {
+            // Ensure we have patient data
+            if (!this.patients || this.patients.length === 0) {
+                await this.loadPatientData();
+            }
+
+            // Check if IYC already exists in the patient data
+            // The patient data structure uses 'iycNumber' property
+            const existingPatient = this.patients.find(patient => {
+                const patientIYC = patient.iycNumber || '';
+                return patientIYC.toString().trim().toLowerCase() === iycNumber.toString().trim().toLowerCase();
+            });
+
+            return existingPatient ? true : false;
+        } catch (error) {
+            console.error('Error checking IYC existence:', error);
+            return false;
+        }
+    }
+
+    // Validate new IYC number
+    async validateNewIYC(iycNumber, excludeCurrentPatient = null) {
+        if (!iycNumber || iycNumber.trim() === '') {
+            return { valid: false, message: 'IYC number is required' };
+        }
+
+        const trimmedIYC = iycNumber.trim();
+
+        // Check if IYC already exists
+        const exists = await this.checkIYCExists(trimmedIYC);
+
+        if (exists) {
+            // If we're updating a patient, check if this IYC belongs to the current patient
+            if (excludeCurrentPatient) {
+                const currentIYC = excludeCurrentPatient.iycNumber || '';
+                if (currentIYC.toString().trim().toLowerCase() === trimmedIYC.toLowerCase()) {
+                    return { valid: true, message: '' };
+                }
+            }
+            return { valid: false, message: 'IYC number already exists. Please use a different IYC number.' };
+        }
+
+        return { valid: true, message: '' };
+    }
+
+    // Clear update form
+    clearUpdateForm() {
+        // Clear search input
+        const searchInput = document.getElementById('searchPatientUpdate');
+        if (searchInput) {
+            searchInput.value = '';
+        }
+
+        // Hide search results
+        const resultsContainer = document.getElementById('patientSearchResults');
+        if (resultsContainer) {
+            resultsContainer.style.display = 'none';
+        }
+
+        // Hide selected patient info
+        const selectedInfo = document.getElementById('selectedPatientInfo');
+        if (selectedInfo) {
+            selectedInfo.style.display = 'none';
+        }
+
+        // Hide update form fields
+        const updateFields = document.getElementById('updateFormFields');
+        if (updateFields) {
+            updateFields.style.display = 'none';
+        }
+
+        // Clear form fields
+        const newIYCField = document.getElementById('newPatientIYC');
+        const newCategoryField = document.getElementById('newPatientCategory');
+        const updateReasonField = document.getElementById('updateReason');
+
+        if (newIYCField) newIYCField.value = '';
+        if (newCategoryField) newCategoryField.value = '';
+        if (updateReasonField) updateReasonField.value = '';
+
+        // Reset selected patient
+        this.selectedPatientForUpdate = null;
+        this.updateSearchResults = [];
+    }
+
     // Save current form state
     saveFormState() {
         const form = document.getElementById('registerPatientForm');
@@ -880,6 +1300,58 @@ class RegisterPatientManager {
             notification.classList.remove('show');
             setTimeout(() => document.body.removeChild(notification), 300);
         }, 3000);
+    }
+
+    // Setup IYC uppercase conversion for register patient module
+    setupIYCUppercaseConversion() {
+        console.log('Register Patient - Setting up IYC uppercase conversion...');
+
+        // Function to convert input to uppercase
+        const convertToUppercase = (input) => {
+            const cursorPosition = input.selectionStart;
+            const originalValue = input.value;
+            const upperValue = originalValue.toUpperCase();
+
+            if (originalValue !== upperValue) {
+                input.value = upperValue;
+                // Restore cursor position
+                input.setSelectionRange(cursorPosition, cursorPosition);
+            }
+        };
+
+        // Function to setup uppercase conversion for an input
+        const setupUppercaseInput = (input) => {
+            // Convert on input event (as user types)
+            input.addEventListener('input', () => convertToUppercase(input));
+
+            // Convert on paste event
+            input.addEventListener('paste', () => {
+                setTimeout(() => convertToUppercase(input), 0);
+            });
+
+            // Convert existing value if any
+            if (input.value) {
+                convertToUppercase(input);
+            }
+        };
+
+        // Find all IYC input fields in register patient module
+        const iycSelectors = [
+            '#patientIYC',
+            '#newPatientIYC',
+            '#searchPatientUpdate'
+        ];
+
+        // Apply to existing inputs
+        iycSelectors.forEach(selector => {
+            const input = document.querySelector(selector);
+            if (input) {
+                console.log(`Register Patient - Setting up uppercase conversion for: ${input.id}`);
+                setupUppercaseInput(input);
+            }
+        });
+
+        console.log('Register Patient - IYC uppercase conversion setup completed');
     }
 }
 

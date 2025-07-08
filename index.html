@@ -94,6 +94,10 @@
                                 <i class="fas fa-users"></i>
                                 Patient List
                             </li>
+                            <li class="sidebar-item" data-section="update-patient">
+                                <i class="fas fa-user-edit"></i>
+                                Update Patient
+                            </li>
                         </ul>
                     </div>
 
@@ -229,6 +233,103 @@
                                         </tr>
                                     </tbody>
                                 </table>
+                            </div>
+                        </div>
+
+                        <!-- Update Patient Section -->
+                        <div id="register-update-patient-section" class="section">
+                            <div class="section-header">
+                                <h2>Update Patient Information</h2>
+                                <p>Update IYC number and category for existing patients</p>
+                            </div>
+
+                            <!-- Update Patient Form -->
+                            <div class="form-container">
+                                <form id="updatePatientForm" class="patient-form">
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="searchPatientUpdate">Search Patient *</label>
+                                            <input type="text" id="searchPatientUpdate" placeholder="Search by name, phone, or current IYC..." required>
+                                        </div>
+                                    </div>
+
+                                    <!-- Patient Search Results -->
+                                    <div id="patientSearchResults" class="search-results" style="display: none;">
+                                        <div class="search-results-header">
+                                            <h4>Search Results</h4>
+                                        </div>
+                                        <div id="searchResultsList" class="search-results-list">
+                                            <!-- Search results will be populated here -->
+                                        </div>
+                                    </div>
+
+                                    <!-- Selected Patient Info -->
+                                    <div id="selectedPatientInfo" class="selected-patient-info" style="display: none;">
+                                        <div class="patient-info-header">
+                                            <h4>Selected Patient</h4>
+                                        </div>
+                                        <div class="patient-info-details">
+                                            <div class="info-row">
+                                                <span class="info-label">Name:</span>
+                                                <span id="selectedPatientName" class="info-value"></span>
+                                            </div>
+                                            <div class="info-row">
+                                                <span class="info-label">Phone:</span>
+                                                <span id="selectedPatientPhone" class="info-value"></span>
+                                            </div>
+                                            <div class="info-row">
+                                                <span class="info-label">Current IYC:</span>
+                                                <span id="selectedPatientCurrentIYC" class="info-value"></span>
+                                            </div>
+                                            <div class="info-row">
+                                                <span class="info-label">Current Category:</span>
+                                                <span id="selectedPatientCurrentCategory" class="info-value"></span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Update Form Fields -->
+                                    <div id="updateFormFields" class="update-form-fields" style="display: none;">
+                                        <div class="form-row">
+                                            <div class="form-group">
+                                                <label for="newPatientIYC">New IYC Number *</label>
+                                                <input type="text" id="newPatientIYC" name="newIYC" placeholder="Enter new IYC number" required>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="newPatientCategory">New Category *</label>
+                                                <select id="newPatientCategory" name="newCategory" required>
+                                                    <option value="">Select Category</option>
+                                                    <option value="FTV">FTV</option>
+                                                    <option value="STV">STV</option>
+                                                    <option value="LTV">LTV</option>
+                                                    <option value="Staff">Staff</option>
+                                                    <option value="Sevadar">Sevadar</option>
+                                                    <option value="Samskriti">Samskriti</option>
+                                                    <option value="Guest">Guest</option>
+                                                    <option value="SPD">SPD</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-row">
+                                            <div class="form-group full-width">
+                                                <label for="updateReason">Reason for Update</label>
+                                                <textarea id="updateReason" name="updateReason" placeholder="Enter reason for updating patient information (e.g., converted from non-poornanga to poornanga)" rows="3"></textarea>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-actions">
+                                            <button type="button" class="btn btn-secondary" onclick="registerPatientManager.clearUpdateForm()">
+                                                <i class="fas fa-times"></i>
+                                                Clear Form
+                                            </button>
+                                            <button type="submit" class="btn btn-primary">
+                                                <i class="fas fa-save"></i>
+                                                Update Patient
+                                            </button>
+                                        </div>
+                                    </div>
+                                </form>
                             </div>
                         </div>
 
@@ -1210,12 +1311,20 @@
                                     </div>
                                     <div class="form-group">
                                         <label for="visitHospital">Hospital <span class="required">*</span></label>
-                                        <select id="visitHospital" name="hospital" required>
-                                            <option value="">Select Hospital</option>
-                                        </select>
+                                        <div class="multi-select-dropdown" id="hospitalDropdownContainer">
+                                            <div class="multi-select-trigger" id="hospitalDropdownTrigger">
+                                                <span class="multi-select-text" id="hospitalSelectedText">Select Hospitals</span>
+                                                <i class="fas fa-chevron-down multi-select-arrow"></i>
+                                            </div>
+                                            <div class="multi-select-options" id="hospitalDropdownOptions">
+                                                <!-- Hospital checkboxes will be populated here -->
+                                            </div>
+                                        </div>
                                         <div class="loading-indicator" id="hospitalLoading" style="display: none;">
                                             <i class="fas fa-spinner fa-spin"></i> Loading hospitals...
                                         </div>
+                                        <!-- Hidden input to store selected hospitals for form validation -->
+                                        <input type="hidden" id="visitHospital" name="hospital" required>
                                     </div>
                                 </div>
 

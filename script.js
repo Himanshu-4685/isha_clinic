@@ -23,6 +23,9 @@ class ClinicApp {
         // Setup navigation
         this.setupNavigation();
 
+        // Initialize IYC uppercase conversion for all IYC fields
+        this.initializeIYCUppercaseConversion();
+
         // Initialize modules
         this.initializeModules();
 
@@ -175,6 +178,98 @@ class ClinicApp {
     // Check if app is initialized
     isAppInitialized() {
         return this.isInitialized;
+    }
+
+    // Initialize IYC uppercase conversion for all IYC fields
+    initializeIYCUppercaseConversion() {
+        console.log('Initializing IYC uppercase conversion...');
+
+        // Function to convert input to uppercase
+        const convertToUppercase = (input) => {
+            const cursorPosition = input.selectionStart;
+            const originalValue = input.value;
+            const upperValue = originalValue.toUpperCase();
+
+            if (originalValue !== upperValue) {
+                input.value = upperValue;
+                // Restore cursor position
+                input.setSelectionRange(cursorPosition, cursorPosition);
+            }
+        };
+
+        // Function to setup uppercase conversion for an input
+        const setupUppercaseInput = (input) => {
+            // Convert on input event (as user types)
+            input.addEventListener('input', () => convertToUppercase(input));
+
+            // Convert on paste event
+            input.addEventListener('paste', () => {
+                setTimeout(() => convertToUppercase(input), 0);
+            });
+
+            // Convert existing value if any
+            if (input.value) {
+                convertToUppercase(input);
+            }
+        };
+
+        // Find all IYC input fields using multiple selectors
+        const iycSelectors = [
+            'input[id*="IYC" i]',
+            'input[id*="iyc" i]',
+            'input[name*="iyc" i]',
+            'input[placeholder*="IYC" i]',
+            '#patientIYC',
+            '#iycNumber',
+            '#ultrasoundIycNumber',
+            '#visitIycNumber',
+            '#dietIycNumber',
+            '#newPatientIYC',
+            '#searchPatientUpdate'
+        ];
+
+        // Apply to existing inputs
+        iycSelectors.forEach(selector => {
+            const inputs = document.querySelectorAll(selector);
+            inputs.forEach(input => {
+                console.log(`Setting up uppercase conversion for: ${input.id || input.name || selector}`);
+                setupUppercaseInput(input);
+            });
+        });
+
+        // Setup observer for dynamically added IYC inputs
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                mutation.addedNodes.forEach((node) => {
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                        // Check if the added node itself is an IYC input
+                        iycSelectors.forEach(selector => {
+                            if (node.matches && node.matches(selector)) {
+                                console.log(`Setting up uppercase conversion for dynamically added input: ${node.id || node.name}`);
+                                setupUppercaseInput(node);
+                            }
+                        });
+
+                        // Check for IYC inputs within the added node
+                        iycSelectors.forEach(selector => {
+                            const inputs = node.querySelectorAll ? node.querySelectorAll(selector) : [];
+                            inputs.forEach(input => {
+                                console.log(`Setting up uppercase conversion for nested input: ${input.id || input.name}`);
+                                setupUppercaseInput(input);
+                            });
+                        });
+                    }
+                });
+            });
+        });
+
+        // Start observing
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+
+        console.log('IYC uppercase conversion initialized successfully');
     }
 }
 
@@ -450,3 +545,7 @@ window.ClinicApp = {
     config: CONFIG,
     loading: loadingOverlay
 };
+
+// Also export utilities directly to window for easier access
+window.AppUtils = AppUtils;
+window.loadingOverlay = loadingOverlay;

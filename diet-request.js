@@ -762,18 +762,32 @@ class DietRequestManager {
                 // Show initial success message
                 this.showMessage('dietFormMessage', 'Diet request saved successfully! Sending email...', 'success');
 
+                // Show loading overlay for email sending
+                this.showLoadingOverlay('Sending email notification...', 'Please wait while we send the email notification.');
+
                 // Send email notification
                 try {
                     const emailResult = await googleSheetsAPI.sendDietRequestEmail(result.dietRequestId);
 
+                    // Hide loading overlay
+                    this.hideLoadingOverlay();
+
                     if (emailResult.success) {
                         this.showMessage('dietFormMessage', 'Diet request saved and email sent successfully!', 'success');
+                        // Show success modal notification
+                        this.showSuccessModal('Email sent successfully!', 'The diet request email has been sent to all recipients.');
                     } else {
                         this.showMessage('dietFormMessage', 'Diet request saved but email failed to send. Please contact administrator.', 'warning');
+                        // Show error modal notification
+                        this.showErrorModal('Email sending failed', 'The diet request was saved but the email could not be sent. Please contact the administrator.');
                     }
                 } catch (emailError) {
                     console.error('Error sending diet request email:', emailError);
+                    // Hide loading overlay
+                    this.hideLoadingOverlay();
                     this.showMessage('dietFormMessage', 'Diet request saved but email failed to send. Please contact administrator.', 'warning');
+                    // Show error modal notification
+                    this.showErrorModal('Email sending failed', 'An error occurred while sending the email. Please contact the administrator.');
                 }
 
                 this.resetForm();
@@ -922,6 +936,230 @@ class DietRequestManager {
                     messageElement.className = 'form-message';
                 }, 5000);
             }
+        }
+    }
+
+    // Show success modal (like the existing success overlay)
+    showSuccessModal(title, message, duration = 3000) {
+        // Remove existing modal if any
+        this.hideSuccessModal();
+
+        // Create modal overlay
+        const overlay = document.createElement('div');
+        overlay.id = 'dietSuccessModal';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        `;
+
+        overlay.innerHTML = `
+            <div style="
+                background: white;
+                border-radius: 10px;
+                padding: 40px 30px;
+                text-align: center;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+                max-width: 400px;
+                width: 90%;
+                transform: scale(0.9);
+                transition: transform 0.3s ease;
+            ">
+                <div style="margin-bottom: 20px;">
+                    <div style="
+                        width: 60px;
+                        height: 60px;
+                        background: #28a745;
+                        border-radius: 50%;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        margin: 0 auto 20px;
+                    ">
+                        <i class="fas fa-check" style="font-size: 24px; color: white;"></i>
+                    </div>
+                </div>
+                <div style="font-size: 18px; font-weight: 600; color: #333; margin-bottom: 10px;">
+                    ${title}
+                </div>
+                <div style="font-size: 14px; color: #666; line-height: 1.4;">
+                    ${message}
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+        document.body.style.overflow = 'hidden';
+
+        // Animate in
+        setTimeout(() => {
+            overlay.style.opacity = '1';
+            const modal = overlay.querySelector('div');
+            if (modal) {
+                modal.style.transform = 'scale(1)';
+            }
+        }, 50);
+
+        // Auto remove
+        setTimeout(() => {
+            this.hideSuccessModal();
+        }, duration);
+    }
+
+    // Show error modal
+    showErrorModal(title, message, duration = 4000) {
+        // Remove existing modal if any
+        this.hideSuccessModal();
+
+        // Create modal overlay
+        const overlay = document.createElement('div');
+        overlay.id = 'dietSuccessModal';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        `;
+
+        overlay.innerHTML = `
+            <div style="
+                background: white;
+                border-radius: 10px;
+                padding: 40px 30px;
+                text-align: center;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+                max-width: 400px;
+                width: 90%;
+                transform: scale(0.9);
+                transition: transform 0.3s ease;
+            ">
+                <div style="margin-bottom: 20px;">
+                    <div style="
+                        width: 60px;
+                        height: 60px;
+                        background: #dc3545;
+                        border-radius: 50%;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        margin: 0 auto 20px;
+                    ">
+                        <i class="fas fa-times" style="font-size: 24px; color: white;"></i>
+                    </div>
+                </div>
+                <div style="font-size: 18px; font-weight: 600; color: #333; margin-bottom: 10px;">
+                    ${title}
+                </div>
+                <div style="font-size: 14px; color: #666; line-height: 1.4;">
+                    ${message}
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+        document.body.style.overflow = 'hidden';
+
+        // Animate in
+        setTimeout(() => {
+            overlay.style.opacity = '1';
+            const modal = overlay.querySelector('div');
+            if (modal) {
+                modal.style.transform = 'scale(1)';
+            }
+        }, 50);
+
+        // Auto remove
+        setTimeout(() => {
+            this.hideSuccessModal();
+        }, duration);
+    }
+
+    // Hide success/error modal
+    hideSuccessModal() {
+        const overlay = document.getElementById('dietSuccessModal');
+        if (overlay) {
+            overlay.style.opacity = '0';
+            const modal = overlay.querySelector('div');
+            if (modal) {
+                modal.style.transform = 'scale(0.9)';
+            }
+            setTimeout(() => {
+                overlay.remove();
+                document.body.style.overflow = '';
+            }, 300);
+        }
+    }
+
+    // Show loading overlay (custom implementation)
+    showLoadingOverlay(message = 'Sending email...', submessage = 'Please wait while we send the email notification.') {
+        // Remove existing overlay if any
+        this.hideLoadingOverlay();
+
+        // Create overlay
+        const overlay = document.createElement('div');
+        overlay.id = 'dietLoadingOverlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        `;
+
+        overlay.innerHTML = `
+            <div style="
+                background: white;
+                border-radius: 10px;
+                padding: 30px;
+                text-align: center;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+                max-width: 400px;
+                width: 90%;
+            ">
+                <div style="margin-bottom: 20px;">
+                    <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: #667eea;"></i>
+                </div>
+                <div style="font-size: 18px; font-weight: 600; color: #333; margin-bottom: 10px;">
+                    ${message}
+                </div>
+                <div style="font-size: 14px; color: #666; line-height: 1.4;">
+                    ${submessage}
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+        document.body.style.overflow = 'hidden';
+    }
+
+    // Hide loading overlay
+    hideLoadingOverlay() {
+        const overlay = document.getElementById('dietLoadingOverlay');
+        if (overlay) {
+            overlay.remove();
+            document.body.style.overflow = '';
         }
     }
 
@@ -1474,7 +1712,7 @@ class DietRequestManager {
                 startDate: document.getElementById('renewStartDate').value,
                 endDate: document.getElementById('renewEndDate').value,
                 anchor: document.getElementById('renewAnchor').value,
-                others: Array.from(document.getElementById('renewOthers').selectedOptions).map(option => option.value),
+                others: Array.from(document.getElementById('renewOthers').selectedOptions).map(option => option.value).join(','),
                 brunch: document.getElementById('renewBrunch').value,
                 lunch: document.getElementById('renewLunch').value,
                 dinner: document.getElementById('renewDinner').value,
@@ -1517,10 +1755,39 @@ class DietRequestManager {
             const result = await googleSheetsAPI.saveDietRequest(newRecord);
 
             if (result.success) {
-                this.showMessage('dietRecordsMessage', 'Diet request renewed successfully!', 'success');
+                this.showMessage('dietRecordsMessage', 'Diet request renewed successfully! Sending email...', 'success');
                 this.closeRenewModal();
-                // Refresh the records table
-                this.loadSectionData('records');
+
+                // Show loading overlay for email sending
+                this.showLoadingOverlay('Sending renewal email notification...', 'Please wait while we send the renewal email notification.');
+
+                // Send renewal email notification
+                try {
+                    const emailResult = await googleSheetsAPI.sendDietRequestEmail(result.dietRequestId);
+
+                    // Hide loading overlay
+                    this.hideLoadingOverlay();
+
+                    if (emailResult.success) {
+                        // Show success modal notification
+                        this.showSuccessModal('Renewal email sent successfully!', 'The diet request renewal email has been sent to all recipients.');
+                        // Refresh the records table
+                        this.loadSectionData('records');
+                    } else {
+                        // Show error modal notification
+                        this.showErrorModal('Renewal email sending failed', 'The diet request was renewed but the email could not be sent. Please contact the administrator.');
+                        // Still refresh the records table since the renewal was saved
+                        this.loadSectionData('records');
+                    }
+                } catch (emailError) {
+                    console.error('Error sending renewal email:', emailError);
+                    // Hide loading overlay
+                    this.hideLoadingOverlay();
+                    // Show error modal notification
+                    this.showErrorModal('Renewal email sending failed', 'An error occurred while sending the renewal email. Please contact the administrator.');
+                    // Still refresh the records table since the renewal was saved
+                    this.loadSectionData('records');
+                }
             } else {
                 this.showMessage('dietRecordsMessage', result.message || 'Failed to renew diet request', 'error');
             }
