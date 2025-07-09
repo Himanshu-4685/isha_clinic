@@ -15,7 +15,7 @@ class GoogleSheetsAPI {
 
         // For production (Render or any other deployment), use relative path
         // This will automatically use the same domain and port as the frontend
-        return process.env.PRODUCTION_DOMAIN/api;
+        return '/api';
     }
 
     // Initialize the Google Sheets API connection
