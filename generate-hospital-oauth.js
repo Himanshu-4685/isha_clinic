@@ -2,6 +2,9 @@ const { google } = require('googleapis');
 const fs = require('fs');
 const readline = require('readline');
 
+// Load environment variables
+require('dotenv').config();
+
 // Read credentials from the existing file
 const credentials = JSON.parse(fs.readFileSync('./Email_Credentials.json', 'utf8'));
 
@@ -11,11 +14,16 @@ console.log('🆔 Client ID:', credentials.oauth2.client_id);
 console.log('🔑 Has Client Secret:', !!credentials.oauth2.client_secret);
 console.log('');
 
+// Get redirect URI from environment or use default
+const redirectUri = process.env.OAUTH_REDIRECT_URI ? 
+    process.env.OAUTH_REDIRECT_URI.split(',')[0] : 
+    'http://localhost:10000';
+
 // OAuth2 configuration
 const oauth2Client = new google.auth.OAuth2(
     credentials.oauth2.client_id,
     credentials.oauth2.client_secret,
-    'http://localhost:10000'
+    redirectUri
 );
 
 // Gmail scopes for sending emails only

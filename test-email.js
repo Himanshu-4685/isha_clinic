@@ -1,6 +1,7 @@
 const { google } = require('googleapis');
 const fs = require('fs');
 const path = require('path');
+require('dotenv').config();
 
 async function testEmailSending() {
     try {
@@ -37,11 +38,16 @@ async function testEmailSending() {
         
         console.log('🔄 Creating OAuth2 client...');
         
+        // Get redirect URI from environment or use default
+        const redirectUri = process.env.OAUTH_REDIRECT_URI ? 
+            process.env.OAUTH_REDIRECT_URI.split(',')[0] : 
+            'http://localhost:10000';
+
         // Create OAuth2 client
         const oauth2Client = new google.auth.OAuth2(
             credentials.oauth2.client_id,
             credentials.oauth2.client_secret,
-            'urn:ietf:wg:oauth:2.0:oob'
+            redirectUri
         );
         
         // Set refresh token
