@@ -11,9 +11,10 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 10000;
 const DOMAIN = process.env.NODE_ENV === 'production' 
-    ? process.env.PRODUCTION_DOMAIN 
+    ? process.env.PRODUCTION_DOMAIN ||'https://isha-clinic.onrender.com'
     : process.env.DOMAIN || 'http://localhost:10000';
-const OAUTH_REDIRECT_URI = process.env.OAUTH_REDIRECT_URI?.split(',')[0] || 'http://localhost:10000';
+    //for Oauth, use the appropriate redirect URI based on enviroment
+const OAUTH_REDIRECT_URI = process.env.OAUTH_REDIRECT_URI?'https://isha-clinic.onrender.com':'http://localhost:10000';
 
 // Middleware
 app.use(cors());
@@ -1730,7 +1731,7 @@ async function sendDietRequestEmail(emailAddresses, content, dietRequestDetails,
         const oauth2Client = new google.auth.OAuth2(
             credentials.oauth2.client_id,
             credentials.oauth2.client_secret,
-            'http://localhost:10000'  // Use same redirect URI as token generation
+            OAUTH_REDIRECT_URI  // Use same redirect URI as token generation
         );
 
         // Set refresh token
