@@ -6,6 +6,17 @@ const CONFIG = {
         PASSWORD: 'password'
     },
 
+    // OAuth Configuration
+    OAUTH: {
+        REDIRECT_URI: process.env.NODE_ENV === 'production' 
+            ? process.env.OAUTH_REDIRECT_URI_PROD 
+            : process.env.OAUTH_REDIRECT_URI_DEV,
+        REDIRECT_URIS: [
+            process.env.OAUTH_REDIRECT_URI_DEV,
+            process.env.OAUTH_REDIRECT_URI_PROD
+        ].filter(Boolean) // Remove any undefined values
+    },
+
     // Google Sheets Configuration
     GOOGLE_SHEETS: {
         SPREADSHEET_ID: '1UQJbelESSslpu0VsgRKFZZD_wRwgRDhPQdTEjtIT7BM',
