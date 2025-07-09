@@ -5,18 +5,33 @@ const path = require('path');
 const fs = require('fs');
 const nodemailer = require('nodemailer');
 
-// Load environment variables from .env file in development
-if (process.env.NODE_ENV !== 'production') {
-    require('dotenv').config();
-}
+// Load environment variables from .env file
+require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 10000;
+const DOMAIN = process.env.NODE_ENV === 'production' 
+    ? process.env.PRODUCTION_DOMAIN 
+    : process.env.DOMAIN || 'http://localhost:10000';
+const OAUTH_REDIRECT_URI = process.env.OAUTH_REDIRECT_URI?.split(',')[0] || 'http://localhost:10000';
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.static('.'));
+
+// Inject environment variables into the frontend
+app.use((req, res, next) => {
+    if (req.path === '/env-config.js') {
+        res.setHeader('Content-Type', 'application/javascript');
+        res.send(`window.ENV_CONFIG = {
+            DOMAIN: "${DOMAIN}",
+            SPREADSHEET_ID: "${process.env.SPREADSHEET_ID || '1UQJbelESSslpu0VsgRKFZZD_wRwgRDhPQdTEjtIT7BM'}"
+        };`);
+    } else {
+        next();
+    }
+});
 
 // Load Google Sheets credentials
 let credentials;
@@ -1568,7 +1583,7 @@ async function sendCreditEmail(emailAddresses, content, visitDetails, patientEma
         const oauth2Client = new google.auth.OAuth2(
             credentials.oauth2.client_id,
             credentials.oauth2.client_secret,
-            'http://localhost:10000'  // Use OOB (out-of-band) for server applications
+            OAUTH_REDIRECT_URI
         );
 
         // Set refresh token
@@ -3400,11 +3415,9 @@ app.get('/', (req, res) => {
 
 // Start server
 app.listen(PORT, async () => {
-    const serverUrl = process.env.NODE_ENV === 'production'
-        ? `https://your-app.onrender.com`
-        : `http://localhost:${PORT}`;
     console.log(`🚀 Clinic Management Server running on port ${PORT}`);
     console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🌐 Server URL: ${DOMAIN}`);
     console.log(`📊 Google Sheets integration active`);
     console.log(`📋 Spreadsheet ID: ${SPREADSHEET_ID}`);
 
