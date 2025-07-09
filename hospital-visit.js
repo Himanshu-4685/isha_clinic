@@ -1386,7 +1386,7 @@ class HospitalVisitManager {
 
         try {
             // Send email via API
-            const response = await fetch('/api', {
+            const response = await fetch('/api/send-credit-email', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
