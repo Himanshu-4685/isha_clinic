@@ -4,7 +4,6 @@ const { google } = require('googleapis');
 const path = require('path');
 const fs = require('fs');
 const nodemailer = require('nodemailer');
-const { CONFIG } = require('./config');
 
 // Load environment variables from .env file
 require('dotenv').config();
@@ -12,12 +11,9 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 10000;
 const DOMAIN = process.env.NODE_ENV === 'production' 
-    ? process.env.PRODUCTION_DOMAIN || 'https://isha-clinic.onrender.com'
+    ? process.env.PRODUCTION_DOMAIN 
     : process.env.DOMAIN || 'http://localhost:10000';
-
-// Use OAuth configuration from config.js
-const OAUTH_REDIRECT_URI = CONFIG.OAUTH.REDIRECT_URI;
-const OAUTH_REDIRECT_URIS = CONFIG.OAUTH.REDIRECT_URIS;
+const OAUTH_REDIRECT_URI = process.env.OAUTH_REDIRECT_URI?.split(',')[0] || 'http://localhost:10000';
 
 // Middleware
 app.use(cors());
@@ -30,8 +26,7 @@ app.use((req, res, next) => {
         res.setHeader('Content-Type', 'application/javascript');
         res.send(`window.ENV_CONFIG = {
             DOMAIN: "${DOMAIN}",
-            SPREADSHEET_ID: "${process.env.SPREADSHEET_ID || CONFIG.GOOGLE_SHEETS.SPREADSHEET_ID}",
-            OAUTH_REDIRECT_URI: "${OAUTH_REDIRECT_URI}"
+            SPREADSHEET_ID: "${process.env.SPREADSHEET_ID || '1UQJbelESSslpu0VsgRKFZZD_wRwgRDhPQdTEjtIT7BM'}"
         };`);
     } else {
         next();
@@ -49,24 +44,13 @@ if (process.env.GOOGLE_CREDENTIALS) {
 }
 
 // Google Sheets configuration
-const SPREADSHEET_ID = process.env.SPREADSHEET_ID || CONFIG.GOOGLE_SHEETS.SPREADSHEET_ID;
+const SPREADSHEET_ID = process.env.SPREADSHEET_ID || '1UQJbelESSslpu0VsgRKFZZD_wRwgRDhPQdTEjtIT7BM';
 
 // Initialize Google Sheets API
 const auth = new google.auth.GoogleAuth({
     credentials: credentials,
-    scopes: CONFIG.API.SCOPES,
-    redirectUri: OAUTH_REDIRECT_URI
+    scopes: ['https://www.googleapis.com/auth/spreadsheets']
 });
-
-// Create OAuth2 client with the configured redirect URIs
-const oauth2Client = new google.auth.OAuth2(
-    credentials.client_id,
-    credentials.client_secret,
-    OAUTH_REDIRECT_URI
-);
-
-// Set OAuth2 client redirect URIs
-oauth2Client.setCredentials(credentials);
 
 const sheets = google.sheets({ version: 'v4', auth });
 
@@ -1746,7 +1730,7 @@ async function sendDietRequestEmail(emailAddresses, content, dietRequestDetails,
         const oauth2Client = new google.auth.OAuth2(
             credentials.oauth2.client_id,
             credentials.oauth2.client_secret,
-            OAUTH_REDIRECT_URI  // Use same redirect URI as token generation
+            'http://localhost:10000'  // Use same redirect URI as token generation
         );
 
         // Set refresh token
