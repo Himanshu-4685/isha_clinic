@@ -290,7 +290,7 @@ class AuthManager {
 const authManager = new AuthManager();
 
 // Initialize authentication when DOM is loaded
-window.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', () => {
     authManager.init();
     authManager.setupLogout();
 });
