@@ -9,8 +9,8 @@ class GoogleSheetsAPI {
     // Get the appropriate base URL for API calls
     getBaseURL() {
         // If we're in development (localhost), use the development server
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-            return window.ENV_CONFIG?.DOMAIN ? `${window.ENV_CONFIG.DOMAIN}/api` : 'http://localhost:10000/api';
+        if (window.location.hostname === 'localhost' || process.env.NODE_ENV === 'development') {
+            return 'http://localhost:10000/api';
         }
 
         // For production (Render or any other deployment), use relative path

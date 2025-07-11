@@ -4,34 +4,20 @@ const { google } = require('googleapis');
 const path = require('path');
 const fs = require('fs');
 const nodemailer = require('nodemailer');
+const { CONFIG } = require('./config');
 
-// Load environment variables from .env file
-require('dotenv').config();
+// Load environment variables from .env file in development
+if (process.env.NODE_ENV !== 'production') {
+    require('dotenv').config();
+}
 
 const app = express();
-const PORT = process.env.PORT || 10000;
-const DOMAIN = process.env.NODE_ENV === 'production' 
-    ? process.env.PRODUCTION_DOMAIN 
-    : process.env.DOMAIN || 'http://localhost:10000';
-const OAUTH_REDIRECT_URI = process.env.OAUTH_REDIRECT_URI?.split(',')[0] || 'http://localhost:10000';
+const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.static('.'));
-
-// Inject environment variables into the frontend
-app.use((req, res, next) => {
-    if (req.path === '/env-config.js') {
-        res.setHeader('Content-Type', 'application/javascript');
-        res.send(`window.ENV_CONFIG = {
-            DOMAIN: "${DOMAIN}",
-            SPREADSHEET_ID: "${process.env.SPREADSHEET_ID || '1UQJbelESSslpu0VsgRKFZZD_wRwgRDhPQdTEjtIT7BM'}"
-        };`);
-    } else {
-        next();
-    }
-});
 
 // Load Google Sheets credentials
 let credentials;
@@ -1583,7 +1569,7 @@ async function sendCreditEmail(emailAddresses, content, visitDetails, patientEma
         const oauth2Client = new google.auth.OAuth2(
             credentials.oauth2.client_id,
             credentials.oauth2.client_secret,
-            OAUTH_REDIRECT_URI
+            CONFIG.OAUTH_REDIRECT_URI() // Use OOB (out-of-band) for server applications
         );
 
         // Set refresh token
@@ -1730,7 +1716,7 @@ async function sendDietRequestEmail(emailAddresses, content, dietRequestDetails,
         const oauth2Client = new google.auth.OAuth2(
             credentials.oauth2.client_id,
             credentials.oauth2.client_secret,
-            'http://localhost:10000'  // Use same redirect URI as token generation
+            CONFIG.OAUTH_REDIRECT_URI()  // Use same redirect URI as token generation
         );
 
         // Set refresh token
@@ -2037,16 +2023,33 @@ app.post('/api/send-credit-email', async (req, res) => {
             console.error('Error fetching patient email:', error);
         }
 
-        // Get email template from Hospital Directory H2
+        // Get purpose-specific email template from System Config sheet
         const templateResponse = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: 'Hospital Directory!H2',
+            range: 'System Config!B:C', // Read Purpose (B) and Email template (C) columns
         });
 
         let template = 'Dear {name},\n\nWe are pleased to inform you that your appointment for {Purpose} has been confirmed.\n\nPlease contact us at {Contact} for any queries.\n\nBest regards,\nIsha Yoga Center - Clinic Management';
 
-        if (templateResponse.data.values && templateResponse.data.values[0] && templateResponse.data.values[0][0]) {
-            template = templateResponse.data.values[0][0];
+        // Find template matching the visit purpose
+        if (templateResponse.data.values && templateResponse.data.values.length > 0) {
+            console.log('Looking for template for purpose:', visitDetails.purpose);
+
+            // Skip header row and search for matching purpose
+            for (let i = 1; i < templateResponse.data.values.length; i++) {
+                const row = templateResponse.data.values[i];
+                if (row && row.length >= 2) {
+                    const purposeInSheet = row[0]; // Column B
+                    const templateInSheet = row[1]; // Column C
+
+                    if (purposeInSheet && templateInSheet &&
+                        purposeInSheet.trim().toLowerCase() === visitDetails.purpose.trim().toLowerCase()) {
+                        template = templateInSheet;
+                        console.log('Found matching template for purpose:', purposeInSheet);
+                        break;
+                    }
+                }
+            }
         }
 
         // Replace placeholders in template (case-insensitive)
@@ -3417,7 +3420,6 @@ app.get('/', (req, res) => {
 app.listen(PORT, async () => {
     console.log(`🚀 Clinic Management Server running on port ${PORT}`);
     console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`🌐 Server URL: ${DOMAIN}`);
     console.log(`📊 Google Sheets integration active`);
     console.log(`📋 Spreadsheet ID: ${SPREADSHEET_ID}`);
 
