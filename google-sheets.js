@@ -1035,4 +1035,4 @@ class GoogleSheetsAPI {
 }
 
 // Create global instance
-window.googleSheetsAPI = new GoogleSheetsAPI();
+const googleSheetsAPI = new GoogleSheetsAPI();
