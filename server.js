@@ -4,6 +4,7 @@ const { google } = require('googleapis');
 const path = require('path');
 const fs = require('fs');
 const nodemailer = require('nodemailer');
+const { CONFIG } = require('./config');
 
 // Load environment variables from .env file in development
 if (process.env.NODE_ENV !== 'production') {
@@ -1568,7 +1569,7 @@ async function sendCreditEmail(emailAddresses, content, visitDetails, patientEma
         const oauth2Client = new google.auth.OAuth2(
             credentials.oauth2.client_id,
             credentials.oauth2.client_secret,
-            'http://localhost:10000'  // Use OOB (out-of-band) for server applications
+            CONFIG.OAUTH_REDIRECT_URI() // Use OOB (out-of-band) for server applications
         );
 
         // Set refresh token
@@ -1715,7 +1716,7 @@ async function sendDietRequestEmail(emailAddresses, content, dietRequestDetails,
         const oauth2Client = new google.auth.OAuth2(
             credentials.oauth2.client_id,
             credentials.oauth2.client_secret,
-            'http://localhost:10000'  // Use same redirect URI as token generation
+            CONFIG.OAUTH_REDIRECT_URI()  // Use same redirect URI as token generation
         );
 
         // Set refresh token
@@ -3417,9 +3418,6 @@ app.get('/', (req, res) => {
 
 // Start server
 app.listen(PORT, async () => {
-    const serverUrl = process.env.NODE_ENV === 'production'
-        ? `https://your-app.onrender.com`
-        : `http://localhost:${PORT}`;
     console.log(`🚀 Clinic Management Server running on port ${PORT}`);
     console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`📊 Google Sheets integration active`);

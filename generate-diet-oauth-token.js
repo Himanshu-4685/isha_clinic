@@ -11,7 +11,7 @@ const credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
 const oauth2Client = new google.auth.OAuth2(
     credentials.oauth2.client_id,
     credentials.oauth2.client_secret,
-    'http://localhost:10000' // Use localhost redirect URI
+    CONFIG.OAUTH_REDIRECT_URI()  
 );
 
 // Gmail scopes for sending emails only (minimal required scope)

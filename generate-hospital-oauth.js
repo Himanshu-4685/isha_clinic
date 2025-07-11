@@ -15,7 +15,7 @@ console.log('');
 const oauth2Client = new google.auth.OAuth2(
     credentials.oauth2.client_id,
     credentials.oauth2.client_secret,
-    'http://localhost:10000'
+    CONFIG.OAUTH_REDIRECT_URI()
 );
 
 // Gmail scopes for sending emails only

@@ -6,6 +6,15 @@ const CONFIG = {
         PASSWORD: 'password'
     },
 
+    OAUTH_REDIRECT_URI : function() {
+        if(process.env.NODE_ENV === 'production'){
+               // production enviroment
+               return 'https://isha-clinic.onrender.com';
+        }
+        // development enviroment
+        else return 'http://localhost:10000';
+    },
+
     // Google Sheets Configuration
     GOOGLE_SHEETS: {
         SPREADSHEET_ID: '1UQJbelESSslpu0VsgRKFZZD_wRwgRDhPQdTEjtIT7BM',
