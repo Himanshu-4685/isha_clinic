@@ -213,6 +213,79 @@ class HospitalVisitManager {
                 this.updatePatientDetails();
             });
         }
+
+        // Handle purpose change for dynamic doctor field label
+        const purposeSelect = document.getElementById('visitPurpose');
+        if (purposeSelect) {
+            purposeSelect.addEventListener('change', (e) => {
+                this.handlePurposeChange(e.target.value);
+            });
+
+            // Initialize field label based on current selection
+            if (purposeSelect.value) {
+                this.handlePurposeChange(purposeSelect.value);
+            }
+        }
+    }
+
+    // Handle purpose change for dynamic doctor field label
+    handlePurposeChange(purpose) {
+        const doctorLabel = document.querySelector('label[for="visitDoctor"]');
+        const doctorField = document.getElementById('visitDoctor');
+
+        if (!doctorLabel || !doctorField) return;
+
+        // Define field names based on purpose
+        const fieldMappings = {
+            'Blood Test': {
+                label: 'Test Name',
+                placeholder: 'Enter test name details'
+            },
+            'MRI Scan': {
+                label: 'Scan Name',
+                placeholder: 'Enter MRI scan details'
+            },
+            'Ultrasound Scan': {
+                label: 'Scan Name',
+                placeholder: 'Enter ultrasound scan details'
+            }
+        };
+
+        // Update label and placeholder based on purpose
+        if (fieldMappings[purpose]) {
+            // Remove existing required indicator
+            const existingRequired = doctorLabel.querySelector('.required-indicator');
+            if (existingRequired) {
+                existingRequired.remove();
+            }
+
+            // Update label text
+            doctorLabel.innerHTML = fieldMappings[purpose].label;
+
+            // Update placeholder
+            doctorField.placeholder = fieldMappings[purpose].placeholder;
+        } else {
+            // Default to "Doctor" for other purposes
+            const existingRequired = doctorLabel.querySelector('.required-indicator');
+            if (existingRequired) {
+                existingRequired.remove();
+            }
+
+            doctorLabel.innerHTML = 'Doctor';
+            doctorField.placeholder = 'Enter doctor details';
+        }
+
+        // Add required indicator for "Consultation & Investigation"
+        if (purpose === 'Consultation & Investigation') {
+            const requiredSpan = document.createElement('span');
+            requiredSpan.className = 'required-indicator';
+            requiredSpan.style.color = '#e74c3c';
+            requiredSpan.textContent = ' *';
+            doctorLabel.appendChild(requiredSpan);
+        }
+
+        // Trigger form validation to update any validation states
+        this.validateForm();
     }
 
     // Setup form validation
@@ -882,10 +955,13 @@ class HospitalVisitManager {
             errors.push('At least one hospital must be selected');
         }
 
-        // Special validation: Doctor field is mandatory when purpose is "Consultation & Investigation"
+        // Special validation: Doctor/Test Name/Scan Name field is mandatory when purpose is "Consultation & Investigation"
         if (data.purpose === 'Consultation & Investigation') {
             if (!data.doctor || data.doctor === '') {
-                errors.push('Doctor is required when purpose is "Consultation & Investigation"');
+                // Get current field name from label
+                const label = document.querySelector('label[for="visitDoctor"]');
+                const fieldName = label ? label.textContent.replace(' *', '').trim() : 'Doctor';
+                errors.push(`${fieldName} is required when purpose is "Consultation & Investigation"`);
 
                 // Highlight the doctor field to show it's required
                 const doctorField = document.getElementById('visitDoctor');
@@ -894,7 +970,6 @@ class HospitalVisitManager {
                     doctorField.style.backgroundColor = '#fdf2f2';
 
                     // Add required indicator if not already present
-                    const label = document.querySelector('label[for="visitDoctor"]');
                     if (label && !label.querySelector('.required-indicator')) {
                         const requiredSpan = document.createElement('span');
                         requiredSpan.className = 'required-indicator';
@@ -1030,6 +1105,9 @@ class HospitalVisitManager {
 
             // Close hospital dropdown
             this.closeHospitalDropdown();
+
+            // Reset doctor field label to default
+            this.handlePurposeChange('');
 
             // Reset validation
             this.validateForm();

@@ -403,7 +403,8 @@ class RegisterPatientManager {
                 { value: 'Sevadar', text: 'Sevadar' },
                 { value: 'Samskriti', text: 'Samskriti' },
                 { value: 'Guest', text: 'Guest' },
-                { value: 'SPD', text: 'SPD' }
+                { value: 'SPD', text: 'SPD' },
+                { value: 'HYTT', text: 'HYTT' }
             ];
 
             poornangaOptions.forEach(option => {
@@ -422,7 +423,8 @@ class RegisterPatientManager {
                 { value: 'Sevadar', text: 'Sevadar' },
                 { value: 'Samskriti', text: 'Samskriti' },
                 { value: 'Guest', text: 'Guest' },
-                { value: 'SPD', text: 'SPD' }
+                { value: 'SPD', text: 'SPD' },
+                { value: 'HYTT', text: 'HYTT' }
             ];
 
             nonPoornangaOptions.forEach(option => {
