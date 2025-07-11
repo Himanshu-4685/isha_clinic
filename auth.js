@@ -75,7 +75,9 @@ class AuthManager {
             }
 
             // Validate credentials
-            if (await this.validateCredentials(username, password)) {
+            const validationResult = await this.validateCredentials(username, password);
+
+            if (validationResult === true) {
                 // Set authentication state
                 this.isAuthenticated = true;
                 this.currentUser = {
@@ -98,7 +100,31 @@ class AuthManager {
                 // Show success message briefly
                 this.showLoginSuccess();
 
-            } else {
+            } else if (validationResult === 'fallback') {
+                console.log('Attempting fallback authentication.');
+                // System config failed, try fallback from config.js
+                if (username === CONFIG.AUTH.USERNAME && password === CONFIG.AUTH.PASSWORD) {
+                    this.isAuthenticated = true;
+                    this.currentUser = { username: username, loginTime: new Date().toISOString() };
+                    this.saveAuthState();
+                    const initialized = await googleSheetsAPI.initialize();
+                    if (!initialized) {
+                        throw new Error('Failed to initialize Google Sheets API');
+                    }
+                    this.showMainApp();
+                    this.showLoginSuccess();
+                } else {
+                    if (errorDiv) {
+                        errorDiv.textContent = 'System Config not available. Invalid local credentials.';
+                    }
+                    const passwordInput = document.getElementById('password');
+                    if (passwordInput) {
+                        passwordInput.value = '';
+                        passwordInput.focus();
+                    }
+                }
+            }
+            else {
                 // Show error message
                 if (errorDiv) {
                     errorDiv.textContent = 'Invalid username or password';
@@ -144,13 +170,12 @@ class AuthManager {
 
             // Fallback to config file if system config fails
             console.warn('System Config authentication failed, using fallback credentials from config file');
-            return username === CONFIG.AUTH.USERNAME && password === CONFIG.AUTH.PASSWORD;
+            return 'fallback'; // Special value to indicate fallback
 
         } catch (error) {
             console.error('Error validating credentials:', error);
             console.warn('Using fallback authentication from config file due to error');
-            // Fallback to config file
-            return username === CONFIG.AUTH.USERNAME && password === CONFIG.AUTH.PASSWORD;
+            return 'fallback'; // Special value to indicate error/fallback
         }
     }
 
