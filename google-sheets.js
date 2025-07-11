@@ -15,7 +15,7 @@ class GoogleSheetsAPI {
 
         // For production (Render or any other deployment), use relative path
         // This will automatically use the same domain and port as the frontend
-        return '/api';
+        return CONFIG.OAUTH_REDIRECT_URI()+'/api';
     }
 
     // Initialize the Google Sheets API connection
@@ -1035,4 +1035,4 @@ class GoogleSheetsAPI {
 }
 
 // Create global instance
-const googleSheetsAPI = new GoogleSheetsAPI();
+window.googleSheetsAPI = new GoogleSheetsAPI();
